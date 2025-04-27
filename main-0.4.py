@@ -1,7 +1,7 @@
 # main_oop.py
 """
 功能：多目标跳绳计数程序骨架（单人示例）
-版本：0.4.7
+版本：0.4.8
 更新日志：
   0.4.0 - 首次引入 Detector/Tracker/Participant 分层架构骨架，单人演示
   0.4.1 - 在 Participant 中标记头/躯干/髋部/膝盖关键点并叠加实时 y 值
@@ -11,6 +11,7 @@
   0.4.5 - 添加目标远近与平移方向检测：基于 bbox 中心和尺寸变化，判定左右/上下/远近移动
   0.4.6 - 移除 bbox 检测，启用全帧姿势检测，仅显示关键节点，无计数
   0.4.7 - 集成 MediaPipe 绘制函数，显示完整骨架（火柴人）
+  0.4.8 - 添加运动方向检测：基于关键点包围盒中心与面积变化，判定左/右/靠近/远离，并在屏幕及标准输出显示
 """
 
 import cv2
@@ -59,6 +60,31 @@ class Participant:
         self.joint_points['hip'],   self.joint_values['hip']   = pt(self.mp_pose.PoseLandmark.LEFT_HIP)
         self.joint_points['leg'],   self.joint_values['leg']   = pt(self.mp_pose.PoseLandmark.LEFT_KNEE)
 
+        # 运动方向检测：基于归一化关键点包围盒中心与面积变化
+        # 计算归一化 bbox min/max
+        xs = [p.x for p in img_lm]
+        ys = [p.y for p in img_lm]
+        min_x, max_x = min(xs), max(xs)
+        min_y, max_y = min(ys), max(ys)
+        center_x = (min_x + max_x) / 2
+        center_y = (min_y + max_y) / 2
+        area = (max_x - min_x) * (max_y - min_y)
+        # 判断方向
+        if self.last_center is not None:
+            dx = center_x - self.last_center[0]
+            da = area - self.last_area
+            # 阈值，可调整
+            dir_label = 'Stationary'
+            if abs(dx) > 0.02:
+                dir_label = 'Right' if dx > 0 else 'Left'
+            elif abs(da) > 0.02:
+                dir_label = 'Closer' if da > 0 else 'Away'
+            self.direction = dir_label
+            print(f"ID{self.id} Direction: {self.direction}")
+        # 更新历史
+        self.last_center = (center_x, center_y)
+        self.last_area   = area
+
     def visualize(self, frame):
         # 绘制完整骨架火柴人
         if self.latest_landmarks:
@@ -72,6 +98,10 @@ class Participant:
             val = self.joint_values[label]
             cv2.circle(frame, (cx,cy), 6, (0,0,255), -1)
             cv2.putText(frame, f"{label}:{val:.2f}", (cx+5,cy-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255),1)
+        if self.direction:
+            cv2.putText(frame, f"Dir:{self.direction}",
+                        (10,30), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.8, (0,255,255), 2)
 
 
 # —— App/Manager 主控 —— #
