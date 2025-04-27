@@ -1,7 +1,7 @@
 # main_oop.py
 """
 功能：多目标跳绳计数程序骨架（单人示例）
-版本：0.4.9
+版本：0.4.10
 更新日志：
   0.4.0 - 首次引入 Detector/Tracker/Participant 分层架构骨架，单人演示
   0.4.1 - 在 Participant 中标记头/躯干/髋部/膝盖关键点并叠加实时 y 值
@@ -13,6 +13,7 @@
   0.4.7 - 集成 MediaPipe 绘制函数，显示完整骨架（火柴人）
   0.4.8 - 添加运动方向检测：基于关键点包围盒中心与面积变化，判定左/右/靠近/远离，并在屏幕及标准输出显示
   0.4.9 - 四标签 左近远右 动态字体大小显示移动速度，标准输出打印
+  0.4.10 - 将方向标签替换为 ASCII 字符 L/N/F/R，并增大间距避免重叠
 """
 
 import cv2
@@ -85,7 +86,7 @@ class Participant:
             # magnitudes for left, near, far, right
             mags = [max(0, -dx), max(0, da), max(0, -da), max(0, dx)]
             max_mag = max(mags)
-            chars = ['左', '近', '远', '右']
+            chars = ['L', 'N', 'F', 'R']  # Left, Near, Far, Right (ASCII avoids乱码)
             # print to stdout the strongest direction
             if max_mag > 0:
                 idx = mags.index(max_mag)
@@ -115,9 +116,9 @@ class Participant:
         mag_right = max(0, self.dx)
         mags = [mag_left, mag_near, mag_far, mag_right]
         max_mag = max(mags)
-        chars = ['左', '近', '远', '右']
+        chars = ['L', 'N', 'F', 'R']  # Left, Near, Far, Right (ASCII avoids乱码)
         x0, y0 = 10, 30
-        gap = 40
+        gap = 60  # 增大间距
         for i, ch in enumerate(chars):
             mag = mags[i]
             if max_mag > 1e-6:
