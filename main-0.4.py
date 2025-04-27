@@ -1,7 +1,7 @@
 # main_oop.py
 """
 功能：多目标跳绳计数程序骨架（单人示例）
-版本：0.4.10
+版本：0.4.11
 更新日志：
   0.4.0 - 首次引入 Detector/Tracker/Participant 分层架构骨架，单人演示
   0.4.1 - 在 Participant 中标记头/躯干/髋部/膝盖关键点并叠加实时 y 值
@@ -14,12 +14,16 @@
   0.4.8 - 添加运动方向检测：基于关键点包围盒中心与面积变化，判定左/右/靠近/远离，并在屏幕及标准输出显示
   0.4.9 - 四标签 左近远右 动态字体大小显示移动速度，标准输出打印
   0.4.10 - 将方向标签替换为 ASCII 字符 L/N/F/R，并增大间距避免重叠
+  0.4.11 - 实现第二步: 头部时间序列波形绘制及分割标记
 """
 
 import cv2
 import time
 import numpy as np
 import mediapipe as mp
+from collections import deque
+# 右侧面板宽度（也等于时间序列缓冲长度）
+PANEL_WIDTH = 320
 
 
 # —— Participant 模块 —— #
@@ -136,6 +140,35 @@ class RopeJumpApp:
         self.cap = cv2.VideoCapture(0)
         # 单人全帧姿势检测，只维护一个 Participant
         self.participant = Participant(0)
+        # head 节点时间序列缓存
+        self.head_buffer = deque(maxlen=PANEL_WIDTH)
+
+    def draw_panel(self, frame):
+        """在画面右侧绘制 head 时间序列及分割标记"""
+        h, w, _ = frame.shape
+        # 新建画布
+        panel = np.zeros((h, PANEL_WIDTH, 3), dtype=np.uint8)
+        vals = list(self.head_buffer)
+        if len(vals) > 1:
+            arr = np.array(vals)
+            mn, mx = arr.min(), arr.max()
+            norm = (arr - mn) / (mx - mn) if mx > mn else np.zeros_like(arr)
+            ys = (h - 1 - (norm * (h - 1))).astype(int)
+            xs = np.linspace(0, PANEL_WIDTH - 1, len(ys)).astype(int)
+            # 绘制波形
+            for i in range(1, len(xs)):
+                cv2.line(panel,
+                         (xs[i-1], ys[i-1]),
+                         (xs[i],   ys[i]),
+                         (0, 255, 255), 1)
+            # 分割标记：零交叉点
+            mean = arr.mean()
+            for i in range(1, len(arr)):
+                if (arr[i] - mean) > 0 and (arr[i-1] - mean) <= 0:
+                    x = int(i * PANEL_WIDTH / len(arr))
+                    cv2.line(panel, (x, 0), (x, h - 1), (0, 0, 255), 1)
+        # 拼接
+        frame[:] = np.hstack((frame, panel))
 
     def run(self):
         while True:
@@ -146,7 +179,15 @@ class RopeJumpApp:
             # 全帧姿势检测
             p = self.participant
             p.update(frame)
+
+            # 记录 head y 值
+            head_val = p.joint_values.get('head')
+            if head_val is not None:
+                self.head_buffer.append(head_val)
+
             p.visualize(frame)
+
+            self.draw_panel(frame)
 
             cv2.imshow("RopeJump OOP 0.4.6", frame)
             if cv2.waitKey(1) & 0xFF == 27:
