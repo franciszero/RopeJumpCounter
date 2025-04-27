@@ -1,12 +1,14 @@
 # main_oop.py
 """
 功能：多目标跳绳计数程序骨架（单人示例）
-版本：0.4.3
+版本：0.4.5
 更新日志：
   0.4.0 - 首次引入 Detector/Tracker/Participant 分层架构骨架，单人演示
   0.4.1 - 在 Participant 中标记头/躯干/髋部/膝盖关键点并叠加实时 y 值
   0.4.2 - 改进 Detector：用 MediaPipe 关键点自动算出紧凑包围盒，实际可见检测框
   0.4.3 - 修复 pt 函数返回值导致的 unpack 错误，将其改为返回(point, y_val)二元组
+  0.4.4 - 修复坐标投影：使用 pose_landmarks 做图像点投影，使用 pose_world_landmarks 做跳跃信号
+  0.4.5 - 添加目标远近与平移方向检测：基于 bbox 中心和尺寸变化，判定左右/上下/远近移动
 """
 
 import cv2
@@ -108,41 +110,76 @@ class Participant:
         self.pose    = self.mp_pose.Pose(min_detection_confidence=0.5)
         self.joint_points = {}
         self.joint_values = {}
+        # 记录上一次中心点和面积，用于运动方向检测
+        self.last_center = None  # (cx, cy)
+        self.last_area   = None
+        self.direction   = None  # 最近一帧的运动方向标签
 
     def update(self, frame, bbox):
         x1, y1, x2, y2 = map(int, bbox)
+        cx = (x1 + x2) / 2
+        cy = (y1 + y2) / 2
+        area = (x2 - x1) * (y2 - y1)
+        # 计算运动方向
+        if self.last_center is not None and self.last_area is not None:
+            dx = cx - self.last_center[0]
+            dy = cy - self.last_center[1]
+            da = area - self.last_area
+            dir_list = []
+            # 平移左右阈值 5 像素
+            if dx > 5:
+                dir_list.append('Right')
+            elif dx < -5:
+                dir_list.append('Left')
+            # 平移上下阈值 5 像素
+            if dy > 5:
+                dir_list.append('Down')
+            elif dy < -5:
+                dir_list.append('Up')
+            # 尺寸变化表示远近，阈值为面积相对变化 0.05
+            if da > self.last_area * 0.05:
+                dir_list.append('Closer')
+            elif da < -self.last_area * 0.05:
+                dir_list.append('Away')
+            self.direction = '+'.join(dir_list) if dir_list else 'Static'
+        # 更新历史
+        self.last_center = (cx, cy)
+        self.last_area   = area
+
         roi = frame[y1:y2, x1:x2]
         if roi.size == 0:
             return
         rgb = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
         res = self.pose.process(rgb)
-        if not res.pose_world_landmarks:
+        # 需要同时有图像和世界关键点
+        if not res.pose_landmarks or not res.pose_world_landmarks:
             return
+        img_lm   = res.pose_landmarks.landmark
+        world_lm = res.pose_world_landmarks.landmark
 
-        lm = res.pose_world_landmarks.landmark
-        # 躯干高度信号
-        sy = lm[self.mp_pose.PoseLandmark.LEFT_SHOULDER].y + \
-             lm[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].y
-        hy = lm[self.mp_pose.PoseLandmark.LEFT_HIP].y + \
-             lm[self.mp_pose.PoseLandmark.RIGHT_HIP].y
+        # 用世界坐标计算跳跃信号
+        sy = world_lm[self.mp_pose.PoseLandmark.LEFT_SHOULDER].y + \
+             world_lm[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].y
+        hy = world_lm[self.mp_pose.PoseLandmark.LEFT_HIP].y + \
+             world_lm[self.mp_pose.PoseLandmark.RIGHT_HIP].y
         y_val = (sy + hy) / 4.0
+        self.pipeline.update(y_val)
 
-        # 头、躯干、髋、膝四点像素 & 归一化 y
-        def pt(lm_idx):
-            p = lm[lm_idx]
-            point = (x1 + int(p.x*(x2-x1)), y1 + int(p.y*(y2-y1)))
-            return point, p.y
+        # 改用图像坐标投影关键点
+        def pt(idx):
+            p = img_lm[idx]
+            px = x1 + int(p.x * (x2 - x1))
+            py = y1 + int(p.y * (y2 - y1))
+            return (px, py), p.y
 
         self.joint_points['head'],  self.joint_values['head']  = pt(self.mp_pose.PoseLandmark.NOSE)
         # 计算肩部中点
-        sx = (lm[self.mp_pose.PoseLandmark.LEFT_SHOULDER].x + lm[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].x) / 2
-        sy_norm = (lm[self.mp_pose.PoseLandmark.LEFT_SHOULDER].y + lm[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].y) / 2
-        trunk_point = (x1 + int(sx*(x2-x1)), y1 + int(sy_norm*(y2-y1)))
+        sx = (img_lm[self.mp_pose.PoseLandmark.LEFT_SHOULDER].x + img_lm[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].x) / 2
+        sy_norm = (img_lm[self.mp_pose.PoseLandmark.LEFT_SHOULDER].y + img_lm[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].y) / 2
+        trunk_point = (x1 + int(sx * (x2 - x1)), y1 + int(sy_norm * (y2 - y1)))
         self.joint_points['trunk'], self.joint_values['trunk'] = trunk_point, sy_norm
         self.joint_points['hip'],   self.joint_values['hip']   = pt(self.mp_pose.PoseLandmark.LEFT_HIP)
         self.joint_points['leg'],   self.joint_values['leg']   = pt(self.mp_pose.PoseLandmark.LEFT_KNEE)
-
-        self.pipeline.update(y_val)
 
     def visualize(self, frame, bbox):
         x1, y1, x2, y2 = map(int, bbox)
@@ -152,6 +189,14 @@ class Participant:
                     f"ID{self.id} J:{self.pipeline.jump_count}",
                     (x1, y1-10),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
+
+        # 显示运动方向
+        if self.direction:
+            cv2.putText(frame,
+                        f"Dir:{self.direction}",
+                        (x1, y2 + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+                        (0,255,255), 2)
 
         # 四个关键点 & 值
         for label, (cx, cy) in self.joint_points.items():
