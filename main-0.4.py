@@ -1,7 +1,7 @@
 # main_oop.py
 """
 功能：多目标跳绳计数程序骨架（单人示例）
-版本：0.4.11
+版本：0.4.12
 更新日志：
   0.4.0 - 首次引入 Detector/Tracker/Participant 分层架构骨架，单人演示
   0.4.1 - 在 Participant 中标记头/躯干/髋部/膝盖关键点并叠加实时 y 值
@@ -15,6 +15,7 @@
   0.4.9 - 四标签 左近远右 动态字体大小显示移动速度，标准输出打印
   0.4.10 - 将方向标签替换为 ASCII 字符 L/N/F/R，并增大间距避免重叠
   0.4.11 - 实现第二步: 头部时间序列波形绘制及分割标记
+  0.4.12 - 修复画面拼接错误：draw_panel 返回新图像并在 run 中接收
 """
 
 import cv2
@@ -168,7 +169,8 @@ class RopeJumpApp:
                     x = int(i * PANEL_WIDTH / len(arr))
                     cv2.line(panel, (x, 0), (x, h - 1), (0, 0, 255), 1)
         # 拼接
-        frame[:] = np.hstack((frame, panel))
+        # 返回拼接后的全画面
+        return np.hstack((frame, panel))
 
     def run(self):
         while True:
@@ -187,9 +189,9 @@ class RopeJumpApp:
 
             p.visualize(frame)
 
-            self.draw_panel(frame)
-
-            cv2.imshow("RopeJump OOP 0.4.6", frame)
+            # 绘制并接收拼接面板后的新画面
+            frame = self.draw_panel(frame)
+            cv2.imshow("RopeJump OOP 0.4.12", frame)
             if cv2.waitKey(1) & 0xFF == 27:
                 break
 
