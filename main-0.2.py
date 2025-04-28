@@ -24,32 +24,34 @@ import mediapipe as mp
 from collections import deque
 
 # ===== Configuration =====
-VERSION       = "v0.2"
-BUFFER_LEN    = 320      # Number of samples to keep for each curve
-ALPHA         = 0.2      # Exponential smoothing factor
-TREND_WINDOW  = 64       # Window size for moving average trend
-BASELINE_BUF  = 150      # Initial frames to collect baseline
-MIN_INTERVAL  = 0.3      # Minimum seconds between counts
-MAX_BG_PTS    = 200      # Max background points to track
+VERSION = "v0.2"
+BUFFER_LEN = 320  # Number of samples to keep for each curve
+ALPHA = 0.2  # Exponential smoothing factor
+TREND_WINDOW = 64  # Window size for moving average trend
+BASELINE_BUF = 150  # Initial frames to collect baseline
+MIN_INTERVAL = 0.3  # Minimum seconds between counts
+MAX_BG_PTS = 200  # Max background points to track
 # =========================
 
 # ===== State Buffers =====
-raw_buf    = deque(maxlen=BUFFER_LEN)
+raw_buf = deque(maxlen=BUFFER_LEN)
 smooth_buf = deque(maxlen=BUFFER_LEN)
-trend_buf  = deque(maxlen=BUFFER_LEN)
-fluct_buf  = deque(maxlen=BUFFER_LEN)
+trend_buf = deque(maxlen=BUFFER_LEN)
+fluct_buf = deque(maxlen=BUFFER_LEN)
 
-jump_count     = 0
-prev_sign      = -1
+jump_count = 0
+prev_sign = -1
 last_jump_time = 0
-frame_idx      = 0
+frame_idx = 0
 
 # For background flow
 prev_gray = None
-bg_pts    = None
+bg_pts = None
 
 # For body delta
 torso_y_prev = None
+
+
 # =========================
 
 def main():
@@ -68,7 +70,7 @@ def main():
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
-    lk_params = dict(winSize=(15,15), maxLevel=2,
+    lk_params = dict(winSize=(15, 15), maxLevel=2,
                      criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
 
     while True:
@@ -95,7 +97,7 @@ def main():
         if results.pose_landmarks:
             lm = results.pose_landmarks.landmark
             sy = lm[mp_pose.PoseLandmark.LEFT_SHOULDER].y + lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].y
-            hy = lm[mp_pose.PoseLandmark.LEFT_HIP].y      + lm[mp_pose.PoseLandmark.RIGHT_HIP].y
+            hy = lm[mp_pose.PoseLandmark.LEFT_HIP].y + lm[mp_pose.PoseLandmark.RIGHT_HIP].y
             torso_y = (sy + hy) / 4.0
         else:
             torso_y = torso_y_prev if torso_y_prev is not None else 0.5
@@ -171,10 +173,10 @@ def main():
         canvas = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
         row_h = canvas_h // 4
         series = [
-            (raw_buf,    "Raw RelSpd"),
+            (raw_buf, "Raw RelSpd"),
             (smooth_buf, "Smoothed"),
-            (trend_buf,  "Trend"),
-            (fluct_buf,  "Fluctuation")
+            (trend_buf, "Trend"),
+            (fluct_buf, "Fluctuation")
         ]
         for idx, (buf, label) in enumerate(series):
             arr = np.array(buf)
@@ -184,12 +186,12 @@ def main():
                 mn, mx = arr.min(), arr.max()
                 norm = (arr - mn) / (mx - mn) if mx > mn else np.full_like(arr, 0.5)
                 for i in range(1, len(norm)):
-                    x1, x2 = i-1, i
-                    yy1 = int(y1 - norm[i-1] * row_h)
-                    yy2 = int(y1 - norm[i]   * row_h)
-                    cv2.line(canvas, (x1, yy1), (x2, yy2), (200,200,200), 1)
-            cv2.putText(canvas, label, (5, y0+20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255), 1)
+                    x1, x2 = i - 1, i
+                    yy1 = int(y1 - norm[i - 1] * row_h)
+                    yy2 = int(y1 - norm[i] * row_h)
+                    cv2.line(canvas, (x1, yy1), (x2, yy2), (200, 200, 200), 1)
+            cv2.putText(canvas, label, (5, y0 + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
         full_img = cv2.hconcat([frame, canvas])
         cv2.imshow("JumpRope Debug v0.2", full_img)
@@ -198,6 +200,7 @@ def main():
 
     cap.release()
     cv2.destroyAllWindows()
+
 
 if __name__ == "__main__":
     main()
