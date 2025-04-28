@@ -236,7 +236,7 @@ class MainApp:
         self.filters = {r: TrendFilter() for r in regions}
 
         # Load the trained LSTM model (.h5) and prepare sequence buffer
-        self.lstm_model = tf.keras.models.load_model("./PoseDetection/models/lstm_jump_classifier.h5")
+        self.lstm_model = tf.keras.models.load_model("./PoseDetection/models/crnn_jump_classifier.h5")
         # Determine input window size and feature dim from model
         _, W, D = self.lstm_model.input_shape
         from collections import deque
