@@ -1,13 +1,33 @@
+"""
+跳绳计数器主程序 (面向对象版)
+版本：0.3.11
+
+功能：
+- 面向对象重构：PoseEstimator, BackgroundTracker, TrendFilter, MultiRegionJumpDetector, DebugRenderer, MainApp
+- 区域高度计算：支持 head, torso, legs 区域高度提取
+- 背景补偿：LK 光流消除摄像头抖动
+- 趋势分离：指数平滑 + 移动平均分离高频波动
+- 多区域同相位检测：同时监测多条波动的负→正过零
+- 可配置区域列表：MainApp 可传入不同区域组合
+- 可视化调试：在摄像头画面下方绘制每个区域高频波动时间序列；左上角高亮跳数
+- 支持动态调整跳数字体大小与颜色
+
+更新日志：
+0.3.0  - 初始 OOP 重构版本，实现 0.2 核心跳绳管线 (背景补偿+趋势分解+零交叉+调试 UI)
+0.3.1  - 增加多区域支持 (head, torso, legs) 及对应滤波器
+0.3.2  - 集成 MultiRegionJumpDetector，实现多区域同相位跳跃检测
+0.3.3  - 支持通过构造函数配置区域列表
+0.3.4  - 优化调试 UI：增大跳数文本字体、修改文本颜色为黄色
+0.3.5  - 修复相对速度计算逻辑，使用 prev_torso_y 替换错误引用
+0.3.6  - 代码清理及注释增强
+0.3.11 - 最终迭代，完善文档与版本标记
+"""
+
 import cv2
 import time
 import numpy as np
 from collections import deque
 import mediapipe as mp
-
-
-# =========================
-# 1. PoseEstimator：MediaPipe 姿势检测 + 区域高度接口
-# =========================
 class PoseEstimator:
     def __init__(self,
                  model_complexity=0,
