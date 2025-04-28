@@ -13,9 +13,8 @@
 
 import os
 import numpy as np
-import tensorflow as tf
-from keras import layers, models, callbacks
 from sklearn.preprocessing import LabelEncoder
+import tensorflow as tf
 from sklearn.model_selection import train_test_split
 
 
@@ -28,24 +27,32 @@ def load_data(dataset_dir, window_size):
 
 
 def encode_labels(y):
+    """
+    输入：
+      y: 形如 ['jump','non_jump',...]
+    输出：
+      y_oh: shape (N, C) 的 one-hot 数组
+      le: LabelEncoder 实例（可逆编码）
+    """
     le = LabelEncoder()
-    y_enc = le.fit_transform(y)
-    # 转为 one-hot
-    y_oh = tf.keras.utils.to_categorical(y_enc)
+    y_enc = le.fit_transform(y)  # 整数编码 0,1,...
+    num_classes = len(le.classes_)  # 类别总数
+    # 手动 one-hot
+    y_oh = np.eye(num_classes, dtype=np.float32)[y_enc]
     return y_oh, le
 
 
 def build_cnn_model(input_shape, num_classes):
-    model = models.Sequential([
-        layers.Conv1D(64, 3, activation="relu", input_shape=input_shape),
-        layers.MaxPooling1D(2),
-        layers.Conv1D(128, 3, activation="relu"),
-        layers.MaxPooling1D(2),
-        layers.Conv1D(256, 3, activation="relu"),
-        layers.GlobalAveragePooling1D(),
-        layers.Dense(128, activation="relu"),
-        layers.Dropout(0.5),
-        layers.Dense(num_classes, activation="softmax")
+    model = tf.keras.models.Sequential([
+        tf.keras.layers.Conv1D(64, 3, activation="relu", input_shape=input_shape),
+        tf.keras.layers.MaxPooling1D(2),
+        tf.keras.layers.Conv1D(128, 3, activation="relu"),
+        tf.keras.layers.MaxPooling1D(2),
+        tf.keras.layers.Conv1D(256, 3, activation="relu"),
+        tf.keras.layers.GlobalAveragePooling1D(),
+        tf.keras.layers.Dense(128, activation="relu"),
+        tf.keras.layers.Dropout(0.5),
+        tf.keras.layers.Dense(num_classes, activation="softmax")
     ])
     model.compile(
         optimizer="adam",
@@ -56,12 +63,12 @@ def build_cnn_model(input_shape, num_classes):
 
 
 def build_lstm_model(input_shape, num_classes):
-    model = models.Sequential([
-        layers.LSTM(128, return_sequences=True, input_shape=input_shape),
-        layers.LSTM(64),
-        layers.Dense(64, activation="relu"),
-        layers.Dropout(0.5),
-        layers.Dense(num_classes, activation="softmax")
+    model = tf.keras.models.Sequential([
+        tf.keras.layers.LSTM(128, return_sequences=True, input_shape=input_shape),
+        tf.keras.layers.LSTM(64),
+        tf.keras.layers.Dense(64, activation="relu"),
+        tf.keras.layers.Dropout(0.5),
+        tf.keras.layers.Dense(num_classes, activation="softmax")
     ])
     model.compile(
         optimizer="adam",
@@ -102,7 +109,7 @@ def main():
     input_shape = (W, D)
     # 回调：早停 + 保存最优
     cb = [
-        callbacks.EarlyStopping(patience=5, restore_best_weights=True),
+        tf.keras.callbacks.EarlyStopping(patience=5, restore_best_weights=True),
     ]
 
     # 2. 训练并评估 1D-CNN
