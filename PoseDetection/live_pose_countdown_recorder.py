@@ -3,7 +3,7 @@
 python live_pose_countdown_recorder.py \
     --output_dir ./raw_videos \
     --prefix jump \
-    --segments 5 \
+    --segments 2 \
     --duration 10 \
     --countdown 3 \
     --width 640 \
@@ -17,7 +17,7 @@ python live_pose_countdown_recorder.py \
 •	--countdown：每次录制前的倒计时长度（秒）
 •	--width/--height/--fps：摄像头采集分辨率和帧率
 """
-
+import glob
 import os
 import cv2
 import time
@@ -69,9 +69,20 @@ def main():
     cap.set(cv2.CAP_PROP_FPS, args.fps)
 
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    segment = 1
+    # Determine the next file index to use
+    existing = glob.glob(os.path.join(args.output_dir, f"{args.prefix}_*.avi"))
+    if existing:
+        max_idx = max(
+            int(os.path.splitext(os.path.basename(p))[0].split("_")[1])
+            for p in existing
+        )
+        start_idx = max_idx + 1
+    else:
+        start_idx = 1
 
-    while segment <= args.segments:
+    # Record the specified number of segments, continuing numbering
+    for i in range(args.segments):
+        segment = start_idx + i
         # 倒计时
         start_cd = time.time()
         while True:
@@ -107,7 +118,7 @@ def main():
         writer = cv2.VideoWriter(filepath, fourcc,
                                  args.fps,
                                  (args.width, args.height))
-        print(f"=== Recording segment {segment}/{args.segments}: {filename}")
+        print(f"=== Recording segment {segment}/{start_idx + args.segments - 1}: {filename}")
 
         start_rec = time.time()
         while True:
@@ -128,7 +139,6 @@ def main():
 
         writer.release()
         print(f"=== Finished segment {segment}, duration {args.duration}s")
-        segment += 1
 
     # 收工
     cap.release()
