@@ -3,7 +3,7 @@
 python live_pose_countdown_recorder.py \
     --output_dir ./raw_videos \
     --prefix jump \
-    --segments 2 \
+    --segments 1 \
     --duration 10 \
     --countdown 3 \
     --width 640 \
@@ -69,11 +69,11 @@ def main():
     cap.set(cv2.CAP_PROP_FPS, args.fps)
 
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
-    # Determine the next file index to use
-    existing = glob.glob(os.path.join(args.output_dir, f"{args.prefix}_*.avi"))
+    # Match any extension (e.g., .avi, .mp4) for existing segments
+    existing = glob.glob(os.path.join(args.output_dir, f"{args.prefix}_*.*"))
     if existing:
         max_idx = max(
-            int(os.path.splitext(os.path.basename(p))[0].split("_")[1])
+            int(os.path.splitext(os.path.basename(p))[0].rsplit("_", 1)[1])
             for p in existing
         )
         start_idx = max_idx + 1
