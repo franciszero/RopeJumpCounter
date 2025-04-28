@@ -1,197 +1,302 @@
-# main_oop.py
 """
-功能：多目标跳绳计数程序骨架（单人示例）
-版本：0.4.12
+跳绳计数器主程序 (面向对象版)
+版本：0.3.11
+
+功能：
+- 面向对象重构：PoseEstimator, BackgroundTracker, TrendFilter, MultiRegionJumpDetector, DebugRenderer, MainApp
+- 区域高度计算：支持 head, torso, legs 区域高度提取
+- 背景补偿：LK 光流消除摄像头抖动
+- 趋势分离：指数平滑 + 移动平均分离高频波动
+- 多区域同相位检测：同时监测多条波动的负→正过零
+- 可配置区域列表：MainApp 可传入不同区域组合
+- 可视化调试：在摄像头画面下方绘制每个区域高频波动时间序列；左上角高亮跳数
+- 支持动态调整跳数字体大小与颜色
+
 更新日志：
-  0.4.0 - 首次引入 Detector/Tracker/Participant 分层架构骨架，单人演示
-  0.4.1 - 在 Participant 中标记头/躯干/髋部/膝盖关键点并叠加实时 y 值
-  0.4.2 - 改进 Detector：用 MediaPipe 关键点自动算出紧凑包围盒，实际可见检测框
-  0.4.3 - 修复 pt 函数返回值导致的 unpack 错误，将其改为返回(point, y_val)二元组
-  0.4.4 - 修复坐标投影：使用 pose_landmarks 做图像点投影，使用 pose_world_landmarks 做跳跃信号
-  0.4.5 - 添加目标远近与平移方向检测：基于 bbox 中心和尺寸变化，判定左右/上下/远近移动
-  0.4.6 - 移除 bbox 检测，启用全帧姿势检测，仅显示关键节点，无计数
-  0.4.7 - 集成 MediaPipe 绘制函数，显示完整骨架（火柴人）
-  0.4.8 - 添加运动方向检测：基于关键点包围盒中心与面积变化，判定左/右/靠近/远离，并在屏幕及标准输出显示
-  0.4.9 - 四标签 左近远右 动态字体大小显示移动速度，标准输出打印
-  0.4.10 - 将方向标签替换为 ASCII 字符 L/N/F/R，并增大间距避免重叠
-  0.4.11 - 实现第二步: 头部时间序列波形绘制及分割标记
-  0.4.12 - 修复画面拼接错误：draw_panel 返回新图像并在 run 中接收
+0.3.0  - 初始 OOP 重构版本，实现 0.2 核心跳绳管线 (背景补偿+趋势分解+零交叉+调试 UI)
+0.3.1  - 增加多区域支持 (head, torso, legs) 及对应滤波器
+0.3.2  - 集成 MultiRegionJumpDetector，实现多区域同相位跳跃检测
+0.3.3  - 支持通过构造函数配置区域列表
+0.3.4  - 优化调试 UI：增大跳数文本字体、修改文本颜色为黄色
+0.3.5  - 修复相对速度计算逻辑，使用 prev_torso_y 替换错误引用
+0.3.6  - 代码清理及注释增强
+0.3.11 - 最终迭代，完善文档与版本标记
 """
 
 import cv2
 import time
 import numpy as np
-import mediapipe as mp
 from collections import deque
-# 右侧面板宽度（也等于时间序列缓冲长度）
-PANEL_WIDTH = 320
-
-
-# —— Participant 模块 —— #
-class Participant:
-    """每个跟踪到的人：姿势→跳绳管线→可视化"""
-    def __init__(self, track_id):
-        self.id        = track_id
-        # MediaPipe Pose（用于关键点可视化）
+import mediapipe as mp
+class PoseEstimator:
+    def __init__(self,
+                 model_complexity=0,
+                 min_detection_confidence=0.5,
+                 min_tracking_confidence=0.5):
         self.mp_pose = mp.solutions.pose
-        self.pose    = self.mp_pose.Pose(min_detection_confidence=0.5)
-        self.mp_drawing = mp.solutions.drawing_utils
-        self.joint_points = {}
-        self.joint_values = {}
-        # 记录上一次中心点和面积，用于运动方向检测
-        self.last_center = None  # (cx, cy)
-        self.last_area   = None
-        self.latest_landmarks = None
-        # 用于四方向速度显示
-        self.dx = 0
-        self.da = 0
+        self.pose = self.mp_pose.Pose(
+            model_complexity=model_complexity,
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence
+        )
 
-    def update(self, frame):
-        # reset movement deltas
-        self.dx = 0
-        self.da = 0
+        # 定义各个“区域”对应的关键点索引
+        self.REGION_LANDMARKS = {
+            "head": [
+                self.mp_pose.PoseLandmark.NOSE,
+                self.mp_pose.PoseLandmark.LEFT_EYE,
+                self.mp_pose.PoseLandmark.RIGHT_EYE,
+                self.mp_pose.PoseLandmark.LEFT_EAR,
+                self.mp_pose.PoseLandmark.RIGHT_EAR,
+            ],
+            "torso": [
+                self.mp_pose.PoseLandmark.LEFT_SHOULDER,
+                self.mp_pose.PoseLandmark.RIGHT_SHOULDER,
+                self.mp_pose.PoseLandmark.LEFT_HIP,
+                self.mp_pose.PoseLandmark.RIGHT_HIP,
+            ],
+            "legs": [
+                self.mp_pose.PoseLandmark.LEFT_KNEE,
+                self.mp_pose.PoseLandmark.RIGHT_KNEE,
+                self.mp_pose.PoseLandmark.LEFT_ANKLE,
+                self.mp_pose.PoseLandmark.RIGHT_ANKLE,
+            ],
+        }
+
+    def estimate(self, frame):
+        """
+        输入 BGR 图像，输出 (pose_landmarks, dict of region→height)
+        region heights are normalized y in [0,1]
+        """
         rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        res_img = self.pose.process(rgb)
-        # 保存最新的图像关键点用于可视化骨架
-        self.latest_landmarks = res_img.pose_landmarks
-        if not res_img.pose_landmarks:
-            return
-        img_lm = res_img.pose_landmarks.landmark
-        h, w, _ = frame.shape
+        res = self.pose.process(rgb)
+        if not res.pose_landmarks:
+            return None, {}
+        lm = res.pose_landmarks.landmark
 
-        def pt(idx):
-            p = img_lm[idx]
-            return (int(p.x * w), int(p.y * h)), p.y
+        # 计算每个区域的平均归一化高度
+        heights = {}
+        for region, idxs in self.REGION_LANDMARKS.items():
+            ys = [lm[i].y for i in idxs]
+            heights[region] = sum(ys) / len(ys)
 
-        self.joint_points['head'],  self.joint_values['head']  = pt(self.mp_pose.PoseLandmark.NOSE)
-        # 躯干中点:
-        sx = (img_lm[self.mp_pose.PoseLandmark.LEFT_SHOULDER].x + img_lm[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].x)/2
-        sy = (img_lm[self.mp_pose.PoseLandmark.LEFT_SHOULDER].y + img_lm[self.mp_pose.PoseLandmark.RIGHT_SHOULDER].y)/2
-        trunk_pt = (int(sx * w), int(sy * h))
-        self.joint_points['trunk'], self.joint_values['trunk'] = trunk_pt, sy
-        self.joint_points['hip'],   self.joint_values['hip']   = pt(self.mp_pose.PoseLandmark.LEFT_HIP)
-        self.joint_points['leg'],   self.joint_values['leg']   = pt(self.mp_pose.PoseLandmark.LEFT_KNEE)
+        return res.pose_landmarks, heights
 
-        # 运动方向检测：基于归一化关键点包围盒中心与面积变化
-        # 计算归一化 bbox min/max
-        xs = [p.x for p in img_lm]
-        ys = [p.y for p in img_lm]
-        min_x, max_x = min(xs), max(xs)
-        min_y, max_y = min(ys), max(ys)
-        center_x = (min_x + max_x) / 2
-        center_y = (min_y + max_y) / 2
-        area = (max_x - min_x) * (max_y - min_y)
-        # 四方向检测与速度
-        if self.last_center is not None:
-            dx = center_x - self.last_center[0]
-            da = area - self.last_area
-            # store for visualization
-            self.dx = dx
-            self.da = da
-            # magnitudes for left, near, far, right
-            mags = [max(0, -dx), max(0, da), max(0, -da), max(0, dx)]
-            max_mag = max(mags)
-            chars = ['L', 'N', 'F', 'R']  # Left, Near, Far, Right (ASCII avoids乱码)
-            # print to stdout the strongest direction
-            if max_mag > 0:
-                idx = mags.index(max_mag)
-                print(f"ID{self.id} Dir:{chars[idx]} speed:{max_mag:.4f}")
-        # update history
-        self.last_center = (center_x, center_y)
-        self.last_area   = area
 
-    def visualize(self, frame):
-        # 绘制完整骨架火柴人
-        if self.latest_landmarks:
-            self.mp_drawing.draw_landmarks(
-                frame,
-                self.latest_landmarks,
-                self.mp_pose.POSE_CONNECTIONS
+# =========================
+# 2. BackgroundTracker：LK 光流背景补偿
+# =========================
+class BackgroundTracker:
+    def __init__(self, max_pts=200):
+        self.max_pts = max_pts
+        self.prev_gray = None
+        self.bg_pts = None
+
+    def compensate(self, gray):
+        """
+        返回当前帧背景垂直归一化速度 bg_dy_norm
+        """
+        h, _ = gray.shape
+        if self.prev_gray is None:
+            self.bg_pts = cv2.goodFeaturesToTrack(
+                gray, maxCorners=self.max_pts,
+                qualityLevel=0.01, minDistance=10
             )
-        # 仅绘制关键点
-        for label, (cx, cy) in self.joint_points.items():
-            val = self.joint_values[label]
-            cv2.circle(frame, (cx,cy), 6, (0,0,255), -1)
-            cv2.putText(frame, f"{label}:{val:.2f}", (cx+5,cy-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255,255,255),1)
-        # four-direction display with dynamic font size
-        # compute magnitudes
-        mag_left  = max(0, -self.dx)
-        mag_near  = max(0, self.da)
-        mag_far   = max(0, -self.da)
-        mag_right = max(0, self.dx)
-        mags = [mag_left, mag_near, mag_far, mag_right]
-        max_mag = max(mags)
-        chars = ['L', 'N', 'F', 'R']  # Left, Near, Far, Right (ASCII avoids乱码)
-        x0, y0 = 10, 30
-        gap = 60  # 增大间距
-        for i, ch in enumerate(chars):
-            mag = mags[i]
-            if max_mag > 1e-6:
-                scale = 0.8 + (mag / max_mag) * 0.7
-            else:
-                scale = 0.8
-            cv2.putText(frame, ch, (x0 + gap * i, y0),
-                        cv2.FONT_HERSHEY_SIMPLEX, scale,
-                        (0, 255, 255), 2)
+            self.prev_gray = gray.copy()
+            return 0.0
+
+        new_pts, st, _ = cv2.calcOpticalFlowPyrLK(
+            self.prev_gray, gray,
+            self.bg_pts, None,
+            winSize=(15, 15), maxLevel=2,
+            criteria=(cv2.TERM_CRITERIA_EPS |
+                      cv2.TERM_CRITERIA_COUNT, 10, 0.03)
+        )
+        mask = (st.flatten() == 1)
+        if mask.any():
+            p0 = self.bg_pts[mask].reshape(-1, 2)
+            p1 = new_pts[mask].reshape(-1, 2)
+            dy = np.median(p1[:, 1] - p0[:, 1]) / h
+            self.bg_pts = p1.reshape(-1, 1, 2)
+            self.prev_gray = gray.copy()
+            return dy
+        else:
+            self.prev_gray = gray.copy()
+            return 0.0
 
 
-# —— App/Manager 主控 —— #
-class RopeJumpApp:
-    def __init__(self):
+# =========================
+# 3. TrendFilter：指数平滑 + 移动平均趋势分离
+# =========================
+class TrendFilter:
+    def __init__(self, buffer_len=320, alpha=0.2, trend_win=64, baseline=150):
+        self.alpha = alpha
+        self.trend_win = trend_win
+        self.baseline = baseline
+        self.raw_buf = deque(maxlen=buffer_len)
+        self.smooth_buf = deque(maxlen=buffer_len)
+        self.trend_buf = deque(maxlen=buffer_len)
+        self.fluct_buf = deque(maxlen=buffer_len)
+
+    def update(self, rel_speed, idx):
+        """
+        输入去背景后的相对速度 rel_speed 与帧号 idx
+        返回高频波动 f
+        """
+        if idx <= self.baseline:
+            for buf in (self.raw_buf,
+                        self.smooth_buf,
+                        self.trend_buf,
+                        self.fluct_buf):
+                buf.append(0.0)
+            return 0.0
+
+        # 原始速度
+        self.raw_buf.append(rel_speed)
+        # 指数平滑
+        last_s = self.smooth_buf[-1]
+        s = self.alpha * rel_speed + (1 - self.alpha) * last_s
+        # 移动平均趋势
+        t = np.mean(list(self.smooth_buf)[-self.trend_win:])
+        # 高频分量
+        f = s - t
+
+        # 更新缓存
+        self.smooth_buf.append(s)
+        self.trend_buf.append(t)
+        self.fluct_buf.append(f)
+        return f
+
+
+# =========================
+# 4. MultiRegionJumpDetector：多区域同相位跳跃检测
+# =========================
+class MultiRegionJumpDetector:
+    def __init__(self, regions, min_interval=0.3):
+        """
+        regions: list of region names, e.g. ["head","torso","legs"]
+        """
+        self.regions = regions
+        self.min_interval = min_interval
+        self.prev_signs = {r: -1 for r in regions}
+        self.last_jump_time = 0.0
+        self.count = 0
+
+    def detect(self, f_dict):
+        """
+        f_dict: {region: f_value}
+        仅当所有 region 同时从负过零到正 且间隔足够时计数
+        """
+        now = time.time()
+        signs = {r: (1 if f_dict[r] > 0 else -1) for r in self.regions}
+
+        # 判断所有区域是否都负→正
+        if all(signs[r] > 0 and self.prev_signs[r] < 0 for r in self.regions):
+            if (now - self.last_jump_time) > self.min_interval:
+                self.count += 1
+                self.last_jump_time = now
+
+        self.prev_signs = signs
+        return self.count
+
+
+# =========================
+# 5. DebugRenderer：画三条波动曲线 + 跳数
+# =========================
+class DebugRenderer:
+    def __init__(self, frame_h, buffer_len, regions):
+        self.frame_h = frame_h
+        self.buffer_len = buffer_len
+        self.regions = regions
+
+    def render(self, frame, filters, jump_count):
+        """
+        filters: dict region→TrendFilter
+        """
+        h, w = frame.shape[:2]
+        canvas = np.zeros((h, self.buffer_len, 3), np.uint8)
+        row_h = h // len(self.regions)
+
+        for i, r in enumerate(self.regions):
+            buf = filters[r].fluct_buf
+            arr = np.array(buf)
+            y0, y1 = i * row_h, (i + 1) * row_h
+
+            if len(arr) >= 2:
+                mn, mx = arr.min(), arr.max()
+                norm = (arr - mn) / (mx - mn) if mx > mn else np.full_like(arr, 0.5)
+                pts = [(x, int(y1 - norm[x] * row_h)) for x in range(len(norm))]
+                for p0, p1 in zip(pts, pts[1:]):
+                    cv2.line(canvas, p0, p1, (200, 200, 200), 1)
+            cv2.putText(canvas, r, (5, y0 + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+        # 跳数
+        cv2.putText(frame, f"Jumps: {jump_count}", (10, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 2.5, (0, 255, 255), 4)
+        return cv2.hconcat([frame, canvas])
+
+
+# =========================
+# 6. MainApp：串联所有组件
+# =========================
+class MainApp:
+    def __init__(self, regions=None):
+        if regions is None:
+            regions = ["head", "torso"] #, "legs"]
         self.cap = cv2.VideoCapture(0)
-        # 单人全帧姿势检测，只维护一个 Participant
-        self.participant = Participant(0)
-        # head 节点时间序列缓存
-        self.head_buffer = deque(maxlen=PANEL_WIDTH)
+        _, tmp = self.cap.read()
+        h, _ = tmp.shape[:2]
 
-    def draw_panel(self, frame):
-        """在画面右侧绘制 head 时间序列及分割标记"""
-        h, w, _ = frame.shape
-        # 新建画布
-        panel = np.zeros((h, PANEL_WIDTH, 3), dtype=np.uint8)
-        vals = list(self.head_buffer)
-        if len(vals) > 1:
-            arr = np.array(vals)
-            mn, mx = arr.min(), arr.max()
-            norm = (arr - mn) / (mx - mn) if mx > mn else np.zeros_like(arr)
-            ys = (h - 1 - (norm * (h - 1))).astype(int)
-            xs = np.linspace(0, PANEL_WIDTH - 1, len(ys)).astype(int)
-            # 绘制波形
-            for i in range(1, len(xs)):
-                cv2.line(panel,
-                         (xs[i-1], ys[i-1]),
-                         (xs[i],   ys[i]),
-                         (0, 255, 255), 1)
-            # 分割标记：零交叉点
-            mean = arr.mean()
-            for i in range(1, len(arr)):
-                if (arr[i] - mean) > 0 and (arr[i-1] - mean) <= 0:
-                    x = int(i * PANEL_WIDTH / len(arr))
-                    cv2.line(panel, (x, 0), (x, h - 1), (0, 0, 255), 1)
-        # 拼接
-        # 返回拼接后的全画面
-        return np.hstack((frame, panel))
+        # 组件
+        self.pose = PoseEstimator()
+        self.bg = BackgroundTracker()
+        # 为每个 region 各自创建一个趋势滤波器
+        self.filters = {r: TrendFilter() for r in regions}
+        self.detector = MultiRegionJumpDetector(regions)
+        self.renderer = DebugRenderer(frame_h=h,
+                                      buffer_len=self.filters[regions[0]].raw_buf.maxlen,
+                                      regions=regions)
+
+        # 用于计算相对速度
+        self.prev_heights = {r: None for r in regions}
 
     def run(self):
+        frame_idx = 0
         while True:
             ret, frame = self.cap.read()
-            if not ret:
-                break
+            if not ret: break
+            frame_idx += 1
 
-            # 全帧姿势检测
-            p = self.participant
-            p.update(frame)
+            # 1) 姿势估计 → 各区域高度字典
+            lm, heights = self.pose.estimate(frame)
+            if not heights:
+                heights = {r: (self.prev_heights[r] or 0.5) for r in self.prev_heights}
 
-            # 记录 head y 值
-            head_val = p.joint_values.get('head')
-            if head_val is not None:
-                self.head_buffer.append(head_val)
+            # 2) 背景补偿
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            bg_dy_norm = self.bg.compensate(gray)
 
-            p.visualize(frame)
+            # 3) 计算去背景后的相对速度 f for each region
+            f_vals = {}
+            for r, filt in self.filters.items():
+                prev_h = self.prev_heights[r]
+                curr_h = heights[r]
+                if prev_h is None:
+                    body_dy = 0.0
+                else:
+                    body_dy = curr_h - prev_h
+                self.prev_heights[r] = curr_h
 
-            # 绘制并接收拼接面板后的新画面
-            frame = self.draw_panel(frame)
-            cv2.imshow("RopeJump OOP 0.4.12", frame)
+                rel_speed = body_dy - bg_dy_norm
+                f_vals[r] = filt.update(rel_speed, frame_idx)
+
+            # 4) 多区域跳跃检测
+            count = self.detector.detect(f_vals)
+
+            # 5) 渲染并展示
+            output = self.renderer.render(frame, self.filters, count)
+            cv2.imshow("Multi-Region JumpRope Debug", output)
             if cv2.waitKey(1) & 0xFF == 27:
                 break
 
@@ -200,4 +305,4 @@ class RopeJumpApp:
 
 
 if __name__ == "__main__":
-    RopeJumpApp().run()
+    MainApp().run()
