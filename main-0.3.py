@@ -239,8 +239,13 @@ class MainApp:
         self.lstm_model = tf.keras.models.load_model("./PoseDetection/models/crnn_jump_classifier.h5")
         # Determine input window size and feature dim from model
         _, W, D = self.lstm_model.input_shape
-        from collections import deque
         self.seq_buffer = deque(maxlen=W)  # will hold W frames of raw landmarks
+
+        # State for model-driven start/stop of jump counting
+        self.counting_enabled = False
+        self.prob_buffer = deque(maxlen=10)  # smooth model probabilities over last 10 frames
+        self.start_threshold = 0.5          # mean prob above this to start counting
+        self.stop_threshold  = 0.3          # mean prob below this to stop counting
 
         self.detector = MultiRegionJumpDetector(regions)
         self.renderer = DebugRenderer(frame_h=h,
@@ -290,21 +295,32 @@ class MainApp:
                 probs = self.lstm_model.predict(seq, verbose=0)[0]
                 # assume probs = [non_jump_prob, jump_prob]
                 jump_prob = float(probs[1]) if len(probs) > 1 else float(probs[0])
-                # count once when window fills
-                now = time.time()
-                if jump_prob > 0.5 and (now - self.detector.last_jump_time) > self.detector.min_interval:
-                    count += 1
-                    self.detector.last_jump_time = now
+                # Append current probability and compute smoothed mean
+                self.prob_buffer.append(jump_prob)
+                if len(self.prob_buffer) == self.prob_buffer.maxlen:
+                    mean_prob = np.mean(self.prob_buffer)
+                    # Transition: start counting
+                    if not self.counting_enabled and mean_prob > self.start_threshold:
+                        self.counting_enabled = True
+                    # Transition: stop counting
+                    elif self.counting_enabled and mean_prob < self.stop_threshold:
+                        self.counting_enabled = False
+                # Only count jumps when counting is enabled
+                if self.counting_enabled:
+                    now = time.time()
+                    if jump_prob > 0.5 and (now - self.detector.last_jump_time) > self.detector.min_interval:
+                        count += 1
+                        self.detector.last_jump_time = now
             self.detector.count = count
 
-            # 在右上角大字显示当前跳绳状态
-            status = "JUMPING" if (len(self.seq_buffer) == self.seq_buffer.maxlen and jump_prob > 0.5) else "NOT JUMPING"
-            # 选择大字号和高对比颜色（黄色）
+            # 在右上角大字显示当前计数状态
+            state_txt = "COUNTING" if self.counting_enabled else "PAUSED"
+            color = (0, 255, 0) if self.counting_enabled else (0, 0, 255)
             cv2.putText(
-                frame, status,
+                frame, state_txt,
                 (frame.shape[1] - 350, 60),
                 cv2.FONT_HERSHEY_SIMPLEX,
-                2.0, (0, 255, 255), 4, cv2.LINE_AA)
+                2.0, color, 4, cv2.LINE_AA)
 
             # 5) 渲染并展示
             output = self.renderer.render(frame, self.filters, count)
