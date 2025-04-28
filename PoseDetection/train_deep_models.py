@@ -14,9 +14,10 @@
 import os
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras import layers, models, callbacks
+from keras import layers, models, callbacks
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
+
 
 def load_data(dataset_dir, window_size):
     seqs = np.load(os.path.join(dataset_dir, "sequences.npy"))
@@ -25,12 +26,14 @@ def load_data(dataset_dir, window_size):
     assert seqs.shape[1] == window_size, "window_size 与数据不匹配"
     return seqs, labels
 
+
 def encode_labels(y):
     le = LabelEncoder()
     y_enc = le.fit_transform(y)
     # 转为 one-hot
     y_oh = tf.keras.utils.to_categorical(y_enc)
     return y_oh, le
+
 
 def build_cnn_model(input_shape, num_classes):
     model = models.Sequential([
@@ -51,6 +54,7 @@ def build_cnn_model(input_shape, num_classes):
     )
     return model
 
+
 def build_lstm_model(input_shape, num_classes):
     model = models.Sequential([
         layers.LSTM(128, return_sequences=True, input_shape=input_shape),
@@ -66,13 +70,14 @@ def build_lstm_model(input_shape, num_classes):
     )
     return model
 
+
 def main():
     import argparse
     p = argparse.ArgumentParser()
-    p.add_argument("--dataset_dir",  default="./dataset")
-    p.add_argument("--batch_size",    type=int, default=32)
-    p.add_argument("--epochs",        type=int, default=30)
-    p.add_argument("--window_size",   type=int, default=64)
+    p.add_argument("--dataset_dir", default="./dataset")
+    p.add_argument("--batch_size", type=int, default=32)
+    p.add_argument("--epochs", type=int, default=30)
+    p.add_argument("--window_size", type=int, default=64)
     args = p.parse_args()
 
     # 1. 加载并准备数据
@@ -138,6 +143,7 @@ def main():
     print(classification_report(y_true, y_pred_cnn, target_names=le.classes_))
     print("\n--- LSTM classification report ---")
     print(classification_report(y_true, y_pred_lstm, target_names=le.classes_))
+
 
 if __name__ == "__main__":
     main()
