@@ -7,39 +7,36 @@
   python train_deep_models.py \
     --dataset_dir ./dataset \
     --batch_size 32 \
-    --epochs 30 \
+    --epochs 300 \
     --window_size 64
 """
 
 import os
 import numpy as np
+import pandas as pd
+from matplotlib.gridspec import GridSpec
 from sklearn.preprocessing import LabelEncoder
 import tensorflow as tf
-from sklearn.model_selection import train_test_split
+from sklearn.utils import class_weight
+import matplotlib.pyplot as plt
+import itertools
+from sklearn.metrics import confusion_matrix, roc_curve, auc, precision_recall_curve, average_precision_score
 
 
 def load_data(dataset_dir, window_size):
-    seqs = np.load(os.path.join(dataset_dir, "sequences.npy"))
-    labels = np.load(os.path.join(dataset_dir, "labels.npy"))
-    # 确保序列长度一致
-    assert seqs.shape[1] == window_size, "window_size 与数据不匹配"
-    return seqs, labels
-
-
-def encode_labels(y):
     """
-    输入：
-      y: 形如 ['jump','non_jump',...]
-    输出：
-      y_oh: shape (N, C) 的 one-hot 数组
-      le: LabelEncoder 实例（可逆编码）
+    Load train/val/test from .npz files in dataset_dir.
+    Returns X_train, y_train_raw, X_val, y_val_raw, X_test, y_test_raw.
     """
-    le = LabelEncoder()
-    y_enc = le.fit_transform(y)  # 整数编码 0,1,...
-    num_classes = len(le.classes_)  # 类别总数
-    # 手动 one-hot
-    y_oh = np.eye(num_classes, dtype=np.float32)[y_enc]
-    return y_oh, le
+    train = np.load(os.path.join(dataset_dir, "train.npz"))
+    X_train, y_train = train["X"], train["y"]
+    val = np.load(os.path.join(dataset_dir, "val.npz"))
+    X_val, y_val = val["X"], val["y"]
+    test = np.load(os.path.join(dataset_dir, "test.npz"))
+    X_test, y_test = test["X"], test["y"]
+    # Confirm window size
+    assert X_train.shape[1] == window_size, "window_size mismatch"
+    return X_train, y_train, X_val, y_val, X_test, y_test
 
 
 def build_cnn_model(input_shape, num_classes):
@@ -78,6 +75,90 @@ def build_lstm_model(input_shape, num_classes):
     return model
 
 
+def build_crnn_model(input_shape, num_classes):
+    """
+    构建 CRNN 模型：多层 Conv1D + BatchNorm + MaxPool, 后接双向 LSTM, 再 Dense.
+    """
+    model = tf.keras.models.Sequential([
+        tf.keras.layers.Conv1D(64, 3, activation='relu', input_shape=input_shape),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.MaxPooling1D(2),
+        tf.keras.layers.Conv1D(128, 3, activation='relu'),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.MaxPooling1D(2),
+        tf.keras.layers.Conv1D(256, 3, activation='relu'),
+        tf.keras.layers.BatchNormalization(),
+        tf.keras.layers.MaxPooling1D(2),
+        tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
+        tf.keras.layers.Dense(128, activation='relu'),
+        tf.keras.layers.Dropout(0.5),
+        tf.keras.layers.Dense(num_classes, activation='softmax')
+    ])
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+        loss="categorical_crossentropy",
+        metrics=["accuracy"]
+    )
+    return model
+
+
+def build_resnet1d_model(input_shape, num_classes):
+    """
+    构建 1D ResNet 模型：Residual blocks with Conv1D + Add, followed by GlobalAveragePooling.
+    """
+    inputs = tf.keras.layers.Input(shape=input_shape)
+    x = tf.keras.layers.Conv1D(64, 3, padding='same', activation='relu')(inputs)
+    # Residual blocks
+    for filters in [64, 128, 256]:
+        # Main path
+        y = tf.keras.layers.Conv1D(filters, 3, padding='same', activation='relu')(x)
+        y = tf.keras.layers.Conv1D(filters, 3, padding='same')(y)
+        # Shortcut path: project if channel dimension differs
+        shortcut = x
+        in_channels = tf.keras.backend.int_shape(x)[-1]
+        if in_channels != filters:
+            shortcut = tf.keras.layers.Conv1D(filters, 1, padding='same')(shortcut)
+        # Combine
+        x = tf.keras.layers.Add()([shortcut, y])
+        x = tf.keras.layers.Activation('relu')(x)
+        x = tf.keras.layers.MaxPooling1D(2)(x)
+    # Classification head
+    x = tf.keras.layers.GlobalAveragePooling1D()(x)
+    x = tf.keras.layers.Dense(128, activation='relu')(x)
+    x = tf.keras.layers.Dropout(0.5)(x)
+    outputs = tf.keras.layers.Dense(num_classes, activation='softmax')(x)
+    model = tf.keras.models.Model(inputs, outputs)
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+        loss="categorical_crossentropy",
+        metrics=["accuracy"]
+    )
+    return model
+
+
+def build_tcn_model(input_shape, num_classes):
+    """
+    构建简易 1D-TCN 模型：使用多尺度膨胀卷积 (dilation conv) 捕捉时序依赖
+    """
+    inputs = tf.keras.Input(shape=input_shape)
+    x = inputs
+    # 膨胀率序列，可根据需要调整
+    for d in [1, 2, 4, 8]:
+        x = tf.keras.layers.Conv1D(64, 3, padding='causal', dilation_rate=d, activation='relu')(x)
+        x = tf.keras.layers.BatchNormalization()(x)
+    x = tf.keras.layers.GlobalAveragePooling1D()(x)
+    x = tf.keras.layers.Dense(128, activation='relu')(x)
+    x = tf.keras.layers.Dropout(0.5)(x)
+    outputs = tf.keras.layers.Dense(num_classes, activation='softmax')(x)
+    model = tf.keras.models.Model(inputs, outputs)
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+        loss='categorical_crossentropy',
+        metrics=['accuracy']
+    )
+    return model
+
+
 def main():
     import argparse
     p = argparse.ArgumentParser()
@@ -87,40 +168,66 @@ def main():
     p.add_argument("--window_size", type=int, default=64)
     args = p.parse_args()
 
-    # 1. 加载并准备数据
-    X, y = load_data(args.dataset_dir, args.window_size)
-    # X: (N, W, D); y: (N,)
-    N, W, D = X.shape
-    num_classes = len(np.unique(y))
-    print(f"Loaded {N} samples, window={W}, dim={D}, classes={num_classes}")
+    os.makedirs('models', exist_ok=True)
 
-    y_oh, le = encode_labels(y)
+    # 1. Load pre-split data
+    X_train, y_train_raw, X_val, y_val_raw, X_test, y_test_raw = load_data(
+        args.dataset_dir, args.window_size
+    )
+    print(f"Loaded: train={len(X_train)}, val={len(X_val)}, test={len(X_test)}")
 
-    # 分 train/val/test
-    X_temp, X_test, y_temp, y_test = train_test_split(
-        X, y_oh, test_size=0.2, stratify=y, random_state=42
+    # 2. Encode labels to integers and one-hot
+    le = LabelEncoder()
+    y_train_enc = le.fit_transform(y_train_raw)
+    y_val_enc = le.transform(y_val_raw)
+    y_test_enc = le.transform(y_test_raw)
+    # Calculate class weights for imbalanced data
+    num_classes = len(le.classes_)
+    cw = class_weight.compute_class_weight(
+        'balanced',
+        classes=np.arange(num_classes),
+        y=y_train_enc
     )
-    X_train, X_val, y_train, y_val = train_test_split(
-        X_temp, y_temp, test_size=0.25,  # 0.25 * 0.8 = 0.2
-        stratify=np.argmax(y_temp, axis=1), random_state=42
-    )
-    print(f"Split: train={len(X_train)}, val={len(X_val)}, test={len(X_test)}")
+    class_weight_dict = {i: float(w) for i, w in enumerate(cw)}
+    print("Class weights:", class_weight_dict)
+    y_train = np.eye(num_classes, dtype=np.float32)[y_train_enc]
+    y_val = np.eye(num_classes, dtype=np.float32)[y_val_enc]
+    y_test = np.eye(num_classes, dtype=np.float32)[y_test_enc]
+    print("Classes:", list(le.classes_))
+
+    N, W, D = X_train.shape
+    print(f"Train samples: {N}, window={W}, dim={D}, classes={num_classes}")
 
     input_shape = (W, D)
     # 回调：早停 + 保存最优
     cb = [
         tf.keras.callbacks.EarlyStopping(patience=5, restore_best_weights=True),
     ]
+    cb.append(
+        tf.keras.callbacks.ReduceLROnPlateau(
+            monitor='val_loss', factor=0.5,
+            patience=3, verbose=1
+        )
+    )
+    cb.append(
+        tf.keras.callbacks.ModelCheckpoint(
+            filepath="models/best_crnn.keras",
+            monitor="val_accuracy",
+            save_best_only=True,
+            verbose=1
+        )
+    )
 
     # 2. 训练并评估 1D-CNN
     cnn = build_cnn_model(input_shape, num_classes)
     print("\n=== Training 1D-CNN ===")
-    cnn.fit(
+    history_cnn = cnn.fit(
         X_train, y_train,
         validation_data=(X_val, y_val),
         batch_size=args.batch_size,
         epochs=args.epochs,
-        callbacks=cb
+        callbacks=cb,
+        class_weight=class_weight_dict
     )
     cnn.evaluate(X_test, y_test, verbose=2)
     cnn.save("models/1d_cnn_jump_classifier.h5")
@@ -129,16 +236,32 @@ def main():
     # 3. 训练并评估 LSTM
     lstm = build_lstm_model(input_shape, num_classes)
     print("\n=== Training LSTM ===")
-    lstm.fit(
+    history_lstm = lstm.fit(
         X_train, y_train,
         validation_data=(X_val, y_val),
         batch_size=args.batch_size,
         epochs=args.epochs,
-        callbacks=cb
+        callbacks=cb,
+        class_weight=class_weight_dict
     )
     lstm.evaluate(X_test, y_test, verbose=2)
     lstm.save("models/lstm_jump_classifier.h5")
     print("Saved LSTM model to models/lstm_jump_classifier.h5")
+
+    # 5. 训练并评估 CRNN
+    crnn = build_crnn_model(input_shape, num_classes)
+    print("\n=== Training CRNN (Conv + BiLSTM) ===")
+    history_crnn = crnn.fit(
+        X_train, y_train,
+        validation_data=(X_val, y_val),
+        batch_size=args.batch_size,
+        epochs=args.epochs,
+        callbacks=cb,
+        class_weight=class_weight_dict
+    )
+    crnn.evaluate(X_test, y_test, verbose=2)
+    crnn.save("models/crnn_jump_classifier.h5")
+    print("Saved CRNN model to models/crnn_jump_classifier.h5")
 
     # 4. 打印测试集详细报告
     from sklearn.metrics import classification_report
@@ -146,10 +269,125 @@ def main():
     y_pred_lstm = np.argmax(lstm.predict(X_test), axis=1)
     y_true = np.argmax(y_test, axis=1)
 
-    print("\n--- CNN classification report ---")
-    print(classification_report(y_true, y_pred_cnn, target_names=le.classes_))
-    print("\n--- LSTM classification report ---")
-    print(classification_report(y_true, y_pred_lstm, target_names=le.classes_))
+    # 6. CRNN 测试集报告
+    y_pred_crnn = np.argmax(crnn.predict(X_test), axis=1)
+
+    # 7. 训练并评估 1D ResNet
+    resnet = build_resnet1d_model(input_shape, num_classes)
+    print("\n=== Training ResNet1D ===")
+    history_resnet = resnet.fit(
+        X_train, y_train,
+        validation_data=(X_val, y_val),
+        batch_size=args.batch_size,
+        epochs=args.epochs,
+        callbacks=cb,
+        class_weight=class_weight_dict
+    )
+    resnet.evaluate(X_test, y_test, verbose=2)
+    resnet.save("models/resnet1d_jump_classifier.h5")
+    print("Saved ResNet1D model to models/resnet1d_jump_classifier.h5")
+
+    # ResNet1D 分类报告
+    y_pred_resnet = np.argmax(resnet.predict(X_test), axis=1)
+
+    # 8. 训练并评估 TCN 模型
+    tcn = build_tcn_model(input_shape, num_classes)
+    print("\n=== Training TCN Model ===")
+    history_tcn = tcn.fit(
+        X_train, y_train,
+        validation_data=(X_val, y_val),
+        batch_size=args.batch_size,
+        epochs=args.epochs,
+        callbacks=cb,
+        class_weight=class_weight_dict
+    )
+    tcn.evaluate(X_test, y_test, verbose=2)
+    tcn.save("models/tcn_jump_classifier.h5")
+    print("Saved TCN model to models/tcn_jump_classifier.h5")
+
+    # TCN 分类报告
+    y_pred_tcn = np.argmax(tcn.predict(X_test), axis=1)
+
+    # 9. 汇总所有模型分类报告
+    from sklearn.metrics import classification_report
+    print("\n=== All Models Classification Reports ===")
+    model_reports = [
+        ("1D-CNN", y_pred_cnn),
+        ("LSTM", y_pred_lstm),
+        ("CRNN", y_pred_crnn),
+        ("ResNet1D", y_pred_resnet),
+        ("TCN", y_pred_tcn),
+    ]
+    for name, y_pred in model_reports:
+        print(f"\n--- {name} classification report ---")
+        print(classification_report(y_true, y_pred, target_names=le.classes_))
+
+
+    # 生成综合报告图
+    os.makedirs('models', exist_ok=True)
+    curves = [
+        ('1d_cnn', history_cnn),
+        ('lstm', history_lstm),
+        ('crnn', history_crnn),
+        ('resnet1d', history_resnet),
+        ('tcn', history_tcn),
+    ]
+    fig = plt.figure(constrained_layout=True, figsize=(12, 12))
+    gs = GridSpec(3, 1, figure=fig)
+
+    # 1) 损失曲线
+    ax0 = fig.add_subplot(gs[0, 0])
+    for key, hist in curves:
+        ax0.plot(hist.history['loss'], label=f"{key}-train")
+        ax0.plot(hist.history['val_loss'], linestyle='--', label=f"{key}-val")
+    ax0.set_title('Training & Validation Loss')
+    ax0.set_xlabel('Epoch')
+    ax0.set_ylabel('Loss')
+    ax0.legend(loc='upper right')
+
+    # 2) 准确率曲线
+    ax1 = fig.add_subplot(gs[1, 0])
+    for key, hist in curves:
+        ax1.plot(hist.history['accuracy'], label=f"{key}-train")
+        ax1.plot(hist.history['val_accuracy'], linestyle='--', label=f"{key}-val")
+    ax1.set_title('Training & Validation Accuracy')
+    ax1.set_xlabel('Epoch')
+    ax1.set_ylabel('Accuracy')
+    ax1.legend(loc='lower right')
+
+    # 3) 各模型测试集 F1 分数表
+    metrics = []
+    for name, y_pred in model_reports:
+        rep = classification_report(
+            y_true, y_pred,
+            target_names=le.classes_,
+            output_dict=True
+        )
+        metrics.append([
+            name,
+            rep['accuracy'],
+            rep['jump']['f1-score'],
+            rep['non_jump']['f1-score'],
+        ])
+    df = pd.DataFrame(
+        metrics,
+        columns=['Model','Accuracy','Jump F1','NonJump F1']
+    ).set_index('Model')
+
+    ax2 = fig.add_subplot(gs[2, 0])
+    ax2.axis('off')
+    tbl = ax2.table(
+        cellText=df.values,
+        colLabels=df.columns,
+        rowLabels=df.index,
+        loc='center'
+    )
+    tbl.auto_set_font_size(False)
+    tbl.set_fontsize(12)
+
+    summary_path = os.path.join('models', 'summary_report.png')
+    fig.savefig(summary_path)
+    print(f"Saved comprehensive report to {summary_path}")
 
 
 if __name__ == "__main__":
