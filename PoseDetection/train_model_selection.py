@@ -10,7 +10,7 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.model_selection import train_test_split, cross_val_score
 from sklearn.pipeline import Pipeline
 from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 import joblib
@@ -33,7 +33,6 @@ def build_candidate_models():
             ("clf", LogisticRegression(max_iter=1000))
         ]),
         "RandomForest": RandomForestClassifier(n_estimators=200),
-        "GradientBoosting": GradientBoostingClassifier(n_estimators=200),
         "SVM": Pipeline([
             ("scaler", StandardScaler()),
             ("clf", SVC(kernel="rbf", probability=True))
