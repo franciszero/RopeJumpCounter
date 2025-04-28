@@ -29,6 +29,10 @@ import numpy as np
 from collections import deque
 import mediapipe as mp
 
+import tensorflow as tf
+from collections import deque
+import numpy as np
+
 
 class PoseEstimator:
     def __init__(self,
@@ -263,6 +267,11 @@ class MainApp:
 
         # 用于计算相对速度
         self.prev_heights = {r: None for r in regions}
+        # Load CRNN classifier for skipping detection
+        self.crnn = tf.keras.models.load_model('PoseDetection/models/crnn_jump_classifier.h5')
+        self.seq_window = 64  # must match model input length used in training
+        self.seq_buffer = deque(maxlen=self.seq_window)
+        self.crnn_thresh = 0.5  # probability threshold to enable zero-cross counting
 
     def run(self):
         frame_idx = 0
@@ -294,11 +303,37 @@ class MainApp:
                 rel_speed = body_dy - bg_dy_norm
                 f_vals[r] = filt.update(rel_speed, frame_idx)
 
-            # 4) 多区域跳跃检测
-            count = self.detector.detect(f_vals)
+            # 4) CRNN 预判跳绳状态
+            # 组合所有关键点为一维特征向量
+            if lm:
+                fv = []
+                for pt in lm.landmark:
+                    fv.extend((pt.x, pt.y))
+            else:
+                fv = [0.0] * (len(self.pose.mp_pose.PoseLandmark) * 2)
+            self.seq_buffer.append(fv)
+            is_skipping = False
+            if len(self.seq_buffer) == self.seq_window:
+                inp = np.array(self.seq_buffer, dtype=np.float32)[None, ...]
+                prob = float(self.crnn.predict(inp, verbose=0)[0, 0])
+                is_skipping = (prob > self.crnn_thresh)
+            # 5) 仅当被判定为跳绳时，执行零交叉计数
+            if is_skipping:
+                count = self.detector.detect(f_vals)
+            else:
+                count = self.detector.count
 
-            # 5) 渲染并展示
+            # 6) 渲染并展示
             output = self.renderer.render(frame, self.filters, count)
+            # 显示 CRNN 预判状态
+            state_txt = 'JUMPING' if is_skipping else 'PAUSED'
+            color = (0, 255, 0) if is_skipping else (0, 0, 255)
+            cv2.putText(
+                output, state_txt,
+                (10, output.shape[0] - 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                4.0, color, 10
+            )
             cv2.imshow("Multi-Region JumpRope Debug", output)
             if cv2.waitKey(1) & 0xFF == 27:
                 break
