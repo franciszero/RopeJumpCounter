@@ -209,13 +209,23 @@ class DebugRenderer:
         self.buffer_len = buffer_len
         self.regions = regions
 
-    def render(self, frame, filters, jump_count):
+    def render(self, frame, filters, jump_count, is_skipping=False):
         """
         filters: dict region→TrendFilter
         """
         h, w = frame.shape[:2]
         canvas = np.zeros((h, self.buffer_len, 3), np.uint8)
+        # Overlay semi-transparent background on head & torso rows
         row_h = h // len(self.regions)
+        overlay = canvas.copy()
+        # Determine color: green if skipping, else red
+        bg_color = (0, 255, 0) if is_skipping else (0, 0, 255)
+        # Apply to first two rows (head and torso)
+        for i in range(min(2, len(self.regions))):
+            y0, y1 = i * row_h, (i + 1) * row_h
+            cv2.rectangle(overlay, (0, y0), (self.buffer_len, y1), bg_color, -1)
+        # Blend overlay with canvas at 30% opacity
+        canvas = cv2.addWeighted(overlay, 0.3, canvas, 0.7, 0)
 
         for i, r in enumerate(self.regions):
             buf = filters[r].fluct_buf
@@ -275,6 +285,7 @@ class MainApp:
 
     def run(self):
         frame_idx = 0
+        prob = 0.0
         while True:
             ret, frame = self.cap.read()
             if not ret: break
@@ -324,7 +335,7 @@ class MainApp:
                 count = self.detector.count
 
             # 6) 渲染并展示
-            output = self.renderer.render(frame, self.filters, count)
+            output = self.renderer.render(frame, self.filters, count, is_skipping)
             # 显示 CRNN 预判状态
             state_txt = 'JUMPING' if is_skipping else 'PAUSED'
             color = (0, 255, 0) if is_skipping else (0, 0, 255)
@@ -333,6 +344,18 @@ class MainApp:
                 (10, output.shape[0] - 30),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 4.0, color, 10
+            )
+            # 显示跳绳概率 P
+            prob_text = f"P={prob:.2f}"
+            # 放在右上角，留出 10px 边距
+            txt_size, _ = cv2.getTextSize(prob_text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
+            x_pos = output.shape[1] - txt_size[0] - 10
+            y_pos = txt_size[1] + 10
+            cv2.putText(
+                output, prob_text,
+                (x_pos, y_pos),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1.0, (255, 255, 255), 2
             )
             cv2.imshow("Multi-Region JumpRope Debug", output)
             if cv2.waitKey(1) & 0xFF == 27:
