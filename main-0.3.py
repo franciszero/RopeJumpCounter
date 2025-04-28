@@ -1,174 +1,288 @@
-# main-0.3.py
-"""
-功能：基于 MediaPipe Pose 的单人跳绳计数程序，检测四个关节，支持趋势分解与零交叉计数。
-版本：0.3.9
-# 0.3.9 - 恢复单人姿势关节检测，屏蔽多人跟踪和平滑，仅保留趋势分解功能
-
-更新日志：
-  0.2.0 - 单人跳绳计数初始版本，实现趋势分离和零交叉过零点计数，带调试波形显示
-  0.2.1 - 增加双人 YOLO 检测支持，支持最多 2 人计数，保留调试波形显示
-  0.2.2 - 修复断绳时无人姿势检测导致的误计数：仅在检测到人体姿势时更新跳跃管线
-  0.2.3 - 将时间序列曲线移至摄像头图像右侧
-  0.3.0 - 重构为多目标计数：集成 SORT，任意人数跟踪，按 ID 并行维护跳绳管线
-  0.3.3 - 注释 sort/sort.py 中的 matplotlib.use('TkAgg') 避免 tkinter 依赖
-  0.3.6 - 限制最多前五个跟踪对象绘制时间序列，并分行显示避免重叠
-  0.3.7 - 使用原始数据绘制波形并移除平滑；在摄像头画面上为每个对象绘制尾迹线
-  0.3.8 - 调整 SORT 参数：降低 iou_threshold，增加 max_age 和 min_hits，提高跟踪稳定性
-  0.3.9 - 恢复单人姿势关节检测，屏蔽多人跟踪和平滑，仅保留趋势分解功能
-
-依赖：
-  - mediapipe
-  - opencv-python
-  - numpy
-  - ultralytics
-  - sort    （pip install sort）
-用法：
-  1. pip install mediapipe opencv-python numpy ultralytics sort
-  2. python main-0.3.py
-"""
-
 import cv2
-import numpy as np
 import time
-import mediapipe as mp
+import numpy as np
 from collections import deque
+import mediapipe as mp
 
-# 配色列表，用于不同关节
-COLORS = {
-    'head':  (0,255,0),
-    'trunk': (0,0,255),
-    'hip':   (255,0,0),
-    'leg':   (255,255,0),
-}
-# 跟踪尾迹长度
-TRACE_LEN = 20
 
-# 参数配置
-BUFFER_LEN     = 320
-#ALPHA          = 0.2
-TREND_WINDOW   = 64
-BASELINE_BUF   = 150
-MIN_INTERVAL   = 0.3
+# =========================
+# 1. PoseEstimator：MediaPipe 姿势检测 + 区域高度接口
+# =========================
+class PoseEstimator:
+    def __init__(self,
+                 model_complexity=0,
+                 min_detection_confidence=0.5,
+                 min_tracking_confidence=0.5):
+        self.mp_pose = mp.solutions.pose
+        self.pose = self.mp_pose.Pose(
+            model_complexity=model_complexity,
+            min_detection_confidence=min_detection_confidence,
+            min_tracking_confidence=min_tracking_confidence
+        )
 
-# 初始化
-mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(model_complexity=0,
-                    min_detection_confidence=0.5,
-                    min_tracking_confidence=0.5)
+        # 定义各个“区域”对应的关键点索引
+        self.REGION_LANDMARKS = {
+            "head": [
+                self.mp_pose.PoseLandmark.NOSE,
+                self.mp_pose.PoseLandmark.LEFT_EYE,
+                self.mp_pose.PoseLandmark.RIGHT_EYE,
+                self.mp_pose.PoseLandmark.LEFT_EAR,
+                self.mp_pose.PoseLandmark.RIGHT_EAR,
+            ],
+            "torso": [
+                self.mp_pose.PoseLandmark.LEFT_SHOULDER,
+                self.mp_pose.PoseLandmark.RIGHT_SHOULDER,
+                self.mp_pose.PoseLandmark.LEFT_HIP,
+                self.mp_pose.PoseLandmark.RIGHT_HIP,
+            ],
+            "legs": [
+                self.mp_pose.PoseLandmark.LEFT_KNEE,
+                self.mp_pose.PoseLandmark.RIGHT_KNEE,
+                self.mp_pose.PoseLandmark.LEFT_ANKLE,
+                self.mp_pose.PoseLandmark.RIGHT_ANKLE,
+            ],
+        }
 
-class JumpPipeline:
-    def __init__(self):
-        self.raw = deque(maxlen=BUFFER_LEN)
-        self.smooth = deque(maxlen=BUFFER_LEN)
-        self.trend = deque(maxlen=BUFFER_LEN)
-        self.fluct = deque(maxlen=BUFFER_LEN)
-        self.noise_std = None
-        self.prev_sign = -1
-        self.last_jump_time = 0
-        self.jump_count = 0
-        self.trace = deque(maxlen=TRACE_LEN)
+    def estimate(self, frame):
+        """
+        输入 BGR 图像，输出 (pose_landmarks, dict of region→height)
+        region heights are normalized y in [0,1]
+        """
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        res = self.pose.process(rgb)
+        if not res.pose_landmarks:
+            return None, {}
+        lm = res.pose_landmarks.landmark
 
-    def update(self, y):
-        if len(self.raw) < BASELINE_BUF:
-            self.raw.append(y)
-            self.smooth.append(y)
-            t0 = np.mean(self.raw)
-            self.trend.append(t0)
-            self.fluct.append(y - t0)
-            if len(self.raw)==BASELINE_BUF:
-                self.noise_std = np.std(np.array(self.fluct))
-            return
-        #last_s = self.smooth[-1]
-        #s = ALPHA*y + (1-ALPHA)*last_s  # 关闭平滑，直接用原始y
-        s = y
-        t = np.mean(list(self.smooth)[-TREND_WINDOW:])
+        # 计算每个区域的平均归一化高度
+        heights = {}
+        for region, idxs in self.REGION_LANDMARKS.items():
+            ys = [lm[i].y for i in idxs]
+            heights[region] = sum(ys) / len(ys)
+
+        return res.pose_landmarks, heights
+
+
+# =========================
+# 2. BackgroundTracker：LK 光流背景补偿
+# =========================
+class BackgroundTracker:
+    def __init__(self, max_pts=200):
+        self.max_pts = max_pts
+        self.prev_gray = None
+        self.bg_pts = None
+
+    def compensate(self, gray):
+        """
+        返回当前帧背景垂直归一化速度 bg_dy_norm
+        """
+        h, _ = gray.shape
+        if self.prev_gray is None:
+            self.bg_pts = cv2.goodFeaturesToTrack(
+                gray, maxCorners=self.max_pts,
+                qualityLevel=0.01, minDistance=10
+            )
+            self.prev_gray = gray.copy()
+            return 0.0
+
+        new_pts, st, _ = cv2.calcOpticalFlowPyrLK(
+            self.prev_gray, gray,
+            self.bg_pts, None,
+            winSize=(15, 15), maxLevel=2,
+            criteria=(cv2.TERM_CRITERIA_EPS |
+                      cv2.TERM_CRITERIA_COUNT, 10, 0.03)
+        )
+        mask = (st.flatten() == 1)
+        if mask.any():
+            p0 = self.bg_pts[mask].reshape(-1, 2)
+            p1 = new_pts[mask].reshape(-1, 2)
+            dy = np.median(p1[:, 1] - p0[:, 1]) / h
+            self.bg_pts = p1.reshape(-1, 1, 2)
+            self.prev_gray = gray.copy()
+            return dy
+        else:
+            self.prev_gray = gray.copy()
+            return 0.0
+
+
+# =========================
+# 3. TrendFilter：指数平滑 + 移动平均趋势分离
+# =========================
+class TrendFilter:
+    def __init__(self, buffer_len=320, alpha=0.2, trend_win=64, baseline=150):
+        self.alpha = alpha
+        self.trend_win = trend_win
+        self.baseline = baseline
+        self.raw_buf = deque(maxlen=buffer_len)
+        self.smooth_buf = deque(maxlen=buffer_len)
+        self.trend_buf = deque(maxlen=buffer_len)
+        self.fluct_buf = deque(maxlen=buffer_len)
+
+    def update(self, rel_speed, idx):
+        """
+        输入去背景后的相对速度 rel_speed 与帧号 idx
+        返回高频波动 f
+        """
+        if idx <= self.baseline:
+            for buf in (self.raw_buf,
+                        self.smooth_buf,
+                        self.trend_buf,
+                        self.fluct_buf):
+                buf.append(0.0)
+            return 0.0
+
+        # 原始速度
+        self.raw_buf.append(rel_speed)
+        # 指数平滑
+        last_s = self.smooth_buf[-1]
+        s = self.alpha * rel_speed + (1 - self.alpha) * last_s
+        # 移动平均趋势
+        t = np.mean(list(self.smooth_buf)[-self.trend_win:])
+        # 高频分量
         f = s - t
-        self.raw.append(y)
-        self.smooth.append(s)
-        self.trend.append(t)
-        self.fluct.append(f)
-        sign = 1 if f>0 else -1
+
+        # 更新缓存
+        self.smooth_buf.append(s)
+        self.trend_buf.append(t)
+        self.fluct_buf.append(f)
+        return f
+
+
+# =========================
+# 4. MultiRegionJumpDetector：多区域同相位跳跃检测
+# =========================
+class MultiRegionJumpDetector:
+    def __init__(self, regions, min_interval=0.3):
+        """
+        regions: list of region names, e.g. ["head","torso","legs"]
+        """
+        self.regions = regions
+        self.min_interval = min_interval
+        self.prev_signs = {r: -1 for r in regions}
+        self.last_jump_time = 0.0
+        self.count = 0
+
+    def detect(self, f_dict):
+        """
+        f_dict: {region: f_value}
+        仅当所有 region 同时从负过零到正 且间隔足够时计数
+        """
         now = time.time()
-        if sign>0 and self.prev_sign<0 and now-self.last_jump_time>MIN_INTERVAL:
-            seg = list(self.fluct)[-TREND_WINDOW:]
-            if self.noise_std and (max(seg)-min(seg)>self.noise_std):
-                self.jump_count +=1
-                self.last_jump_time=now
-        self.prev_sign = sign
+        signs = {r: (1 if f_dict[r] > 0 else -1) for r in self.regions}
 
-# 主程序
-cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH,640)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT,480)
+        # 判断所有区域是否都负→正
+        if all(signs[r] > 0 and self.prev_signs[r] < 0 for r in self.regions):
+            if (now - self.last_jump_time) > self.min_interval:
+                self.count += 1
+                self.last_jump_time = now
 
-# 单人模式：四个关节各自一条跳跃管线
-joint_pipelines = {
-    'head':  JumpPipeline(),
-    'trunk': JumpPipeline(),
-    'hip':   JumpPipeline(),
-    'leg':   JumpPipeline(),
-}
+        self.prev_signs = signs
+        return self.count
 
-while True:
-    ret, frame = cap.read()
-    if not ret: break
-    h,w,_ = frame.shape
 
-    # 单人姿势检测
-    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    res = pose.process(rgb)
-    if not res.pose_world_landmarks:
-        cv2.imshow("RopeJump 0.3.9 单人调试", frame)
-        if cv2.waitKey(1)&0xFF==27: break
-        continue
-    lm = res.pose_world_landmarks.landmark
-    # 计算四个关节点的 y 值
-    head_y  = lm[mp_pose.PoseLandmark.NOSE].y
-    trunk_y = (lm[mp_pose.PoseLandmark.LEFT_SHOULDER].y + lm[mp_pose.PoseLandmark.RIGHT_SHOULDER].y) / 2
-    hip_y   = (lm[mp_pose.PoseLandmark.LEFT_HIP].y + lm[mp_pose.PoseLandmark.RIGHT_HIP].y) / 2
-    leg_y   = (lm[mp_pose.PoseLandmark.LEFT_KNEE].y + lm[mp_pose.PoseLandmark.RIGHT_KNEE].y) / 2
+# =========================
+# 5. DebugRenderer：画三条波动曲线 + 跳数
+# =========================
+class DebugRenderer:
+    def __init__(self, frame_h, buffer_len, regions):
+        self.frame_h = frame_h
+        self.buffer_len = buffer_len
+        self.regions = regions
 
-    # 更新每个关节的管线，记录尾迹并绘制
-    for joint in joint_pipelines.keys():
-        joint_y = locals()[f"{joint}_y"]
-        p = joint_pipelines[joint]
-        # 记录关节尾迹点 (x,y)
-        # 获取关节点在原图像的像素坐标
-        if joint == 'head':
-            idx = mp_pose.PoseLandmark.NOSE
-        elif joint == 'trunk':
-            idx1 = mp_pose.PoseLandmark.LEFT_SHOULDER
-            idx2 = mp_pose.PoseLandmark.RIGHT_SHOULDER
-            x = int((lm[idx1].x + lm[idx2].x)/2 * w)
-            y = int((lm[idx1].y + lm[idx2].y)/2 * h)
-        elif joint == 'hip':
-            idx1 = mp_pose.PoseLandmark.LEFT_HIP
-            idx2 = mp_pose.PoseLandmark.RIGHT_HIP
-            x = int((lm[idx1].x + lm[idx2].x)/2 * w)
-            y = int((lm[idx1].y + lm[idx2].y)/2 * h)
-        elif joint == 'leg':
-            idx1 = mp_pose.PoseLandmark.LEFT_KNEE
-            idx2 = mp_pose.PoseLandmark.RIGHT_KNEE
-            x = int((lm[idx1].x + lm[idx2].x)/2 * w)
-            y = int((lm[idx1].y + lm[idx2].y)/2 * h)
-        if joint == 'head':
-            x = int(lm[mp_pose.PoseLandmark.NOSE].x * w)
-            y = int(lm[mp_pose.PoseLandmark.NOSE].y * h)
-        p.trace.append((x, y))
-        # 更新管线
-        p.update(joint_y)
-        # 绘制尾迹
-        color = COLORS[joint]
-        for i in range(1, len(p.trace)):
-            pt1 = p.trace[i-1]
-            pt2 = p.trace[i]
-            cv2.line(frame, pt1, pt2, color, 2)
-        # 绘制关节计数
-        cv2.putText(frame, f"{joint}:{p.jump_count}", (x+5, y-5), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
+    def render(self, frame, filters, jump_count):
+        """
+        filters: dict region→TrendFilter
+        """
+        h, w = frame.shape[:2]
+        canvas = np.zeros((h, self.buffer_len, 3), np.uint8)
+        row_h = h // len(self.regions)
 
-    # 显示画面
-    cv2.imshow("RopeJump 0.3.9 单人调试", frame)
-    if cv2.waitKey(1)&0xFF==27: break
+        for i, r in enumerate(self.regions):
+            buf = filters[r].fluct_buf
+            arr = np.array(buf)
+            y0, y1 = i * row_h, (i + 1) * row_h
 
-cap.release()
-cv2.destroyAllWindows()
+            if len(arr) >= 2:
+                mn, mx = arr.min(), arr.max()
+                norm = (arr - mn) / (mx - mn) if mx > mn else np.full_like(arr, 0.5)
+                pts = [(x, int(y1 - norm[x] * row_h)) for x in range(len(norm))]
+                for p0, p1 in zip(pts, pts[1:]):
+                    cv2.line(canvas, p0, p1, (200, 200, 200), 1)
+            cv2.putText(canvas, r, (5, y0 + 20),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+
+        # 跳数
+        cv2.putText(frame, f"Jumps: {jump_count}", (10, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 2.5, (0, 255, 255), 4)
+        return cv2.hconcat([frame, canvas])
+
+
+# =========================
+# 6. MainApp：串联所有组件
+# =========================
+class MainApp:
+    def __init__(self, regions=None):
+        if regions is None:
+            regions = ["head", "torso"] #, "legs"]
+        self.cap = cv2.VideoCapture(0)
+        _, tmp = self.cap.read()
+        h, _ = tmp.shape[:2]
+
+        # 组件
+        self.pose = PoseEstimator()
+        self.bg = BackgroundTracker()
+        # 为每个 region 各自创建一个趋势滤波器
+        self.filters = {r: TrendFilter() for r in regions}
+        self.detector = MultiRegionJumpDetector(regions)
+        self.renderer = DebugRenderer(frame_h=h,
+                                      buffer_len=self.filters[regions[0]].raw_buf.maxlen,
+                                      regions=regions)
+
+        # 用于计算相对速度
+        self.prev_heights = {r: None for r in regions}
+
+    def run(self):
+        frame_idx = 0
+        while True:
+            ret, frame = self.cap.read()
+            if not ret: break
+            frame_idx += 1
+
+            # 1) 姿势估计 → 各区域高度字典
+            lm, heights = self.pose.estimate(frame)
+            if not heights:
+                heights = {r: (self.prev_heights[r] or 0.5) for r in self.prev_heights}
+
+            # 2) 背景补偿
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            bg_dy_norm = self.bg.compensate(gray)
+
+            # 3) 计算去背景后的相对速度 f for each region
+            f_vals = {}
+            for r, filt in self.filters.items():
+                prev_h = self.prev_heights[r]
+                curr_h = heights[r]
+                if prev_h is None:
+                    body_dy = 0.0
+                else:
+                    body_dy = curr_h - prev_h
+                self.prev_heights[r] = curr_h
+
+                rel_speed = body_dy - bg_dy_norm
+                f_vals[r] = filt.update(rel_speed, frame_idx)
+
+            # 4) 多区域跳跃检测
+            count = self.detector.detect(f_vals)
+
+            # 5) 渲染并展示
+            output = self.renderer.render(frame, self.filters, count)
+            cv2.imshow("Multi-Region JumpRope Debug", output)
+            if cv2.waitKey(1) & 0xFF == 27:
+                break
+
+        self.cap.release()
+        cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    MainApp().run()
