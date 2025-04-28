@@ -24,14 +24,11 @@
 """
 
 import cv2
-import time
+import tensorflow as tf
 import numpy as np
 from collections import deque
 import mediapipe as mp
-
-import tensorflow as tf
-from collections import deque
-import numpy as np
+import time
 
 
 class PoseEstimator:
@@ -209,33 +206,43 @@ class DebugRenderer:
         self.buffer_len = buffer_len
         self.regions = regions
 
-    def render(self, frame, filters, jump_count, is_skipping=False):
+    def render(self, frame, filters, jump_count, skip_buffer):
         """
         filters: dict region→TrendFilter
         """
         h, w = frame.shape[:2]
+        # Create debug canvas twice as wide
         canvas = np.zeros((h, self.buffer_len, 3), np.uint8)
-        # Overlay semi-transparent background on head & torso rows
-        row_h = h // len(self.regions)
         overlay = canvas.copy()
-        # Determine color: green if skipping, else red
-        bg_color = (0, 255, 0) if is_skipping else (0, 0, 255)
-        # Apply to first two rows (head and torso)
-        for i in range(min(2, len(self.regions))):
-            y0, y1 = i * row_h, (i + 1) * row_h
-            cv2.rectangle(overlay, (0, y0), (self.buffer_len, y1), bg_color, -1)
-        # Blend overlay with canvas at 30% opacity
-        canvas = cv2.addWeighted(overlay, 0.3, canvas, 0.7, 0)
+        # Draw semi-transparent column color blocks: green for skipping, red otherwise
+        # Align skip_buffer flags to the right to match time-series update direction
+        flags = np.array(skip_buffer, dtype=bool)
+        pad = self.buffer_len - flags.size
+        if pad > 0:
+            flags_padded = np.concatenate((np.zeros(pad, dtype=bool), flags))
+        else:
+            flags_padded = flags
+        for x, flag in enumerate(flags_padded):
+            col_color = (0, 255, 0) if flag else (0, 0, 255)
+            cv2.rectangle(overlay, (x, 0), (x + 1, h), col_color, -1)
+        # Blend overlay more strongly for visible background colors
+        canvas = cv2.addWeighted(overlay, 0.7, canvas, 0.3, 0)
 
+        # Draw each region's fluctuation curve
+        row_h = h // len(self.regions)
         for i, r in enumerate(self.regions):
             buf = filters[r].fluct_buf
             arr = np.array(buf)
+            # Pad to full canvas width on the left
+            pad = self.buffer_len - len(arr)
+            padded = np.concatenate((np.zeros(pad, dtype=arr.dtype), arr))
+            arr = padded
             y0, y1 = i * row_h, (i + 1) * row_h
 
             if len(arr) >= 2:
                 mn, mx = arr.min(), arr.max()
                 norm = (arr - mn) / (mx - mn) if mx > mn else np.full_like(arr, 0.5)
-                pts = [(x, int(y1 - norm[x] * row_h)) for x in range(len(norm))]
+                pts = [(x, int(y1 - norm[x] * row_h)) for x in range(self.buffer_len)]
                 for p0, p1 in zip(pts, pts[1:]):
                     cv2.line(canvas, p0, p1, (200, 200, 200), 1)
             cv2.putText(canvas, r, (5, y0 + 20),
@@ -251,6 +258,7 @@ class DebugRenderer:
         x = 10
         y = text_height + 10  # 将文本基线设置在高度 text_height + 10 处，确保完整显示
         cv2.putText(frame, text, (x, y), font, font_scale, (0, 255, 255), thickness)
+        # Combine camera frame and debug canvas
         return cv2.hconcat([frame, canvas])
 
 
@@ -270,9 +278,12 @@ class MainApp:
         self.bg = BackgroundTracker()
         # 为每个 region 各自创建一个趋势滤波器
         self.filters = {r: TrendFilter() for r in regions}
+        # Initialize jump detector for zero-cross counting
         self.detector = MultiRegionJumpDetector(regions)
+        # Double the debug canvas width for more history
+        buf_len = self.filters[regions[0]].raw_buf.maxlen * 2
         self.renderer = DebugRenderer(frame_h=h,
-                                      buffer_len=self.filters[regions[0]].raw_buf.maxlen,
+                                      buffer_len=buf_len,
                                       regions=regions)
 
         # 用于计算相对速度
@@ -282,6 +293,8 @@ class MainApp:
         self.seq_window = 64  # must match model input length used in training
         self.seq_buffer = deque(maxlen=self.seq_window)
         self.crnn_thresh = 0.5  # probability threshold to enable zero-cross counting
+        # Buffer of skipping flags for coloring the time-series canvas
+        self.skip_buffer = deque(maxlen=buf_len)
 
     def run(self):
         frame_idx = 0
@@ -333,9 +346,11 @@ class MainApp:
                 count = self.detector.detect(f_vals)
             else:
                 count = self.detector.count
+            # Record skipping flag for time-series coloring
+            self.skip_buffer.append(is_skipping)
 
             # 6) 渲染并展示
-            output = self.renderer.render(frame, self.filters, count, is_skipping)
+            output = self.renderer.render(frame, self.filters, count, self.skip_buffer)
             # 显示 CRNN 预判状态
             state_txt = 'JUMPING' if is_skipping else 'PAUSED'
             color = (0, 255, 0) if is_skipping else (0, 0, 255)
@@ -347,9 +362,10 @@ class MainApp:
             )
             # 显示跳绳概率 P
             prob_text = f"P={prob:.2f}"
-            # 放在右上角，留出 10px 边距
-            txt_size, _ = cv2.getTextSize(prob_text, cv2.FONT_HERSHEY_SIMPLEX, 1.0, 2)
-            x_pos = output.shape[1] - txt_size[0] - 10
+            txt_size, _ = cv2.getTextSize(prob_text, cv2.FONT_HERSHEY_SIMPLEX, 6.0, 10)
+            # Place on camera image (left half) top-right
+            cam_w = frame.shape[1]
+            x_pos = cam_w - txt_size[0] - 10
             y_pos = txt_size[1] + 10
             cv2.putText(
                 output, prob_text,
