@@ -1,35 +1,9 @@
-"""
-跳绳计数器主程序 (面向对象版)
-版本：0.3.11
-
-功能：
-- 面向对象重构：PoseEstimator, BackgroundTracker, TrendFilter, MultiRegionJumpDetector, DebugRenderer, MainApp
-- 区域高度计算：支持 head, torso, legs 区域高度提取
-- 背景补偿：LK 光流消除摄像头抖动
-- 趋势分离：指数平滑 + 移动平均分离高频波动
-- 多区域同相位检测：同时监测多条波动的负→正过零
-- 可配置区域列表：MainApp 可传入不同区域组合
-- 可视化调试：在摄像头画面下方绘制每个区域高频波动时间序列；左上角高亮跳数
-- 支持动态调整跳数字体大小与颜色
-
-更新日志：
-0.3.0  - 初始 OOP 重构版本，实现 0.2 核心跳绳管线 (背景补偿+趋势分解+零交叉+调试 UI)
-0.3.1  - 增加多区域支持 (head, torso, legs) 及对应滤波器
-0.3.2  - 集成 MultiRegionJumpDetector，实现多区域同相位跳跃检测
-0.3.3  - 支持通过构造函数配置区域列表
-0.3.4  - 优化调试 UI：增大跳数文本字体、修改文本颜色为黄色
-0.3.5  - 修复相对速度计算逻辑，使用 prev_torso_y 替换错误引用
-0.3.6  - 代码清理及注释增强
-0.3.11 - 最终迭代，完善文档与版本标记
-"""
-
 import cv2
 import time
 import numpy as np
 from collections import deque
 import mediapipe as mp
 import tensorflow as tf
-from keras import layers, models, callbacks
 
 
 class PoseEstimator:
@@ -260,6 +234,14 @@ class MainApp:
         self.bg = BackgroundTracker()
         # 为每个 region 各自创建一个趋势滤波器
         self.filters = {r: TrendFilter() for r in regions}
+
+        # Load the trained LSTM model (.h5) and prepare sequence buffer
+        self.lstm_model = tf.keras.models.load_model("./PoseDetection/models/lstm_jump_classifier.h5")
+        # Determine input window size and feature dim from model
+        _, W, D = self.lstm_model.input_shape
+        from collections import deque
+        self.seq_buffer = deque(maxlen=W)  # will hold W frames of raw landmarks
+
         self.detector = MultiRegionJumpDetector(regions)
         self.renderer = DebugRenderer(frame_h=h,
                                       buffer_len=self.filters[regions[0]].raw_buf.maxlen,
@@ -267,14 +249,6 @@ class MainApp:
 
         # 用于计算相对速度
         self.prev_heights = {r: None for r in regions}
-        # 加载训练好的 LSTM 模型
-        self.lstm_model = models.load_model("./PoseDetection/models/lstm_jump_classifier.h5")
-        # LSTM 模型输入窗口大小和维度
-        self.window_size = next(iter(self.filters.values())).raw_buf.maxlen
-        self.feature_dim = len(regions)  # if heights per region; adjust if more features
-        # 用 deque 存最新一窗的区域高度差序列
-        from collections import deque
-        self.seq_buffer = deque(maxlen=self.window_size)
 
     def run(self):
         frame_idx = 0
@@ -283,6 +257,8 @@ class MainApp:
             ret, frame = self.cap.read()
             if not ret: break
             frame_idx += 1
+
+            jump_prob = 0.0
 
             # 1) 姿势估计 → 各区域高度字典
             lm, heights = self.pose.estimate(frame)
@@ -297,45 +273,32 @@ class MainApp:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             bg_dy_norm = self.bg.compensate(gray)
 
-            # 3) 计算去背景后的相对速度 f for each region
-            f_vals = {}
-            for r, filt in self.filters.items():
-                prev_h = self.prev_heights[r]
-                curr_h = heights[r]
-                if prev_h is None:
-                    body_dy = 0.0
-                else:
-                    body_dy = curr_h - prev_h
-                self.prev_heights[r] = curr_h
+            # 3) Extract full landmark vector for deep model
+            # If pose landmarks detected, flatten all (x,y) coords
+            if lm:
+                lm_pts = lm.landmark
+                vec = np.array([coord for pt in lm_pts for coord in (pt.x, pt.y)], dtype=np.float32)
+                self.seq_buffer.append(vec)
+            else:
+                # skip this frame if no landmarks
+                continue
 
-                rel_speed = body_dy - bg_dy_norm
-                f_vals[r] = filt.update(rel_speed, frame_idx)
-
-            # 收集多区域 f_vals 序列到 LSTM buffer
-            # 按 regions 顺序填充一行特征 [f_head, f_torso, ...]
-            feature_row = [f_vals[r] for r in regions]
-            self.seq_buffer.append(feature_row)
-
-            # 4) 基于 LSTM 模型做窗口分类
-            count = self.detector.count  # preserve existing count field
-            if len(self.seq_buffer) == self.window_size:
-                # 构造数组 (1, W, D)
-                import numpy as np
-                seq = np.array(self.seq_buffer, dtype=np.float32)[None, ...]
-                # 预测概率，取 [0,1] 中 jump 类别索引（assume jump 在索引0或1，根据训练时顺序）
+            # 4) Deep LSTM model inference on raw landmark sequences
+            count = self.detector.count
+            if len(self.seq_buffer) == self.seq_buffer.maxlen:
+                seq = np.stack(self.seq_buffer, axis=0)[None, ...]  # shape (1, W, D)
                 probs = self.lstm_model.predict(seq, verbose=0)[0]
-                # 假定模型输出 [non_jump_prob, jump_prob]
-                jump_prob = probs[1] if len(probs) > 1 else probs[0]
-                # 当概率 > 0.5 视为一次跳绳（并只在窗口刚满时计一次）
-                if jump_prob > 0.5:
-                    now = time.time()
-                    if now - self.detector.last_jump_time > self.detector.min_interval:
-                        count += 1
-                        self.detector.last_jump_time = now
+                # assume probs = [non_jump_prob, jump_prob]
+                jump_prob = float(probs[1]) if len(probs) > 1 else float(probs[0])
+                # count once when window fills
+                now = time.time()
+                if jump_prob > 0.5 and (now - self.detector.last_jump_time) > self.detector.min_interval:
+                    count += 1
+                    self.detector.last_jump_time = now
             self.detector.count = count
 
             # 在右上角大字显示当前跳绳状态
-            status = "JUMPING" if (len(self.seq_buffer) == self.window_size and jump_prob > 0.5) else "NOT JUMPING"
+            status = "JUMPING" if (len(self.seq_buffer) == self.seq_buffer.maxlen and jump_prob > 0.5) else "NOT JUMPING"
             # 选择大字号和高对比颜色（黄色）
             cv2.putText(
                 frame, status,
