@@ -28,6 +28,8 @@ import time
 import numpy as np
 from collections import deque
 import mediapipe as mp
+
+
 class PoseEstimator:
     def __init__(self,
                  model_complexity=0,
@@ -98,20 +100,14 @@ class BackgroundTracker:
         """
         h, _ = gray.shape
         if self.prev_gray is None:
-            self.bg_pts = cv2.goodFeaturesToTrack(
-                gray, maxCorners=self.max_pts,
-                qualityLevel=0.01, minDistance=10
-            )
+            self.bg_pts = cv2.goodFeaturesToTrack(gray, maxCorners=self.max_pts, qualityLevel=0.01, minDistance=10)
             self.prev_gray = gray.copy()
             return 0.0
 
-        new_pts, st, _ = cv2.calcOpticalFlowPyrLK(
-            self.prev_gray, gray,
-            self.bg_pts, None,
-            winSize=(15, 15), maxLevel=2,
-            criteria=(cv2.TERM_CRITERIA_EPS |
-                      cv2.TERM_CRITERIA_COUNT, 10, 0.03)
-        )
+        new_pts, st, _ = cv2.calcOpticalFlowPyrLK(self.prev_gray, gray,
+                                                  self.bg_pts, np.zeros(self.bg_pts.shape),
+                                                  winSize=(15, 15), maxLevel=2,
+                                                  criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
         mask = (st.flatten() == 1)
         if mask.any():
             p0 = self.bg_pts[mask].reshape(-1, 2)
@@ -231,9 +227,16 @@ class DebugRenderer:
             cv2.putText(canvas, r, (5, y0 + 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-        # 跳数
-        cv2.putText(frame, f"Jumps: {jump_count}", (10, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 2.5, (0, 255, 255), 4)
+        # 绘制跳绳计数，自动调整位置以确保完整显示
+        text = f"Jumps: {jump_count}"
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 4
+        thickness = 15
+        # 获取文本尺寸，避免超出画面
+        (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+        x = 10
+        y = text_height + 10  # 将文本基线设置在高度 text_height + 10 处，确保完整显示
+        cv2.putText(frame, text, (x, y), font, font_scale, (0, 255, 255), thickness)
         return cv2.hconcat([frame, canvas])
 
 
@@ -243,7 +246,7 @@ class DebugRenderer:
 class MainApp:
     def __init__(self, regions=None):
         if regions is None:
-            regions = ["head", "torso"] #, "legs"]
+            regions = ["head", "torso"]  # , "legs"]
         self.cap = cv2.VideoCapture(0)
         _, tmp = self.cap.read()
         h, _ = tmp.shape[:2]
