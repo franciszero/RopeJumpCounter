@@ -52,7 +52,7 @@ def main():
     # 解析命令行参数：工作目录和输入视频文件名
     parser = argparse.ArgumentParser(description="带按钮的跳跃上升段标注工具")
     parser.add_argument("--workdir", default="../raw_videos", help="工作目录，包含视频文件")
-    parser.add_argument("--input", default="jump_004.avi", help="输入视频文件名（如 jump.mp4）")
+    parser.add_argument("--input", default="jump_005.avi", help="输入视频文件名（如 jump.mp4）")
     args = parser.parse_args()
 
     # 构造输入视频和输出 CSV 路径
@@ -61,6 +61,18 @@ def main():
     output_path = os.path.join(args.workdir, f"{base}_labels.csv")
 
     tmp_img_path = os.path.join(args.workdir, f"{base}_tmp.png")
+
+    # 初始化标注数据
+    labels = []  # 存储 (start_frame, end_frame) 列表
+
+    # 如果已有标签文件，加载已有标注以便重编辑
+    if os.path.exists(output_path):
+        with open(output_path, newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                labels.append((int(row['start_frame']), int(row['end_frame'])))
+        # 将加载的标签按起始帧排序
+        labels.sort(key=lambda x: x[0])
 
     # 打开视频文件
     cap = cv2.VideoCapture(video_path)
@@ -72,8 +84,6 @@ def main():
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
 
-    # 初始化标注数据
-    labels = []  # 存储 (start_frame, end_frame) 列表
     curr_start = None  # 当前起始帧索引
     frame_idx = 0  # 当前显示的帧索引
 
@@ -92,7 +102,8 @@ def main():
 
     # 右侧标签列表（滚动列表框），每个子列表代表一行
     label_listbox = [
-        [sg.Listbox(values=[], size=(20,20), key='-LIST-', enable_events=True)]
+        [sg.Listbox(values=[f"{s}-{e}" for s,e in labels],
+                    size=(20,20), key='-LIST-', enable_events=True)]
     ]
 
     # 主窗口布局：左侧视频与控制，右侧标签列表；底部按钮行
@@ -144,6 +155,8 @@ def main():
             # 标记结束帧并保存区间
             if curr_start is not None:
                 labels.append((curr_start, frame_idx))
+                # 按起始帧排序
+                labels.sort(key=lambda x: x[0])
                 curr_start = None
                 # 更新列表框显示
                 window['-LIST-'].update([f"{s}-{e}" for s,e in labels])
@@ -162,6 +175,8 @@ def main():
             # 标记结束帧并保存区间
             if curr_start is not None:
                 labels.append((curr_start, frame_idx))
+                # 按起始帧排序
+                labels.sort(key=lambda x: x[0])
                 curr_start = None
                 # 更新列表框显示
                 window['-LIST-'].update([f"{s}-{e}" for s,e in labels])
@@ -178,6 +193,8 @@ def main():
                 s,e = map(int, selection[0].split('-'))
                 # 删除该区间
                 labels = [(a,b) for a,b in labels if not (a==s and b==e)]
+                # 删除后按起始帧排序
+                labels.sort(key=lambda x: x[0])
                 window['-LIST-'].update([f"{a}-{b}" for a,b in labels])
         # 其它事件忽略
 
