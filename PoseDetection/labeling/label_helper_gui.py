@@ -43,13 +43,16 @@ import csv  # 用于写入标签 CSV
 import os  # 用于路径操作
 import argparse  # 用于解析命令行参数
 import tempfile
+import copy  # 用于深拷贝和刷新右侧标注列表
 
+# 临时图像文件路径，用于 GUI 显示
+# 该文件用于将每帧写为 PNG 格式，供 sg.Image(filename=...) 加载显示
 
 def main():
     # 解析命令行参数：工作目录和输入视频文件名
     parser = argparse.ArgumentParser(description="带按钮的跳跃上升段标注工具")
     parser.add_argument("--workdir", default="../raw_videos", help="工作目录，包含视频文件")
-    parser.add_argument("--input", default="jump_002.avi", help="输入视频文件名（如 jump.mp4）")
+    parser.add_argument("--input", default="jump_004.avi", help="输入视频文件名（如 jump.mp4）")
     args = parser.parse_args()
 
     # 构造输入视频和输出 CSV 路径
@@ -57,7 +60,6 @@ def main():
     base, _ = os.path.splitext(args.input)
     output_path = os.path.join(args.workdir, f"{base}_labels.csv")
 
-    # 临时图像文件路径，用于 GUI 显示
     tmp_img_path = os.path.join(args.workdir, f"{base}_tmp.png")
 
     # 打开视频文件
@@ -75,17 +77,31 @@ def main():
     curr_start = None  # 当前起始帧索引
     frame_idx = 0  # 当前显示的帧索引
 
-    # 定义 GUI 布局
-    layout = [
+    # 左侧视频与操作，右侧滚动标注列表
+    left_col = [
         [sg.Image(filename='', key='-IMAGE-')],
         [sg.Text('Frame: 0 / ' + str(total_frames - 1), key='-FRAME-'),
          sg.Text('Time: 0.00s', key='-TIME-'),
          sg.Text('Start: None', key='-START-')],
-        [sg.Button('Prev', size=(10, 2), font=('Helvetica', 14)),
-         sg.Button('Next', size=(10, 2), font=('Helvetica', 14)),
-         sg.Button('Mark Start', size=(10, 2), font=('Helvetica', 14)),
-         sg.Button('Mark End', size=(10, 2), font=('Helvetica', 14)),
-         sg.Button('Save & Quit', size=(10, 2), font=('Helvetica', 14))]
+        [sg.Button('Prev', size=(10,2), font=('Helvetica',14)),
+         sg.Button('Next', size=(10,2), font=('Helvetica',14)),
+         sg.Button('Mark Start', size=(10,2), font=('Helvetica',14)),
+         sg.Button('Mark End', size=(10,2), font=('Helvetica',14)),
+         sg.Button('Save & Quit', size=(10,2), font=('Helvetica',14))]
+    ]
+
+    # 右侧标签列表（滚动列表框），每个子列表代表一行
+    label_listbox = [
+        [sg.Listbox(values=[], size=(20,20), key='-LIST-', enable_events=True)]
+    ]
+
+    # 主窗口布局：左侧视频与控制，右侧标签列表；底部按钮行
+    layout = [
+        [sg.Column(left_col), sg.VSeparator(),
+         sg.Column(label_listbox, scrollable=True, size=(200,400), key='-LIST_COL-')],
+        [sg.Button('Goto', size=(8,2), font=('Helvetica',12)),
+         sg.Button('Delete', size=(8,2), font=('Helvetica',12)),
+         sg.Button('Save & Quit', size=(10,2), font=('Helvetica',14))]
     ]
 
     # 创建并显示窗口
@@ -109,11 +125,12 @@ def main():
         window['-START-'].update(f'Start: {curr_start if curr_start is not None else "None"}')
 
         # 读取用户操作
-        event, _ = window.read()
-        # 支持方向键快捷操作：左右箭头前后跳帧，上下箭头标记起始/结束
+        event, values = window.read()
+
+        # 保存或关闭
         if event in (sg.WIN_CLOSED, 'Save & Quit', 'special 16777216'):
-            # 保存并退出
             break
+        # 方向键或原按钮逻辑...
         elif event in ('Left', '<Left>', 'special 16777234'):
             # 回退一帧
             frame_idx = max(0, frame_idx - 1)
@@ -128,6 +145,8 @@ def main():
             if curr_start is not None:
                 labels.append((curr_start, frame_idx))
                 curr_start = None
+                # 更新列表框显示
+                window['-LIST-'].update([f"{s}-{e}" for s,e in labels])
             else:
                 sg.popup('请先标记起始帧')
         elif event == 'Prev':
@@ -144,13 +163,31 @@ def main():
             if curr_start is not None:
                 labels.append((curr_start, frame_idx))
                 curr_start = None
+                # 更新列表框显示
+                window['-LIST-'].update([f"{s}-{e}" for s,e in labels])
             else:
                 sg.popup('请先标记起始帧')
+        elif event == 'Goto':
+            selection = values['-LIST-']
+            if selection:
+                s,e = map(int, selection[0].split('-'))
+                frame_idx = s
+        elif event == 'Delete':
+            selection = values['-LIST-']
+            if selection:
+                s,e = map(int, selection[0].split('-'))
+                # 删除该区间
+                labels = [(a,b) for a,b in labels if not (a==s and b==e)]
+                window['-LIST-'].update([f"{a}-{b}" for a,b in labels])
         # 其它事件忽略
 
     # 释放视频和关闭窗口
     cap.release()
     window.close()
+
+    # 清理临时帧图像文件
+    if os.path.exists(tmp_img_path):
+        os.remove(tmp_img_path)
 
     # 保存标签到 CSV
     os.makedirs(args.workdir, exist_ok=True)
