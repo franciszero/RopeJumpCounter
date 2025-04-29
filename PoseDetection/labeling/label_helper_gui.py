@@ -45,8 +45,25 @@ import argparse  # 用于解析命令行参数
 import tempfile
 import copy  # 用于深拷贝和刷新右侧标注列表
 
+
 # 临时图像文件路径，用于 GUI 显示
 # 该文件用于将每帧写为 PNG 格式，供 sg.Image(filename=...) 加载显示
+
+def build_panel(workdir, base):
+    """
+    返回用于嵌入在主界面的标注面板布局，包含按钮来启动独立的标注窗口或其他操作。
+    :param workdir: 工作目录，视频与标签所在路径
+    :param base: 视频文件基名，不含后缀
+    """
+    # 这里只生成一个简易面板，点击按钮可启动完整的标注界面
+    video_file = os.path.join(workdir, f"{base}.avi")
+    if not os.path.exists(video_file):
+        video_file = os.path.join(workdir, f"{base}.mp4")
+    return [
+        [sg.Text(f"当前视频：{base}", font=('Helvetica', 14))],
+        [sg.Button('启动标注工具', key='-LAUNCH_LABEL_TOOL-', size=(12, 2))],
+    ]
+
 
 def main():
     # 解析命令行参数：工作目录和输入视频文件名
@@ -93,26 +110,26 @@ def main():
         [sg.Text('Frame: 0 / ' + str(total_frames - 1), key='-FRAME-'),
          sg.Text('Time: 0.00s', key='-TIME-'),
          sg.Text('Start: None', key='-START-')],
-        [sg.Button('Prev', size=(10,2), font=('Helvetica',14)),
-         sg.Button('Next', size=(10,2), font=('Helvetica',14)),
-         sg.Button('Mark Start', size=(10,2), font=('Helvetica',14)),
-         sg.Button('Mark End', size=(10,2), font=('Helvetica',14)),
-         sg.Button('Save & Quit', size=(10,2), font=('Helvetica',14))]
+        [sg.Button('Prev', size=(10, 2), font=('Helvetica', 14)),
+         sg.Button('Next', size=(10, 2), font=('Helvetica', 14)),
+         sg.Button('Mark Start', size=(10, 2), font=('Helvetica', 14)),
+         sg.Button('Mark End', size=(10, 2), font=('Helvetica', 14)),
+         sg.Button('Save & Quit', size=(10, 2), font=('Helvetica', 14))]
     ]
 
     # 右侧标签列表（滚动列表框），每个子列表代表一行
     label_listbox = [
-        [sg.Listbox(values=[f"{s}-{e}" for s,e in labels],
-                    size=(20,20), key='-LIST-', enable_events=True)]
+        [sg.Listbox(values=[f"{s}-{e}" for s, e in labels],
+                    size=(20, 20), key='-LIST-', enable_events=True)]
     ]
 
     # 主窗口布局：左侧视频与控制，右侧标签列表；底部按钮行
     layout = [
         [sg.Column(left_col), sg.VSeparator(),
-         sg.Column(label_listbox, scrollable=True, size=(200,400), key='-LIST_COL-')],
-        [sg.Button('Goto', size=(8,2), font=('Helvetica',12)),
-         sg.Button('Delete', size=(8,2), font=('Helvetica',12)),
-         sg.Button('Save & Quit', size=(10,2), font=('Helvetica',14))]
+         sg.Column(label_listbox, scrollable=True, size=(200, 400), key='-LIST_COL-')],
+        [sg.Button('Goto', size=(8, 2), font=('Helvetica', 12)),
+         sg.Button('Delete', size=(8, 2), font=('Helvetica', 12)),
+         sg.Button('Save & Quit', size=(10, 2), font=('Helvetica', 14))]
     ]
 
     # 创建并显示窗口
@@ -159,7 +176,7 @@ def main():
                 labels.sort(key=lambda x: x[0])
                 curr_start = None
                 # 更新列表框显示
-                window['-LIST-'].update([f"{s}-{e}" for s,e in labels])
+                window['-LIST-'].update([f"{s}-{e}" for s, e in labels])
             else:
                 sg.popup('请先标记起始帧')
         elif event == 'Prev':
@@ -179,23 +196,23 @@ def main():
                 labels.sort(key=lambda x: x[0])
                 curr_start = None
                 # 更新列表框显示
-                window['-LIST-'].update([f"{s}-{e}" for s,e in labels])
+                window['-LIST-'].update([f"{s}-{e}" for s, e in labels])
             else:
                 sg.popup('请先标记起始帧')
         elif event == 'Goto':
             selection = values['-LIST-']
             if selection:
-                s,e = map(int, selection[0].split('-'))
+                s, e = map(int, selection[0].split('-'))
                 frame_idx = s
         elif event == 'Delete':
             selection = values['-LIST-']
             if selection:
-                s,e = map(int, selection[0].split('-'))
+                s, e = map(int, selection[0].split('-'))
                 # 删除该区间
-                labels = [(a,b) for a,b in labels if not (a==s and b==e)]
+                labels = [(a, b) for a, b in labels if not (a == s and b == e)]
                 # 删除后按起始帧排序
                 labels.sort(key=lambda x: x[0])
-                window['-LIST-'].update([f"{a}-{b}" for a,b in labels])
+                window['-LIST-'].update([f"{a}-{b}" for a, b in labels])
         # 其它事件忽略
 
     # 释放视频和关闭窗口
