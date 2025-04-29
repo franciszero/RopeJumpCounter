@@ -94,10 +94,10 @@ class BackgroundTracker:
         self.prev_gray = None
         self.bg_pts = None
 
+    """
+    返回当前帧背景垂直归一化速度 bg_dy_norm
+    """
     def compensate(self, gray):
-        """
-        返回当前帧背景垂直归一化速度 bg_dy_norm
-        """
         h, _ = gray.shape
         if self.prev_gray is None:
             self.bg_pts = cv2.goodFeaturesToTrack(gray, maxCorners=self.max_pts, qualityLevel=0.01, minDistance=10)
@@ -134,11 +134,11 @@ class TrendFilter:
         self.trend_buf = deque(maxlen=buffer_len)
         self.fluct_buf = deque(maxlen=buffer_len)
 
+    """
+    输入去背景后的相对速度 rel_speed 与帧号 idx
+    返回高频波动 f
+    """
     def update(self, rel_speed, idx):
-        """
-        输入去背景后的相对速度 rel_speed 与帧号 idx
-        返回高频波动 f
-        """
         if idx <= self.baseline:
             for buf in (self.raw_buf,
                         self.smooth_buf,
@@ -168,26 +168,26 @@ class TrendFilter:
 # 4. MultiRegionJumpDetector：多区域同相位跳跃检测
 # =========================
 class MultiRegionJumpDetector:
-    def __init__(self, regions, min_interval=0.3):
-        """
-        regions: list of region names, e.g. ["head","torso","legs"]
-        """
+    """
+    regions: list of region names, e.g. ["head","torso","legs"]
+    """
+    def __init__(self, regions, min_interval=0.1):
         self.regions = regions
         self.min_interval = min_interval
         self.prev_signs = {r: -1 for r in regions}
         self.last_jump_time = 0.0
         self.count = 0
 
+    """
+    f_dict: {region: f_value}
+    仅当所有 region 同时从负过零到正 且间隔足够时计数
+    """
     def detect(self, f_dict):
-        """
-        f_dict: {region: f_value}
-        仅当所有 region 同时从负过零到正 且间隔足够时计数
-        """
         now = time.time()
         signs = {r: (1 if f_dict[r] > 0 else -1) for r in self.regions}
 
         # 判断所有区域是否都负→正
-        if all(signs[r] > 0 and self.prev_signs[r] < 0 for r in self.regions):
+        if all(signs[r] > 0 > self.prev_signs[r] for r in self.regions):
             if (now - self.last_jump_time) > self.min_interval:
                 self.count += 1
                 self.last_jump_time = now
