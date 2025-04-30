@@ -12,6 +12,8 @@ app.py
 
 使用方法:
     python app.py --out <输出目录> [--countdown N] [--model 模型文件路径]
+    python app.py --out output_dir --countdown 3
+    python app.py --out output_dir --countdown 3 --model models/lstm_jump_classifier.h5
 
 参数说明:
   --out       摄像头数据及结果保存路径（默认: record_output）
@@ -33,8 +35,10 @@ import tensorflow as tf
 import numpy as np
 from collections import deque
 
+from PoseDetection.features import PoseFrame, Differentiator, DistanceCalculator, AngleCalculator
 
-def record_session(output_dir, regions=None, countdown=3, model_path='jump_detection_model.keras'):
+
+def record_session(output_dir, regions=None, countdown=3, model_path='PoseDetection/models/best_crnn.keras'):
     # 创建输出目录
     regions = regions or ["head", "torso"]
     os.makedirs(output_dir, exist_ok=True)
@@ -49,9 +53,25 @@ def record_session(output_dir, regions=None, countdown=3, model_path='jump_detec
     # 加载跳绳动作识别模型，并决定使用窗口模式还是单帧模式
     if not model_path.endswith(('.keras', '.h5')):
         model_path += '.keras'
-    model = tf.keras.models.load_model(model_path)  # adjust path if necessary
-    use_window = hasattr(model.input, 'shape') and model.input.shape[1] > 1
-    window_size = model.input.shape[1]
+    model = tf.keras.models.load_model(model_path)
+
+    # 根据 model.input_shape 决定使用窗口模式还是单帧模式
+    input_shape = model.input_shape  # e.g. (None, W, F) or (None, F)
+    if len(input_shape) == 3 and input_shape[1] is not None:
+        window_size = int(input_shape[1])
+        use_window = window_size > 1
+    else:
+        window_size = 1
+        use_window = False
+
+    # === 特征提取初始化 ===
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
+    dt = 1.0 / fps
+    diff = Differentiator(dt)
+    distance_pairs = [(24, 26), (26, 28), (11, 13), (13, 15)]
+    angle_triplets = [(24, 26, 28), (11, 13, 15), (23, 11, 13)]
+    dist_calc = DistanceCalculator(distance_pairs)
+    ang_calc = AngleCalculator(angle_triplets)
     feature_buffer = deque(maxlen=window_size)
     prev_pred = 0
 
@@ -100,43 +120,49 @@ def record_session(output_dir, regions=None, countdown=3, model_path='jump_detec
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             bg_dy = bg.compensate(gray)
 
-            # 构建数据行：帧号、时间戳、各部位高度、趋势滤波后的波动值
+            # 构建数据行：帧号、时间戳
             row = [frame_idx, timestamp]
-            fluctuations = {}
-            for r in regions:
-                prev = prev_heights[r]
-                curr = heights.get(r, prev or 0.0)
-                body_dy = 0.0 if prev is None else (curr - prev)
-                prev_heights[r] = curr
 
-                # 趋势滤波器更新，滤除噪声
-                f_val = filters[r].update(body_dy - bg_dy, frame_idx)
-                fluctuations[r] = f_val
-                row.append(curr)
-            for r in regions:
-                row.append(fluctuations[r])
+            # === 全量 469 维特征提取 ===
+            lm, heights = pose.estimate(frame)
+            # 获取帧尺寸
+            height, width = frame.shape[:2]
+            # 如果未检测到人体，填充零向量
+            if lm is None:
+                raw = [0.0] * (33 * 4)
+                raw_px = [0.0] * (33 * 2)
+                vel = [0.0] * (33 * 4)
+                acc = [0.0] * (33 * 4)
+                dists = [0.0] * len(distance_pairs)
+                angs = [0.0] * len(angle_triplets)
+            else:
+                pf = PoseFrame(frame_idx, timestamp, lm.landmark, frame_size=(height, width))
+                raw = pf.raw            # 132 dims
+                raw_px = pf.raw_px      # 66 dims
+                vel, acc = diff.compute(raw)
+                dists = dist_calc.compute(lm.landmark)
+                angs = ang_calc.compute(lm.landmark)
 
-            # 构建输入特征，送入模型进行跳跃检测
-            feat = np.array(row[2:], dtype=np.float32)  # shape (F,)
+            # 拼接成特征向量，匹配模型期望
+            feat = raw + raw_px + vel + acc + dists + angs  # 132+66+132+132+4+3 = 469 dims
+
+            # 模型推理与跳跃计数
             if use_window:
                 feature_buffer.append(feat)
                 if len(feature_buffer) == window_size:
-                    inp = np.stack(feature_buffer, axis=0)[np.newaxis, ...]  # shape (1, W, F)
-                    pred = model.predict(inp, verbose=0)[0, 0]  # probability of jump
+                    inp = np.stack(feature_buffer, axis=0)[np.newaxis, ...]
+                    pred = model.predict(inp, verbose=0)[0, 0]
                     label = 1 if pred > 0.5 else 0
                 else:
                     label = 0
             else:
-                inp = feat[np.newaxis, np.newaxis, :]  # shape (1,1,F)
+                inp = np.array(feat, dtype=np.float32)[np.newaxis, np.newaxis, :]
                 pred = model.predict(inp, verbose=0)[0, 0]
                 label = 1 if pred > 0.5 else 0
 
-            # 跳跃计数：检测预测标签的上升沿
-            jump_count = prev_pred == 0 and label == 1
-            if jump_count:
-                row.append(1)
-            else:
-                row.append(0)
+            # 检测上升沿，累加跳绳计数
+            jump_flag = (prev_pred == 0 and label == 1)
+            row.append(1 if jump_flag else 0)
             prev_pred = label
 
             # 写入CSV文件
@@ -159,8 +185,8 @@ if __name__ == "__main__":
     parser.add_argument("--countdown", type=int, default=3, help="Countdown seconds before recording starts")
     parser.add_argument(
         '--model',
-        default='models/best_crnn.keras',
-        help='Path to .keras or .h5 model file (default: models/best_crnn.keras)'
+        default='PoseDetection/models/best_crnn.keras',
+        help='Path to .keras or .h5 model file (default: PoseDetection/models/best_crnn.keras)'
     )
     args = parser.parse_args()
     record_session(args.out, countdown=args.countdown, model_path=args.model)
