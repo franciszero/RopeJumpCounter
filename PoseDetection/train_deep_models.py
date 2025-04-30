@@ -402,18 +402,21 @@ def main():
     ax1.legend(loc='lower right')
 
     # 3) 各模型测试集 F1 分数表
+    # Map class labels (e.g., 0,1) as strings
+    class_names = [str(c) for c in le.classes_]
+    neg_label, pos_label = class_names[0], class_names[1]
     metrics = []
     for name, y_pred in model_reports:
         rep = classification_report(
             y_true, y_pred,
-            target_names=[str(c) for c in le.classes_],
+            target_names=class_names,
             output_dict=True
         )
         metrics.append([
             name,
             rep['accuracy'],
-            rep['jump']['f1-score'],
-            rep['non_jump']['f1-score'],
+            rep[pos_label]['f1-score'],
+            rep[neg_label]['f1-score'],
         ])
     df = pd.DataFrame(
         metrics,
