@@ -4,11 +4,12 @@
 使用 1D-CNN 和 LSTM 对跳绳序列做分类训练
 
 用法：
-  python train_deep_models.py \
-    --dataset_dir ./dataset \
-    --batch_size 32 \
-    --epochs 300 \
-    --window_size 64
+python train_deep_models.py \
+  --dataset_dir ./dataset \
+  --mode window \
+  --window_size 32 \
+  --batch_size 32 \
+  --epochs 100
 """
 
 import os
@@ -23,19 +24,54 @@ import itertools
 from sklearn.metrics import confusion_matrix, roc_curve, auc, precision_recall_curve, average_precision_score
 
 
-def load_data(dataset_dir, window_size):
-    """
-    Load train/val/test from .npz files in dataset_dir.
-    Returns X_train, y_train_raw, X_val, y_val_raw, X_test, y_test_raw.
-    """
-    train = np.load(os.path.join(dataset_dir, "train.npz"))
-    X_train, y_train = train["X"], train["y"]
-    val = np.load(os.path.join(dataset_dir, "val.npz"))
-    X_val, y_val = val["X"], val["y"]
-    test = np.load(os.path.join(dataset_dir, "test.npz"))
-    X_test, y_test = test["X"], test["y"]
-    # Confirm window size
-    assert X_train.shape[1] == window_size, "window_size mismatch"
+def load_frame_data(dataset_dir, test_size=0.2, val_size=0.1, random_state=42):
+    import glob, pandas as pd
+    from sklearn.model_selection import train_test_split
+    files = glob.glob(os.path.join(dataset_dir, "*_labeled.csv"))
+    dfs = []
+    for f in files:
+        df = pd.read_csv(f)
+        dfs.append(df)
+    df = pd.concat(dfs, ignore_index=True)
+    feature_cols = [c for c in df.columns if c not in ('frame','timestamp','label')]
+    X = df[feature_cols].values
+    y = df['label'].values
+    # standardize or normalize if desired here
+    X_trainval, X_test, y_trainval, y_test = train_test_split(
+        X, y, test_size=test_size, random_state=random_state, stratify=y)
+    val_fraction = val_size / (1 - test_size)
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_trainval, y_trainval, test_size=val_fraction,
+        random_state=random_state, stratify=y_trainval)
+    # reshape to (samples, window_size=1, D) for compatibility
+    D = X.shape[1]
+    X_train = X_train.reshape(-1, 1, D)
+    X_val   = X_val.reshape(-1, 1, D)
+    X_test  = X_test.reshape(-1, 1, D)
+    return X_train, y_train, X_val, y_val, X_test, y_test
+
+def load_window_data(dataset_dir, window_size, test_size=0.2, val_size=0.1, random_state=42):
+    import glob, pandas as pd
+    from sklearn.model_selection import train_test_split
+    files = glob.glob(os.path.join(dataset_dir, "*_windows.csv"))
+    Xs, ys = [], []
+    for f in files:
+        df = pd.read_csv(f)
+        feat_cols = [c for c in df.columns if c.startswith("feat_")]
+        X = df[feat_cols].values
+        y = df['label'].values
+        Xs.append(X)
+        ys.append(y)
+    X = np.vstack(Xs)
+    y = np.concatenate(ys)
+    D = X.shape[1] // window_size
+    X = X.reshape(-1, window_size, D)
+    X_trainval, X_test, y_trainval, y_test = train_test_split(
+        X, y, test_size=test_size, random_state=random_state, stratify=y)
+    val_fraction = val_size / (1 - test_size)
+    X_train, X_val, y_train, y_val = train_test_split(
+        X_trainval, y_trainval, test_size=val_fraction,
+        random_state=random_state, stratify=y_trainval)
     return X_train, y_train, X_val, y_val, X_test, y_test
 
 
@@ -166,15 +202,25 @@ def main():
     p.add_argument("--batch_size", type=int, default=32)
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--window_size", type=int, default=64)
+    p.add_argument('--mode', choices=['frame','window'], default='window',
+                   help='选择训练模式：frame（单帧级）或 window（滑窗级）')
     args = p.parse_args()
 
     os.makedirs('models', exist_ok=True)
 
     # 1. Load pre-split data
-    X_train, y_train_raw, X_val, y_val_raw, X_test, y_test_raw = load_data(
-        args.dataset_dir, args.window_size
-    )
+    if args.mode == 'frame':
+        X_train, y_train_raw, X_val, y_val_raw, X_test, y_test_raw = \
+            load_frame_data(args.dataset_dir, test_size=0.2, val_size=0.1)
+    else:
+        X_train, y_train_raw, X_val, y_val_raw, X_test, y_test_raw = \
+            load_window_data(args.dataset_dir, args.window_size, test_size=0.2, val_size=0.1)
+
     print(f"Loaded: train={len(X_train)}, val={len(X_val)}, test={len(X_test)}")
+
+    if args.mode == 'window':
+        # Confirm window size
+        assert X_train.shape[1] == args.window_size, "window_size mismatch"
 
     # 2. Encode labels to integers and one-hot
     le = LabelEncoder()
@@ -320,7 +366,7 @@ def main():
     ]
     for name, y_pred in model_reports:
         print(f"\n--- {name} classification report ---")
-        print(classification_report(y_true, y_pred, target_names=le.classes_))
+        print(classification_report(y_true, y_pred, target_names=[str(c) for c in le.classes_]))
 
 
     # 生成综合报告图
@@ -360,7 +406,7 @@ def main():
     for name, y_pred in model_reports:
         rep = classification_report(
             y_true, y_pred,
-            target_names=le.classes_,
+            target_names=[str(c) for c in le.classes_],
             output_dict=True
         )
         metrics.append([
