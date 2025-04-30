@@ -103,6 +103,8 @@ def record_session(output_dir, regions=None, countdown=3, model_path='PoseDetect
         writer.writerow(header)
 
         frame_idx = 0
+        prev_timestamp = None
+        jump_count = 0  # total jumps so far
         # 主循环：读取视频帧，估计姿态，补偿背景抖动，构建特征，模型推理，跳跃计数，写入CSV，显示窗口
         while True:
             ret, frame = cap.read()
@@ -110,6 +112,13 @@ def record_session(output_dir, regions=None, countdown=3, model_path='PoseDetect
                 break
             frame_idx += 1
             timestamp = time.time()
+
+            # Compute FPS
+            if prev_timestamp is None:
+                fps_display = 0.0
+            else:
+                fps_display = 1.0 / (timestamp - prev_timestamp)
+            prev_timestamp = timestamp
 
             # 姿态估计，获取关键点高度
             lm, heights = pose.estimate(frame)
@@ -154,6 +163,7 @@ def record_session(output_dir, regions=None, countdown=3, model_path='PoseDetect
                     pred = model.predict(inp, verbose=0)[0, 0]
                     label = 1 if pred > 0.5 else 0
                 else:
+                    pred = 0.0
                     label = 0
             else:
                 inp = np.array(feat, dtype=np.float32)[np.newaxis, np.newaxis, :]
@@ -163,11 +173,23 @@ def record_session(output_dir, regions=None, countdown=3, model_path='PoseDetect
             # 检测上升沿，累加跳绳计数
             jump_flag = (prev_pred == 0 and label == 1)
             row.append(1 if jump_flag else 0)
+            if jump_flag:
+                jump_count += 1
             prev_pred = label
 
             # 写入CSV文件
             writer.writerow(row)
 
+            # Overlay debug info
+            debug_texts = [
+                f"FPS: {fps_display:.1f}",
+                f"P(jump): {pred:.2f}",
+                f"Jump Count: {jump_count}",
+            ]
+            y0, dy = 30, 30
+            for i, txt in enumerate(debug_texts):
+                y = y0 + i * dy
+                cv2.putText(frame, txt, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
             # 显示摄像头画面
             cv2.imshow("Recorder", frame)
             if cv2.waitKey(1) & 0xFF == 27:
