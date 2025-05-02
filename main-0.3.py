@@ -1,9 +1,33 @@
+"""
+跳绳计数器主程序 (面向对象版)
+版本：0.3.11
+
+功能：
+- 面向对象重构：PoseEstimator, BackgroundTracker, TrendFilter, MultiRegionJumpDetector, DebugRenderer, MainApp
+- 区域高度计算：支持 head, torso, legs 区域高度提取
+- 背景补偿：LK 光流消除摄像头抖动
+- 趋势分离：指数平滑 + 移动平均分离高频波动
+- 多区域同相位检测：同时监测多条波动的负→正过零
+- 可配置区域列表：MainApp 可传入不同区域组合
+- 可视化调试：在摄像头画面下方绘制每个区域高频波动时间序列；左上角高亮跳数
+- 支持动态调整跳数字体大小与颜色
+
+更新日志：
+0.3.0  - 初始 OOP 重构版本，实现 0.2 核心跳绳管线 (背景补偿+趋势分解+零交叉+调试 UI)
+0.3.1  - 增加多区域支持 (head, torso, legs) 及对应滤波器
+0.3.2  - 集成 MultiRegionJumpDetector，实现多区域同相位跳跃检测
+0.3.3  - 支持通过构造函数配置区域列表
+0.3.4  - 优化调试 UI：增大跳数文本字体、修改文本颜色为黄色
+0.3.5  - 修复相对速度计算逻辑，使用 prev_torso_y 替换错误引用
+0.3.6  - 代码清理及注释增强
+0.3.11 - 最终迭代，完善文档与版本标记
+"""
+
 import cv2
 import time
 import numpy as np
 from collections import deque
 import mediapipe as mp
-import tensorflow as tf
 
 
 class PoseEstimator:
@@ -70,26 +94,20 @@ class BackgroundTracker:
         self.prev_gray = None
         self.bg_pts = None
 
+    """
+    返回当前帧背景垂直归一化速度 bg_dy_norm
+    """
     def compensate(self, gray):
-        """
-        返回当前帧背景垂直归一化速度 bg_dy_norm
-        """
         h, _ = gray.shape
         if self.prev_gray is None:
-            self.bg_pts = cv2.goodFeaturesToTrack(
-                gray, maxCorners=self.max_pts,
-                qualityLevel=0.01, minDistance=10
-            )
+            self.bg_pts = cv2.goodFeaturesToTrack(gray, maxCorners=self.max_pts, qualityLevel=0.01, minDistance=10)
             self.prev_gray = gray.copy()
             return 0.0
 
-        new_pts, st, _ = cv2.calcOpticalFlowPyrLK(
-            self.prev_gray, gray,
-            self.bg_pts, None,
-            winSize=(15, 15), maxLevel=2,
-            criteria=(cv2.TERM_CRITERIA_EPS |
-                      cv2.TERM_CRITERIA_COUNT, 10, 0.03)
-        )
+        new_pts, st, _ = cv2.calcOpticalFlowPyrLK(self.prev_gray, gray,
+                                                  self.bg_pts, np.zeros(self.bg_pts.shape),
+                                                  winSize=(15, 15), maxLevel=2,
+                                                  criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03))
         mask = (st.flatten() == 1)
         if mask.any():
             p0 = self.bg_pts[mask].reshape(-1, 2)
@@ -116,11 +134,11 @@ class TrendFilter:
         self.trend_buf = deque(maxlen=buffer_len)
         self.fluct_buf = deque(maxlen=buffer_len)
 
+    """
+    输入去背景后的相对速度 rel_speed 与帧号 idx
+    返回高频波动 f
+    """
     def update(self, rel_speed, idx):
-        """
-        输入去背景后的相对速度 rel_speed 与帧号 idx
-        返回高频波动 f
-        """
         if idx <= self.baseline:
             for buf in (self.raw_buf,
                         self.smooth_buf,
@@ -150,26 +168,26 @@ class TrendFilter:
 # 4. MultiRegionJumpDetector：多区域同相位跳跃检测
 # =========================
 class MultiRegionJumpDetector:
-    def __init__(self, regions, min_interval=0.3):
-        """
-        regions: list of region names, e.g. ["head","torso","legs"]
-        """
+    """
+    regions: list of region names, e.g. ["head","torso","legs"]
+    """
+    def __init__(self, regions, min_interval=0.1):
         self.regions = regions
         self.min_interval = min_interval
         self.prev_signs = {r: -1 for r in regions}
         self.last_jump_time = 0.0
         self.count = 0
 
+    """
+    f_dict: {region: f_value}
+    仅当所有 region 同时从负过零到正 且间隔足够时计数
+    """
     def detect(self, f_dict):
-        """
-        f_dict: {region: f_value}
-        仅当所有 region 同时从负过零到正 且间隔足够时计数
-        """
         now = time.time()
         signs = {r: (1 if f_dict[r] > 0 else -1) for r in self.regions}
 
         # 判断所有区域是否都负→正
-        if all(signs[r] > 0 and self.prev_signs[r] < 0 for r in self.regions):
+        if all(signs[r] > 0 > self.prev_signs[r] for r in self.regions):
             if (now - self.last_jump_time) > self.min_interval:
                 self.count += 1
                 self.last_jump_time = now
@@ -209,9 +227,16 @@ class DebugRenderer:
             cv2.putText(canvas, r, (5, y0 + 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-        # 跳数
-        cv2.putText(frame, f"Jumps: {jump_count}", (10, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 2.5, (0, 255, 255), 4)
+        # 绘制跳绳计数，自动调整位置以确保完整显示
+        text = f"Jumps: {jump_count}"
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 4
+        thickness = 15
+        # 获取文本尺寸，避免超出画面
+        (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+        x = 10
+        y = text_height + 10  # 将文本基线设置在高度 text_height + 10 处，确保完整显示
+        cv2.putText(frame, text, (x, y), font, font_scale, (0, 255, 255), thickness)
         return cv2.hconcat([frame, canvas])
 
 
@@ -228,25 +253,9 @@ class MainApp:
 
         # 组件
         self.pose = PoseEstimator()
-        # drawing utils and pose connections from mp alias
-        self.drawing_utils = mp.solutions.drawing_utils
-        self.pose_connections = mp.solutions.pose.POSE_CONNECTIONS
         self.bg = BackgroundTracker()
         # 为每个 region 各自创建一个趋势滤波器
         self.filters = {r: TrendFilter() for r in regions}
-
-        # Load the trained LSTM model (.h5) and prepare sequence buffer
-        self.lstm_model = tf.keras.models.load_model("./PoseDetection/models/crnn_jump_classifier.h5")
-        # Determine input window size and feature dim from model
-        _, W, D = self.lstm_model.input_shape
-        self.seq_buffer = deque(maxlen=W)  # will hold W frames of raw landmarks
-
-        # State for model-driven start/stop of jump counting
-        self.counting_enabled = False
-        self.prob_buffer = deque(maxlen=10)  # smooth model probabilities over last 10 frames
-        self.start_threshold = 0.5          # mean prob above this to start counting
-        self.stop_threshold  = 0.3          # mean prob below this to stop counting
-
         self.detector = MultiRegionJumpDetector(regions)
         self.renderer = DebugRenderer(frame_h=h,
                                       buffer_len=self.filters[regions[0]].raw_buf.maxlen,
@@ -257,20 +266,13 @@ class MainApp:
 
     def run(self):
         frame_idx = 0
-        regions = list(self.filters.keys())
         while True:
             ret, frame = self.cap.read()
             if not ret: break
             frame_idx += 1
 
-            jump_prob = 0.0
-
             # 1) 姿势估计 → 各区域高度字典
             lm, heights = self.pose.estimate(frame)
-            # 实时在画面上叠加火柴人骨架
-            if lm:
-                self.drawing_utils.draw_landmarks(
-                    frame, lm, self.pose_connections)
             if not heights:
                 heights = {r: (self.prev_heights[r] or 0.5) for r in self.prev_heights}
 
@@ -278,49 +280,22 @@ class MainApp:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             bg_dy_norm = self.bg.compensate(gray)
 
-            # 3) Extract full landmark vector for deep model
-            # If pose landmarks detected, flatten all (x,y) coords
-            if lm:
-                lm_pts = lm.landmark
-                vec = np.array([coord for pt in lm_pts for coord in (pt.x, pt.y)], dtype=np.float32)
-                self.seq_buffer.append(vec)
-            else:
-                # skip this frame if no landmarks
-                continue
+            # 3) 计算去背景后的相对速度 f for each region
+            f_vals = {}
+            for r, filt in self.filters.items():
+                prev_h = self.prev_heights[r]
+                curr_h = heights[r]
+                if prev_h is None:
+                    body_dy = 0.0
+                else:
+                    body_dy = curr_h - prev_h
+                self.prev_heights[r] = curr_h
 
-            # 4) Deep LSTM model inference on raw landmark sequences
-            count = self.detector.count
-            if len(self.seq_buffer) == self.seq_buffer.maxlen:
-                seq = np.stack(self.seq_buffer, axis=0)[None, ...]  # shape (1, W, D)
-                probs = self.lstm_model.predict(seq, verbose=0)[0]
-                # assume probs = [non_jump_prob, jump_prob]
-                jump_prob = float(probs[1]) if len(probs) > 1 else float(probs[0])
-                # Append current probability and compute smoothed mean
-                self.prob_buffer.append(jump_prob)
-                if len(self.prob_buffer) == self.prob_buffer.maxlen:
-                    mean_prob = np.mean(self.prob_buffer)
-                    # Transition: start counting
-                    if not self.counting_enabled and mean_prob > self.start_threshold:
-                        self.counting_enabled = True
-                    # Transition: stop counting
-                    elif self.counting_enabled and mean_prob < self.stop_threshold:
-                        self.counting_enabled = False
-                # Only count jumps when counting is enabled
-                if self.counting_enabled:
-                    now = time.time()
-                    if jump_prob > 0.5 and (now - self.detector.last_jump_time) > self.detector.min_interval:
-                        count += 1
-                        self.detector.last_jump_time = now
-            self.detector.count = count
+                rel_speed = body_dy - bg_dy_norm
+                f_vals[r] = filt.update(rel_speed, frame_idx)
 
-            # 在右上角大字显示当前计数状态
-            state_txt = "COUNTING" if self.counting_enabled else "PAUSED"
-            color = (0, 255, 0) if self.counting_enabled else (0, 0, 255)
-            cv2.putText(
-                frame, state_txt,
-                (frame.shape[1] - 350, 60),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                2.0, color, 4, cv2.LINE_AA)
+            # 4) 多区域跳跃检测
+            count = self.detector.detect(f_vals)
 
             # 5) 渲染并展示
             output = self.renderer.render(frame, self.filters, count)
