@@ -28,6 +28,13 @@ import time
 import numpy as np
 from collections import deque
 import mediapipe as mp
+import logging
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(created)f | %(levelname)1.1s | %(message)s"
+)
+logger = logging.getLogger("JumpDebug")
 
 
 class PoseEstimator:
@@ -97,6 +104,7 @@ class BackgroundTracker:
     """
     返回当前帧背景垂直归一化速度 bg_dy_norm
     """
+
     def compensate(self, gray):
         h, _ = gray.shape
         if self.prev_gray is None:
@@ -138,6 +146,7 @@ class TrendFilter:
     输入去背景后的相对速度 rel_speed 与帧号 idx
     返回高频波动 f
     """
+
     def update(self, rel_speed, idx):
         if idx <= self.baseline:
             for buf in (self.raw_buf,
@@ -171,6 +180,7 @@ class MultiRegionJumpDetector:
     """
     regions: list of region names, e.g. ["head","torso","legs"]
     """
+
     def __init__(self, regions, min_interval=0.1):
         self.regions = regions
         self.min_interval = min_interval
@@ -182,15 +192,28 @@ class MultiRegionJumpDetector:
     f_dict: {region: f_value}
     仅当所有 region 同时从负过零到正 且间隔足够时计数
     """
-    def detect(self, f_dict):
+
+    def detect(self, f_dict, frame_idx):
         now = time.time()
         signs = {r: (1 if f_dict[r] > 0 else -1) for r in self.regions}
+        logger.debug(f"[DETECT][Frame {frame_idx}] signs={signs} prev_signs={self.prev_signs} "
+                     f"last_jump={self.last_jump_time:.3f} count={self.count}")
 
-        # 判断所有区域是否都负→正
-        if all(signs[r] > 0 > self.prev_signs[r] for r in self.regions):
-            if (now - self.last_jump_time) > self.min_interval:
+        # 判断负→正跨零
+        crossed = [signs[r] > 0 > self.prev_signs[r] for r in self.regions]
+        if all(crossed):
+            interval = now - self.last_jump_time
+            logger.debug(f"[DETECT] all regions crossed_up={crossed}, interval={interval:.3f}s")
+            if interval > self.min_interval:
                 self.count += 1
                 self.last_jump_time = now
+                logger.info(f"[JUMP!] ++count -> {self.count} (interval ok)")
+            else:
+                logger.debug(f"[SKIP] interval {interval:.3f}s < min_interval {self.min_interval}s")
+        else:
+            # 哪些区域没跨？
+            failed = [r for r, ok in zip(self.regions, crossed) if not ok]
+            logger.debug(f"[SKIP] not all crossed, failed regions={failed}")
 
         self.prev_signs = signs
         return self.count
@@ -274,28 +297,44 @@ class MainApp:
             # 1) 姿势估计 → 各区域高度字典
             lm, heights = self.pose.estimate(frame)
             if not heights:
+                logger.debug(
+                    f"[Frame {frame_idx}] PoseEstimator MISS. Fallback heights from prev: {self.prev_heights}")
+                heights = {r: (self.prev_heights[r] or 0.5) for r in self.prev_heights}
+            else:
+                logger.debug(f"[Frame {frame_idx}] PoseEstimator OK. Heights: {heights}")
+            if not heights:
                 heights = {r: (self.prev_heights[r] or 0.5) for r in self.prev_heights}
 
             # 2) 背景补偿
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             bg_dy_norm = self.bg.compensate(gray)
+            logger.debug(f"[Frame {frame_idx}] Background dy_norm: {bg_dy_norm:.4f}")
 
             # 3) 计算去背景后的相对速度 f for each region
             f_vals = {}
             for r, filt in self.filters.items():
                 prev_h = self.prev_heights[r]
-                curr_h = heights[r]
-                if prev_h is None:
-                    body_dy = 0.0
-                else:
-                    body_dy = curr_h - prev_h
-                self.prev_heights[r] = curr_h
+                body_dy = 0.0 if prev_h is None else (heights[r] - prev_h)
+                self.prev_heights[r] = heights[r]
 
                 rel_speed = body_dy - bg_dy_norm
-                f_vals[r] = filt.update(rel_speed, frame_idx)
+                f = filt.update(rel_speed, frame_idx)
+                f_vals[r] = f
+                logger.debug(f"[Frame {frame_idx}] Region '{r}': prev_h={prev_h} curr_h={heights[r]:.4f} "
+                             f"body_dy={body_dy:.4f} rel_speed={rel_speed:.4f} f={f:.4f}")
+
+                # curr_h = heights[r]
+                # if prev_h is None:
+                #     body_dy = 0.0
+                # else:
+                #     body_dy = curr_h - prev_h
+                # self.prev_heights[r] = curr_h
+                #
+                # rel_speed = body_dy - bg_dy_norm
+                # f_vals[r] = filt.update(rel_speed, frame_idx)
 
             # 4) 多区域跳跃检测
-            count = self.detector.detect(f_vals)
+            count = self.detector.detect(f_vals, frame_idx)
 
             # 5) 渲染并展示
             output = self.renderer.render(frame, self.filters, count)
