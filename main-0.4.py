@@ -392,9 +392,8 @@ class MainApp:
         self.pose = PoseEstimator()
         self.bg = BackgroundTracker()
         # 为每个 region 各自创建一个趋势滤波器
-        # 对应把 alpha 从 0.2 提升到 0.5，把 trend_win 从 64 缩短到 32
         self.filters = {
-            r: TrendFilter(buffer_len=buf_len, alpha=0.16, trend_win=64, baseline=50)
+            r: TrendFilter(buffer_len=buf_len, alpha=0.80, trend_win=64, baseline=50)
             for r in regions
         }
         self.detector = MultiRegionJumpDetector(regions)

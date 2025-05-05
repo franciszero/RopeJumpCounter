@@ -44,8 +44,9 @@ import pandas as pd
 import numpy as np
 import argparse
 
-from features import PoseEstimator, PoseFrame, Differentiator, DistanceCalculator, AngleCalculator
+from features import PoseEstimator, PoseFrame, DistanceCalculator, AngleCalculator
 from utils.VideoStabilizer import VideoStabilizer
+from utils.Differentiator import get_differentiator
 
 # 将项目根目录加入模块搜索路径，以便能够导入顶层的 utils 包
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -53,7 +54,6 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 def extract_features(video_path):
     """提取指定视频的帧级特征，返回 DataFrame 包含 frame, timestamp, 原始关键点、速度、加速度、距离、角度等列"""
-    from features import PoseFrame, Differentiator, DistanceCalculator, AngleCalculator
 
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
@@ -64,7 +64,7 @@ def extract_features(video_path):
     # 定义距离和角度计算器
     distance_pairs = [(24, 26), (26, 28), (11, 13), (13, 15)]  # 臀-膝，膝-踝，肩-肘，肘-腕
     angle_triplets = [(24, 26, 28), (11, 13, 15), (23, 11, 13)]  # 髋-膝-踝，肩-肘-腕，躯干倾斜
-    diff = Differentiator(dt)
+    diff = get_differentiator()
     dist_calc = DistanceCalculator(distance_pairs)
     ang_calc = AngleCalculator(angle_triplets)
 
