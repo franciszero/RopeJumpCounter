@@ -133,7 +133,7 @@ class BackgroundTracker:
 # 3. TrendFilter：指数平滑 + 移动平均趋势分离
 # =========================
 class TrendFilter:
-    def __init__(self, buffer_len=320, alpha=0.2, trend_win=64, baseline=150):
+    def __init__(self, buffer_len=600, alpha=0.2, trend_win=64, baseline=150):
         self.alpha = alpha
         self.trend_win = trend_win
         self.baseline = baseline
@@ -335,9 +335,8 @@ class MainApp:
         self.cap = cv2.VideoCapture(0)
         _, tmp = self.cap.read()
         h, _ = tmp.shape[:2]
-        # 把 buffer_len 从原来的 320 拉到 600 或者更大
-        buf_len = 600
 
+        buf_len = 800
         # 组件
         self.pose = PoseEstimator()
         self.bg = BackgroundTracker()
