@@ -1,3 +1,4 @@
 /.idea
 PoseDetection/__pycache__
 /PoseDetection/raw_videos/*.csv
+utils/__pycache__
