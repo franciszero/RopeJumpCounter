@@ -133,43 +133,91 @@ class BackgroundTracker:
 # 3. TrendFilter：指数平滑 + 移动平均趋势分离
 # =========================
 class TrendFilter:
-    def __init__(self, buffer_len=600, alpha=0.2, trend_win=64, baseline=150):
+    """
+    趋势分离滤波器：将相对速度信号分解为“长期趋势”（低频）和“高频波动”两部分。
+
+    采用：
+      1. 指数加权移动平均（EWMA）提取平滑信号 s，
+      2. 对 s 再做固定窗口的移动平均得到趋势 t，
+      3. 高频分量 f = s - t。
+
+    参数：
+      buffer_len (int): 各历史缓存最大长度（以帧数计），决定了能回溯的最长历史。
+      alpha (float): EWMA 的平滑系数 ∈ (0,1]，α 越大，s 对最新测量越敏感。
+      trend_win (int): 计算趋势 t 时，s 使用的窗口大小（帧数）。
+      baseline (int): 前 baseline 帧内强制返回 0，主要用于初始化各缓存。
+
+    属性：
+      raw_buf (deque): 原始相对速度缓冲区。
+      smooth_buf (deque): EWMA 平滑后的速度缓冲区。
+      trend_buf (deque): 移动平均趋势缓冲区。
+      fluct_buf (deque): 高频波动 f = s - t 的缓冲区，用于后续绘图或检测。
+
+    用法：
+      每帧调用 update(rel_speed, frame_idx)，返回当前的高频成分 f。
+    """
+
+    def __init__(self, buffer_len=600, alpha=0.2, trend_win=64, baseline=0):
         self.alpha = alpha
         self.trend_win = trend_win
         self.baseline = baseline
+
+        # 各缓冲区用于存放历史数据，长度上限为 buffer_len
         self.raw_buf = deque(maxlen=buffer_len)
         self.smooth_buf = deque(maxlen=buffer_len)
         self.trend_buf = deque(maxlen=buffer_len)
         self.fluct_buf = deque(maxlen=buffer_len)
 
-    """
-    输入去背景后的相对速度 rel_speed 与帧号 idx
-    返回高频波动 f
-    """
-
     def update(self, rel_speed, idx):
+        """
+        更新滤波器并返回高频波动 f。
+
+        Args:
+          rel_speed (float): 当前帧的“去背景”后相对速度值（body_dy - bg_dy_norm）。
+          idx (int): 当前帧序号，用于跳过前 baseline 帧的初始化。
+
+        Returns:
+          float: 高频分量 f = s - t。
+            - s: 对 rel_speed 做指数平滑后的值；
+            - t: 对最近 trend_win 帧的 s 做简单平均得到的趋势；
+            - f: s 与 t 之差，表示“短期波动”。
+
+        逻辑：
+          - 当 idx <= baseline 时，向所有缓存添加 0 并直接返回 0，保证缓冲区被填满；
+          - 否则：
+              1) 将 rel_speed 加入 raw_buf；
+              2) 计算 s = α * rel_speed + (1 - α) * last_s；
+              3) 从 smooth_buf 取最近 trend_win 个 s 计算 t = mean(...)；
+              4) f = s - t；
+              5) 更新各缓存并返回 f。
+        """
+        # 初始化阶段：填充零值，直到 baseline
         if idx <= self.baseline:
-            for buf in (self.raw_buf,
-                        self.smooth_buf,
-                        self.trend_buf,
-                        self.fluct_buf):
+            for buf in (self.raw_buf, self.smooth_buf, self.trend_buf, self.fluct_buf):
                 buf.append(0.0)
             return 0.0
 
-        # 原始速度
+        import numpy as np
+
+        # 1. 原始速度入队
         self.raw_buf.append(rel_speed)
-        # 指数平滑
-        last_s = self.smooth_buf[-1]
+
+        # 2. 指数平滑：s = α·当前速度 + (1−α)·上一次平滑值
+        last_s = self.smooth_buf[-1] if self.smooth_buf else 0.0
         s = self.alpha * rel_speed + (1 - self.alpha) * last_s
-        # 移动平均趋势
-        t = np.mean(list(self.smooth_buf)[-self.trend_win:])
-        # 高频分量
+
+        # 3. 移动平均趋势：t = 最近 trend_win 帧的 s 的平均
+        recent_s = list(self.smooth_buf)[-self.trend_win:]
+        t = np.mean(recent_s) if recent_s else 0.0
+
+        # 4. 高频分量 = 平滑值 − 趋势
         f = s - t
 
-        # 更新缓存
+        # 5. 更新缓存
         self.smooth_buf.append(s)
         self.trend_buf.append(t)
         self.fluct_buf.append(f)
+
         return f
 
 
@@ -223,7 +271,7 @@ class MultiRegionJumpDetector:
 # 5. DebugRenderer：画三条波动曲线 + 跳数
 # =========================
 class DebugRenderer:
-    def __init__(self, frame_h, buffer_len, regions, zoom=5.0, bar_ratio=0.2):
+    def __init__(self, frame_h, buffer_len, regions, zoom=5.0, bar_ratio=0.2, time_zoom=2.0):
         """
         frame_h: 原视频帧高度
         buffer_len: 时间序列长度（像素宽度）
@@ -235,6 +283,8 @@ class DebugRenderer:
         self.buffer_len = buffer_len
         self.regions = regions
         self.zoom = zoom
+        # 新增：横向每帧占用像素数
+        self.time_zoom = time_zoom
 
         # 持久化 jump history
         self.jump_buf = deque(maxlen=buffer_len)
@@ -269,7 +319,8 @@ class DebugRenderer:
 
         # —— 2. 新建画布 ——
         H = self.region_h * len(self.regions) + self.bar_h
-        W = self.buffer_len
+        # 横向总宽 = buffer_len * time_zoom
+        W = int(self.buffer_len * self.time_zoom)
         canvas = np.zeros((H, W, 3), dtype=np.uint8)
 
         # —— 3. 绘制每条波形曲线 ——
@@ -284,12 +335,13 @@ class DebugRenderer:
 
             y0 = i * self.region_h
             y1 = y0 + self.region_h
+            # 横向拉伸，每帧占 time_zoom 像素
             pts = [
-                (x, int(y1 - norm[x] * self.region_h))
+                (int(x * self.time_zoom), int(y1 - norm[x] * self.region_h))
                 for x in range(len(norm))
             ]
-            for p0, p1 in zip(pts, pts[1:]):
-                cv2.line(canvas, p0, p1, (200, 200, 200), 1)
+            for (x0, y0), (x1, y1) in zip(pts, pts[1:]):
+                cv2.line(canvas, (x0, y0), (x1, y1), (200, 200, 200), 1)
 
             cv2.putText(
                 canvas, r,
@@ -299,21 +351,20 @@ class DebugRenderer:
 
         # —— 4. 底部柱状图 ——
         base_y = self.region_h * len(self.regions)
-        for x, val in enumerate(self.jump_buf):
+        for idx, val in enumerate(self.jump_buf):
+            x_pix = int(idx * self.time_zoom)
             if val:
-                # 画一根竖线
                 cv2.line(
                     canvas,
-                    (x, base_y),
-                    (x, base_y + self.bar_h),
+                    (x_pix, base_y),
+                    (x_pix, base_y + self.bar_h),
                     (200, 200, 0),
                     1
                 )
-                # 在柱顶写上当前跳数
                 cv2.putText(
                     canvas,
                     str(val),
-                    (x, base_y - 3),
+                    (x_pix, base_y - 3),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.3,
                     (0, 255, 255),
@@ -336,13 +387,14 @@ class MainApp:
         _, tmp = self.cap.read()
         h, _ = tmp.shape[:2]
 
-        buf_len = 800
+        buf_len = 100
         # 组件
         self.pose = PoseEstimator()
         self.bg = BackgroundTracker()
         # 为每个 region 各自创建一个趋势滤波器
+        # 对应把 alpha 从 0.2 提升到 0.5，把 trend_win 从 64 缩短到 32
         self.filters = {
-            r: TrendFilter(buffer_len=buf_len)
+            r: TrendFilter(buffer_len=buf_len, alpha=0.16, trend_win=64, baseline=50)
             for r in regions
         }
         self.detector = MultiRegionJumpDetector(regions)
@@ -350,8 +402,9 @@ class MainApp:
             frame_h=h,
             buffer_len=buf_len,
             regions=regions,
-            zoom=5.0,  # 波形放大倍率，可调
-            bar_ratio=0.2  # 底部柱状图占画布高度比例
+            zoom=2.0,  # 波形放大倍率，可调
+            bar_ratio=0.2,  # 底部柱状图占画布高度比例
+            time_zoom=10.0  # 每帧 3px
         )
 
         # 用于计算相对速度
