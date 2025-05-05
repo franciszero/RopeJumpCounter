@@ -223,44 +223,106 @@ class MultiRegionJumpDetector:
 # 5. DebugRenderer：画三条波动曲线 + 跳数
 # =========================
 class DebugRenderer:
-    def __init__(self, frame_h, buffer_len, regions):
+    def __init__(self, frame_h, buffer_len, regions, zoom=5.0, bar_ratio=0.2):
+        """
+        frame_h: 原视频帧高度
+        buffer_len: 时间序列长度（像素宽度）
+        regions: ["head","torso",...]
+        zoom: 波形放大系数
+        bar_ratio: 底部柱状图区占整个画布高度的比例
+        """
         self.frame_h = frame_h
         self.buffer_len = buffer_len
         self.regions = regions
+        self.zoom = zoom
+
+        # 持久化 jump history
+        self.jump_buf = deque(maxlen=buffer_len)
+        self.prev_cnt = 0
+
+        # 计算每个区域和柱状区的高度
+        total_h = frame_h
+        # 保留 (1-bar_ratio) 给波形区域，均分给每条曲线
+        self.region_h = int((1 - bar_ratio) * total_h / len(regions))
+        # 底部柱状区高度
+        self.bar_h = int(bar_ratio * total_h)
 
     def render(self, frame, filters, jump_count):
-        """
-        filters: dict region→TrendFilter
-        """
-        h, w = frame.shape[:2]
-        canvas = np.zeros((h, self.buffer_len, 3), np.uint8)
-        row_h = h // len(self.regions)
+        # —— 在视频画面左上角，大字显示跳数 ——
+        cv2.putText(
+            frame,
+            f"Jumps: {jump_count}",
+            (20, 60),  # 距离左边 20px，距离顶边 60px
+            cv2.FONT_HERSHEY_SIMPLEX,
+            2.5,  # 字体放大 2.5 倍
+            (0, 255, 255),  # 黄色
+            5  # 粗一点
+        )
 
+        # —— 1. 更新跳绳事件历史 ——
+        if jump_count > self.prev_cnt:
+            # 本帧检测到新跳跃
+            self.jump_buf.append(jump_count)
+        else:
+            self.jump_buf.append(0)
+        self.prev_cnt = jump_count
+
+        # —— 2. 新建画布 ——
+        H = self.region_h * len(self.regions) + self.bar_h
+        W = self.buffer_len
+        canvas = np.zeros((H, W, 3), dtype=np.uint8)
+
+        # —— 3. 绘制每条波形曲线 ——
         for i, r in enumerate(self.regions):
-            buf = filters[r].fluct_buf
-            arr = np.array(buf)
-            y0, y1 = i * row_h, (i + 1) * row_h
+            buf = np.array(filters[r].fluct_buf)
+            if buf.size < 2:
+                continue
+            # zoom in
+            buf_z = buf * self.zoom
+            mn, mx = buf_z.min(), buf_z.max()
+            norm = (buf_z - mn) / (mx - mn) if mx > mn else np.full_like(buf_z, 0.5)
 
-            if len(arr) >= 2:
-                mn, mx = arr.min(), arr.max()
-                norm = (arr - mn) / (mx - mn) if mx > mn else np.full_like(arr, 0.5)
-                pts = [(x, int(y1 - norm[x] * row_h)) for x in range(len(norm))]
-                for p0, p1 in zip(pts, pts[1:]):
-                    cv2.line(canvas, p0, p1, (200, 200, 200), 1)
-            cv2.putText(canvas, r, (5, y0 + 20),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
+            y0 = i * self.region_h
+            y1 = y0 + self.region_h
+            pts = [
+                (x, int(y1 - norm[x] * self.region_h))
+                for x in range(len(norm))
+            ]
+            for p0, p1 in zip(pts, pts[1:]):
+                cv2.line(canvas, p0, p1, (200, 200, 200), 1)
 
-        # 绘制跳绳计数，自动调整位置以确保完整显示
-        text = f"Jumps: {jump_count}"
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 4
-        thickness = 15
-        # 获取文本尺寸，避免超出画面
-        (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, thickness)
-        x = 10
-        y = text_height + 10  # 将文本基线设置在高度 text_height + 10 处，确保完整显示
-        cv2.putText(frame, text, (x, y), font, font_scale, (0, 255, 255), thickness)
-        return cv2.hconcat([frame, canvas])
+            cv2.putText(
+                canvas, r,
+                (5, y0 + 15),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (255, 255, 255), 1
+            )
+
+        # —— 4. 底部柱状图 ——
+        base_y = self.region_h * len(self.regions)
+        for x, val in enumerate(self.jump_buf):
+            if val:
+                # 画一根竖线
+                cv2.line(
+                    canvas,
+                    (x, base_y),
+                    (x, base_y + self.bar_h),
+                    (200, 200, 0),
+                    1
+                )
+                # 在柱顶写上当前跳数
+                cv2.putText(
+                    canvas,
+                    str(val),
+                    (x, base_y - 3),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.3,
+                    (0, 255, 255),
+                    1
+                )
+
+        # —— 5. 拼到原帧右侧 ——
+        out = cv2.hconcat([frame, canvas])
+        return out
 
 
 # =========================
@@ -273,16 +335,25 @@ class MainApp:
         self.cap = cv2.VideoCapture(0)
         _, tmp = self.cap.read()
         h, _ = tmp.shape[:2]
+        # 把 buffer_len 从原来的 320 拉到 600 或者更大
+        buf_len = 600
 
         # 组件
         self.pose = PoseEstimator()
         self.bg = BackgroundTracker()
         # 为每个 region 各自创建一个趋势滤波器
-        self.filters = {r: TrendFilter() for r in regions}
+        self.filters = {
+            r: TrendFilter(buffer_len=buf_len)
+            for r in regions
+        }
         self.detector = MultiRegionJumpDetector(regions)
-        self.renderer = DebugRenderer(frame_h=h,
-                                      buffer_len=self.filters[regions[0]].raw_buf.maxlen,
-                                      regions=regions)
+        self.renderer = DebugRenderer(
+            frame_h=h,
+            buffer_len=buf_len,
+            regions=regions,
+            zoom=5.0,  # 波形放大倍率，可调
+            bar_ratio=0.2  # 底部柱状图占画布高度比例
+        )
 
         # 用于计算相对速度
         self.prev_heights = {r: None for r in regions}
