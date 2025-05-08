@@ -266,21 +266,24 @@ class MainApp:
                 region_speeds[region] = sum(speeds) / len(speeds) if speeds else 0.0
 
             if HIGH_FREQ_MODE:
+                # 计算 f for each region
+                f_vals = {}
+                for r, filt in self.filters.items():
+                    rel_speed = region_speeds.get(r, 0.0)
+                    f_vals[r] = filt.update(rel_speed, frame_idx)
+                # 多区域跳跃检测
+                cnt = self.detector.detect(f_vals, frame_idx)
+                # 渲染并显示
+                out = self.renderer.render(self.pipe.fs.raw_frame, self.filters, cnt)
+            else:
                 # 更新每个区域的速度缓冲区
                 for r, v in region_speeds.items():
                     self.speed_bufs[r].append(v)
                 # 调用 detect
                 cnt = self.detector.detect(region_speeds, frame_idx)
-            else:
-                # 计算去背景后的相对速度 f for each region
-                f_vals = {}
-                for r, filt in self.filters.items():
-                    f_vals[r] = filt.update(region_speeds, frame_idx)
-                # 多区域跳跃检测
-                cnt = self.detector.detect(f_vals, frame_idx)
+                # 渲染并显示
+                out = self.renderer.render(self.pipe.fs.raw_frame, self.speed_bufs, cnt)
 
-            # 渲染并显示
-            out = self.renderer.render(self.pipe.fs.raw_frame, self.speed_bufs, cnt)
             cv2.imshow('JumpCounter', out)
             # 按 Esc 键退出
             if cv2.waitKey(1) & 0xFF == 27:
