@@ -239,9 +239,9 @@ class MainApp:
             time_zoom=3.0,
         )
 
-        regions = list(self.REGION_LANDMARKS.keys())
+        self.regions = list(self.REGION_LANDMARKS.keys())
         self.filters = {r: TrendFilter() for r, _ in self.REGION_LANDMARKS.items()}
-        self.speed_bufs = {r: deque(maxlen=128) for r in regions}
+        self.speed_bufs = {r: deque(maxlen=128) for r in self.regions}
 
     def run(self, HIGH_FREQ_MODE=True):
         frame_idx = 0
@@ -265,6 +265,10 @@ class MainApp:
                 speeds = [speed_dict[lm.value] for lm in lm_list if lm.value in speed_dict]
                 region_speeds[region] = sum(speeds) / len(speeds) if speeds else 0.0
 
+            # 更新每个区域的速度缓冲区
+            for r, v in region_speeds.items():
+                self.speed_bufs[r].append(v)
+
             if HIGH_FREQ_MODE:
                 # 计算 f for each region
                 f_vals = {}
@@ -273,12 +277,8 @@ class MainApp:
                     f_vals[r] = filt.update(rel_speed, frame_idx)
                 # 多区域跳跃检测
                 cnt = self.detector.detect(f_vals, frame_idx)
-                # 渲染并显示
-                out = self.renderer.render(self.pipe.fs.raw_frame, self.filters, cnt)
+                out = self.renderer.render(self.pipe.fs.raw_frame, self.speed_bufs, cnt)
             else:
-                # 更新每个区域的速度缓冲区
-                for r, v in region_speeds.items():
-                    self.speed_bufs[r].append(v)
                 # 调用 detect
                 cnt = self.detector.detect(region_speeds, frame_idx)
                 # 渲染并显示
