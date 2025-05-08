@@ -14,10 +14,10 @@ dataset_builder.py
     pip install opencv-python pandas numpy
 
 用法：
-    python pose_sequence_dataset_builder.py \
-        --videos_dir ./raw_videos \
-        --labels_dir ./raw_videos \
-        --output_dir ./dataset \
+    python builder.py \
+        --videos_dir ./raw_videos_3 \
+        --labels_dir ./raw_videos_3 \
+        --output_dir ./dataset_3 \
         --window_size 32 \
         --stride 1
 
@@ -41,14 +41,13 @@ import sys
 import glob
 import cv2
 import pandas as pd
-import numpy as np
 import argparse
 from tqdm import tqdm
 import logging
+import numpy as np
 
 from features import FeaturePipeline
 from utils.VideoStabilizer import VideoStabilizer
-from utils.Differentiator import Differentiator
 
 # 将项目根目录加入模块搜索路径，以便能够导入顶层的 utils 包
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -77,7 +76,7 @@ def extract_features(video_path, window_size, logger):
     pbar = tqdm(total=total_frames, desc=f"Extracting [{video_path}]", unit="frame")
     while True:
         try:
-            if pipe.process_frame(frame_idx) is None:
+            if not pipe.success_process_frame(frame_idx):
                 break
             records.append(pipe.fs.rec)
         except Exception as e:
@@ -125,18 +124,18 @@ def build_windows(df_labeled, window_size, stride):
 
 def main():
     parser = argparse.ArgumentParser(description='生成帧级和窗口级带标签训练数据')
-    parser.add_argument('--videos_dir', default='raw_videos', help='输入视频目录，支持 *.avi, *.mp4')
-    parser.add_argument('--labels_dir', default='raw_videos', help='标签目录，包含 *_labels.csv')
-    parser.add_argument('--output_dir', default='dataset', help='输出目录，保存数据集')
+    parser.add_argument('--videos_dir', default='raw_videos_3', help='输入视频目录，支持 *.avi, *.mp4')
+    parser.add_argument('--labels_dir', default='raw_videos_3', help='标签目录，包含 *_labels.csv')
+    parser.add_argument('--output_dir', default='dataset_3', help='输出目录，保存数据集')
     parser.add_argument('--window_size', default=32, type=int, help='窗口大小，=1 时仅帧级')
     parser.add_argument('--stride', default=1, type=int, help='滑动步长')
 
     # New stabilizer params
-    parser.add_argument('--stabilizer_max_corners', default=VideoStabilizer.MAX_CORNERS, type=int,
+    parser.add_argument('--stabilizer_max_corners', default=VideoStabilizer.max_corners, type=int,
                         help='VideoStabilizer max corners')
-    parser.add_argument('--stabilizer_quality_level', default=VideoStabilizer.QUALITY_LEVEL, type=float,
+    parser.add_argument('--stabilizer_quality_level', default=VideoStabilizer.quality_level, type=float,
                         help='VideoStabilizer quality level')
-    parser.add_argument('--stabilizer_min_distance', default=VideoStabilizer.MIN_DISTANCE, type=int,
+    parser.add_argument('--stabilizer_min_distance', default=VideoStabilizer.min_distance, type=int,
                         help='VideoStabilizer min distance')
 
     args = parser.parse_args()
@@ -162,12 +161,29 @@ def main():
             df_labeled.to_csv(out_frame, index=False)
             logger.info(f'  Saved frame-level data: {out_frame}')
 
+            # 同时保存为 npz 格式
+            npz_frame = os.path.join(args.output_dir, f"{base}_labeled.npz")
+            np.savez_compressed(npz_frame,
+                                frame=df_labeled['frame'].values,
+                                timestamp=df_labeled['timestamp'].values,
+                                features=df_labeled.drop(columns=['frame','timestamp','label']).values,
+                                label=df_labeled['label'].values)
+            logger.info(f'  Saved frame-level npz: {npz_frame}')
+
             # 步骤3：窗口级数据（如果需要）
             if args.window_size > 1:
                 df_win = build_windows(df_labeled, args.window_size, args.stride)
                 out_win = os.path.join(args.output_dir, f'{base}_windows.csv')
                 df_win.to_csv(out_win, index=False)
                 logger.info(f'  Saved window-level data: {out_win}')
+
+                npz_win = os.path.join(args.output_dir, f"{base}_windows.npz")
+                np.savez_compressed(npz_win,
+                                    window_start=df_win['window_start'].values,
+                                    window_end=df_win['window_end'].values,
+                                    features=df_win[[c for c in df_win.columns if c.startswith('feat_')]].values,
+                                    label=df_win['label'].values)
+                logger.info(f'  Saved window-level npz: {npz_win}')
 
 
 if __name__ == '__main__':

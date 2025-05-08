@@ -5,9 +5,9 @@ export PYTHONPATH=/Users/francis/Documents/Georgian_College/GitHub/RopeJumpCount
 cd ${PYTHONPATH}/PoseDetection
 
 # 再运行：
-python3 pose_sequence_dataset_builder.py \
-  --videos_dir ./raw_videos \
-  --labels_dir ./raw_videos \
-  --output_dir ./dataset \
+python3 builder.py \
+  --videos_dir ./raw_videos_3 \
+  --labels_dir ./raw_videos_3 \
+  --output_dir ./dataset_3 \
   --window_size 32 \
   --stride 1
