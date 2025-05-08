@@ -55,7 +55,7 @@ class Differentiator:
         self.prev_vel = None
         self.prev_ts = None
 
-    def compute(self, raw, ts):
+    def diff_compute(self, raw, ts):
         """
         Compute velocity and acceleration for the given raw feature vector at time ts.
 
@@ -67,10 +67,15 @@ class Differentiator:
             vel (list[float]): First-order derivative (velocity) vector.
             acc (list[float]): Second-order derivative (acceleration) vector.
         """
+        raw_remove_vis = [
+            raw[4 * i + j]  # remove visibility
+            for i in range(33)
+            for j in (0, 1, 2)
+        ]
         if self.mode == 'ma':
-            return self._compute_ma(raw, ts)
+            return self._compute_ma(raw_remove_vis, ts)
         else:
-            return self._compute_sg(raw, ts)
+            return self._compute_sg(raw_remove_vis, ts)
 
     def _compute_ma(self, raw, ts):
         """
@@ -163,6 +168,10 @@ class Differentiator:
                         (vel[i] - self.prev_vel[i]) / dt
                         for i in range(len(smooth_raw))
                     ]
+                # Do not differentiate visibility channel
+                for idx in range(3, len(vel), 4):
+                    vel[idx] = 0.0
+                    acc[idx] = 0.0
         # Update state
         self.prev_raw = smooth_raw.copy()
         self.prev_vel = vel.copy()
