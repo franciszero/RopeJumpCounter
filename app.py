@@ -37,14 +37,22 @@ from collections import deque
 
 from PoseDetection.features import PoseFrame, Differentiator, DistanceCalculator, AngleCalculator
 
+import logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s %(levelname)s [%(name)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
-def record_session(output_dir, regions=None, countdown=3, model_path='PoseDetection/models/best_crnn.keras'):
+
+def record_session(output_dir, regions=None, countdown=3, model_path='PoseDetection/models/lstm_jump_classifier.h5'):
     # 创建输出目录
     regions = regions or ["head", "torso"]
     os.makedirs(output_dir, exist_ok=True)
 
     # 初始化视频捕获与模块
-    cap = cv2.VideoCapture(0)
+    # cap = cv2.VideoCapture(0)
     pose = PoseEstimator()
     bg = BackgroundTracker()
     filters = {r: TrendFilter() for r in regions}
@@ -54,6 +62,7 @@ def record_session(output_dir, regions=None, countdown=3, model_path='PoseDetect
     if not model_path.endswith(('.keras', '.h5')):
         model_path += '.keras'
     model = tf.keras.models.load_model(model_path)
+    logger.debug(f"Loaded model from: {model_path}")
 
     # 根据 model.input_shape 决定使用窗口模式还是单帧模式
     input_shape = model.input_shape  # e.g. (None, W, F) or (None, F)
@@ -63,15 +72,14 @@ def record_session(output_dir, regions=None, countdown=3, model_path='PoseDetect
     else:
         window_size = 1
         use_window = False
+    logger.debug(f"Model input_shape: {input_shape}, window_size: {window_size}, use_window: {use_window}")
 
     # === 特征提取初始化 ===
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     dt = 1.0 / fps
-    diff = Differentiator(dt)
-    distance_pairs = [(24, 26), (26, 28), (11, 13), (13, 15)]
-    angle_triplets = [(24, 26, 28), (11, 13, 15), (23, 11, 13)]
-    dist_calc = DistanceCalculator(distance_pairs)
-    ang_calc = AngleCalculator(angle_triplets)
+    diff = Differentiator()
+    dist_calc = DistanceCalculator()
+    ang_calc = AngleCalculator()
     feature_buffer = deque(maxlen=window_size)
     prev_pred = 0
 
@@ -106,8 +114,10 @@ def record_session(output_dir, regions=None, countdown=3, model_path='PoseDetect
         prev_timestamp = None
         jump_count = 0  # total jumps so far
         # 主循环：读取视频帧，估计姿态，补偿背景抖动，构建特征，模型推理，跳跃计数，写入CSV，显示窗口
+        logger.debug("Starting recording loop")
         while True:
             ret, frame = cap.read()
+            logger.debug(f"Read frame {frame_idx + 1}, ret={ret}")
             if not ret:
                 break
             frame_idx += 1
@@ -120,14 +130,18 @@ def record_session(output_dir, regions=None, countdown=3, model_path='PoseDetect
                 fps_display = 1.0 / (timestamp - prev_timestamp)
             prev_timestamp = timestamp
 
+            logger.debug(f"Timestamp: {timestamp:.3f}, FPS display: {fps_display:.1f}")
+
             # 姿态估计，获取关键点高度
             lm, heights = pose.estimate(frame)
+            logger.debug(f"Pose landmarks: {'detected' if lm else 'none'}, heights: {heights}")
             if not heights:
                 heights = {r: prev_heights[r] or 0.0 for r in regions}
 
             # 背景抖动补偿，计算背景位移
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             bg_dy = bg.compensate(gray)
+            logger.debug(f"Background displacement dy: {bg_dy:.3f}")
 
             # 构建数据行：帧号、时间戳
             row = [frame_idx, timestamp]
@@ -142,41 +156,53 @@ def record_session(output_dir, regions=None, countdown=3, model_path='PoseDetect
                 raw_px = [0.0] * (33 * 2)
                 vel = [0.0] * (33 * 4)
                 acc = [0.0] * (33 * 4)
-                dists = [0.0] * len(distance_pairs)
-                angs = [0.0] * len(angle_triplets)
+                dists = [0.0] * len(dist_calc.pairs)
+                angs = [0.0] * len(ang_calc.triplets)
+
+                pred = 0.0
+                label = 0
+                # skip model inference when no landmarks detected
+                jump_flag = False
             else:
+                logger.debug(f"Raw 132-dim, raw_px 66-dim, computing vel/acc/dist/ang")
                 pf = PoseFrame(frame_idx, timestamp, lm.landmark, frame_size=(height, width))
-                raw = pf.raw            # 132 dims
-                raw_px = pf.raw_px      # 66 dims
+                raw = pf.raw  # 132 dims
+                raw_px = pf.raw_px  # 66 dims
                 vel, acc = diff.compute(raw)
                 dists = dist_calc.compute(lm.landmark)
                 angs = ang_calc.compute(lm.landmark)
 
-            # 拼接成特征向量，匹配模型期望
-            feat = raw + raw_px + vel + acc + dists + angs  # 132+66+132+132+4+3 = 469 dims
+                # 拼接成特征向量，匹配模型期望
+                feat = raw + raw_px + vel + acc + dists + angs  # 132+66+132+132+4+3 = 469 dims
 
-            # 模型推理与跳跃计数
-            if use_window:
-                feature_buffer.append(feat)
-                if len(feature_buffer) == window_size:
-                    inp = np.stack(feature_buffer, axis=0)[np.newaxis, ...]
+                # 模型推理与跳跃计数
+                if use_window:
+                    feature_buffer.append(feat)
+                    if len(feature_buffer) == window_size:
+                        inp = np.stack(feature_buffer, axis=0)[np.newaxis, ...]
+                        pred = model.predict(inp, verbose=0)[0, 0]
+                        label = 1 if pred > 0.5 else 0
+                    else:
+                        pred = 0.0
+                        label = 0
+                else:
+                    inp = np.array(feat, dtype=np.float32)[np.newaxis, np.newaxis, :]
                     pred = model.predict(inp, verbose=0)[0, 0]
                     label = 1 if pred > 0.5 else 0
-                else:
-                    pred = 0.0
-                    label = 0
-            else:
-                inp = np.array(feat, dtype=np.float32)[np.newaxis, np.newaxis, :]
-                pred = model.predict(inp, verbose=0)[0, 0]
-                label = 1 if pred > 0.5 else 0
 
-            # 检测上升沿，累加跳绳计数
-            jump_flag = (prev_pred == 0 and label == 1)
-            row.append(1 if jump_flag else 0)
+                logger.debug(f"Model prediction: {pred:.3f}, label: {label}")
+
+                # 检测上升沿，累加跳绳计数
+                jump_flag = (prev_pred == 0 and label == 1)
+
             if jump_flag:
                 jump_count += 1
+            logger.debug(f"Jump flag: {jump_flag}, total jump_count: {jump_count}")
+
+            row.append(1 if jump_flag else 0)
             prev_pred = label
 
+            logger.debug(f"Writing CSV row: {row}")
             # 写入CSV文件
             writer.writerow(row)
 
@@ -186,10 +212,10 @@ def record_session(output_dir, regions=None, countdown=3, model_path='PoseDetect
                 f"P(jump): {pred:.2f}",
                 f"Jump Count: {jump_count}",
             ]
-            y0, dy = 30, 30
+            y0, dy = 100, 100
             for i, txt in enumerate(debug_texts):
                 y = y0 + i * dy
-                cv2.putText(frame, txt, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0,255,0), 2)
+                cv2.putText(frame, txt, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 6)
             # 显示摄像头画面
             cv2.imshow("Recorder", frame)
             if cv2.waitKey(1) & 0xFF == 27:
