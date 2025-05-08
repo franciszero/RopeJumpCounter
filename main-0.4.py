@@ -32,6 +32,7 @@ import logging
 
 from PoseDetection.features import FeaturePipeline
 from utils.Differentiator import get_differentiator
+from utils.filter import TrendFilter
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -239,9 +240,10 @@ class MainApp:
         )
 
         regions = list(self.REGION_LANDMARKS.keys())
+        self.filters = {r: TrendFilter() for r, _ in self.REGION_LANDMARKS.items()}
         self.speed_bufs = {r: deque(maxlen=128) for r in regions}
 
-    def run(self):
+    def run(self, HIGH_FREQ_MODE=True):
         frame_idx = 0
         while True:
             if not self.pipe.success_process_frame(frame_idx):
@@ -263,12 +265,19 @@ class MainApp:
                 speeds = [speed_dict[lm.value] for lm in lm_list if lm.value in speed_dict]
                 region_speeds[region] = sum(speeds) / len(speeds) if speeds else 0.0
 
-            # 更新每个区域的速度缓冲区
-            for r, v in region_speeds.items():
-                self.speed_bufs[r].append(v)
-
-            # 5) 调用 detect
-            cnt = self.detector.detect(region_speeds, frame_idx)
+            if HIGH_FREQ_MODE:
+                # 更新每个区域的速度缓冲区
+                for r, v in region_speeds.items():
+                    self.speed_bufs[r].append(v)
+                # 调用 detect
+                cnt = self.detector.detect(region_speeds, frame_idx)
+            else:
+                # 计算去背景后的相对速度 f for each region
+                f_vals = {}
+                for r, filt in self.filters.items():
+                    f_vals[r] = filt.update(region_speeds, frame_idx)
+                # 多区域跳跃检测
+                cnt = self.detector.detect(f_vals, frame_idx)
 
             # 渲染并显示
             out = self.renderer.render(self.pipe.fs.raw_frame, self.speed_bufs, cnt)
