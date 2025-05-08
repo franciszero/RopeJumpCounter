@@ -16,29 +16,21 @@ class VideoStabilizer:
          e. 每隔 N 帧重新检测新角点，否则继续用跟踪得到的 pts1。
     """
 
-    def __init__(
-        self,
-        max_corners: int = 200,
-        quality_level: float = 0.01,
-        min_distance: float = 30,
-        reinit_interval: int = 30,
-    ):
-        """
-        Args:
-            max_corners:       最多检测多少个角点用于跟踪
-            quality_level:     GoodFeaturesToTrack 的 qualityLevel 参数
-            min_distance:      GoodFeaturesToTrack 的 minDistance 参数
-            reinit_interval:   每隔多少帧重检测一次新角点
-        """
-        self.max_corners = max_corners
-        self.quality_level = quality_level
-        self.min_distance = min_distance
-        self.reinit_interval = reinit_interval
+    max_corners = 200
+    quality_level = 0.01
+    min_distance = 30
+    reinit_interval = 30
 
-        self.prev_gray = None        # 上一帧灰度图
-        self.prev_pts = None         # 上一帧待跟踪角点
-        self.transforms = []         # 累积的 3×3 同质仿射矩阵列表
-        self.frame_count = 0         # 帧计数，用于控制何时重检测角点
+    def __init__(self):
+        self.max_corners = type(self).max_corners
+        self.quality_level = type(self).quality_level
+        self.min_distance = type(self).min_distance
+        self.reinit_interval = type(self).reinit_interval
+
+        self.prev_gray = None  # 上一帧灰度图
+        self.prev_pts = None  # 上一帧待跟踪角点
+        self.transforms = []  # 累积的 3×3 同质仿射矩阵列表
+        self.frame_count = 0  # 帧计数，用于控制何时重检测角点
 
     def stabilize(self, frame: np.ndarray) -> np.ndarray:
         """
