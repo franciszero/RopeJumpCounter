@@ -9,3 +9,5 @@ PoseDetection/raw_videos_2
 record_output
 PoseDetection/dataset_3
 PoseDetection/raw_videos_3
+/PoseDetection/mlruns/
+logs.log
