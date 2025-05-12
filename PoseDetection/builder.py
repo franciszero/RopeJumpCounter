@@ -157,33 +157,31 @@ def main():
 
             # 步骤2：合并标签，生成帧级带label
             df_labeled = merge_labels(df_feat, labels_path)
-            out_frame = os.path.join(args.output_dir, f'{base}_labeled.csv')
-            df_labeled.to_csv(out_frame, index=False)
-            logger.info(f'  Saved frame-level data: {out_frame}')
-
-            # 同时保存为 npz 格式
+            # Save frame-level numpy data and report shapes
+            X_frame = df_labeled.drop(columns=['frame', 'timestamp', 'label']).values
+            y_frame = df_labeled['label'].values
             npz_frame = os.path.join(args.output_dir, f"{base}_labeled.npz")
-            np.savez_compressed(npz_frame,
-                                frame=df_labeled['frame'].values,
-                                timestamp=df_labeled['timestamp'].values,
-                                features=df_labeled.drop(columns=['frame','timestamp','label']).values,
-                                label=df_labeled['label'].values)
+            np.savez_compressed(npz_frame, X=X_frame, y=y_frame)
             logger.info(f'  Saved frame-level npz: {npz_frame}')
+            print(f"Frame-level data shape: X={X_frame.shape}, y={y_frame.shape}")
 
             # 步骤3：窗口级数据（如果需要）
             if args.window_size > 1:
-                df_win = build_windows(df_labeled, args.window_size, args.stride)
-                out_win = os.path.join(args.output_dir, f'{base}_windows.csv')
-                df_win.to_csv(out_win, index=False)
-                logger.info(f'  Saved window-level data: {out_win}')
-
+                # Build and save window-level numpy data without flattening
+                feature_cols = [c for c in df_labeled.columns if c not in ('frame', 'timestamp', 'label')]
+                X_win, y_win = [], []
+                num_frames = len(df_labeled)
+                for start in range(0, num_frames - args.window_size + 1, args.stride):
+                    window = df_labeled.iloc[start:start+args.window_size]
+                    arr = window[feature_cols].values  # shape: (window_size, feature_dim)
+                    X_win.append(arr)
+                    y_win.append(int(window['label'].any()))
+                X_win = np.stack(X_win)  # shape: (n_windows, window_size, feature_dim)
+                y_win = np.array(y_win)
                 npz_win = os.path.join(args.output_dir, f"{base}_windows.npz")
-                np.savez_compressed(npz_win,
-                                    window_start=df_win['window_start'].values,
-                                    window_end=df_win['window_end'].values,
-                                    features=df_win[[c for c in df_win.columns if c.startswith('feat_')]].values,
-                                    label=df_win['label'].values)
+                np.savez_compressed(npz_win, X=X_win, y=y_win)
                 logger.info(f'  Saved window-level npz: {npz_win}')
+                print(f"Window-level data shape: X={X_win.shape}, y={y_win.shape}")
 
 
 if __name__ == '__main__':
