@@ -42,8 +42,28 @@ import cv2  # 用于视频读取和帧操作
 import csv  # 用于写入标签 CSV
 import os  # 用于路径操作
 import argparse  # 用于解析命令行参数
+import numpy as np  # 为内存编码 PNG
+import base64  # 用于 Base64 编解码
 import tempfile
 import copy  # 用于深拷贝和刷新右侧标注列表
+
+
+# 区间合并工具
+def merge_overlaps(intervals):
+    """
+    合并重叠或相邻的区间，返回排序后、无重叠的新列表。
+    """
+    if not intervals:
+        return []
+    intervals = sorted(intervals, key=lambda x: x[0])
+    merged = [intervals[0]]
+    for s, e in intervals[1:]:
+        last_s, last_e = merged[-1]
+        if s <= last_e:  # overlap 或 相邻
+            merged[-1] = (last_s, max(last_e, e))
+        else:
+            merged.append((s, e))
+    return merged
 
 
 # 临时图像文件路径，用于 GUI 显示
@@ -77,8 +97,6 @@ def main():
     base, _ = os.path.splitext(args.input)
     output_path = os.path.join(args.workdir, f"{base}_labels.csv")
 
-    tmp_img_path = os.path.join(args.workdir, f"{base}_tmp.png")
-
     # 初始化标注数据
     labels = []  # 存储 (start_frame, end_frame) 列表
 
@@ -88,8 +106,7 @@ def main():
             reader = csv.DictReader(f)
             for row in reader:
                 labels.append((int(row['start_frame']), int(row['end_frame'])))
-        # 将加载的标签按起始帧排序
-        labels.sort(key=lambda x: x[0])
+        labels = merge_overlaps(labels)
 
     # 打开视频文件
     cap = cv2.VideoCapture(video_path)
@@ -145,10 +162,11 @@ def main():
         if not ret:
             break
 
-        # 将当前帧写入临时文件，用于 GUI 显示
-        cv2.imwrite(tmp_img_path, frame)
-        # 更新界面元素：图像（通过文件）、帧信息、时间戳、起始帧
-        window['-IMAGE-'].update(filename=tmp_img_path)
+        # 将当前帧编码为 PNG → Base64 bytes，直接更新
+        ok, buf = cv2.imencode(".png", frame)
+        if ok:
+            b64_png = base64.b64encode(buf)  # bytes, not str
+            window['-IMAGE-'].update(data_base64=b64_png)
 
         window['-FRAME-'].update(f'Frame: {frame_idx} / {total_frames - 1}')
         window['-TIME-'].update(f'Time: {frame_idx / fps:.2f}s')
@@ -177,9 +195,11 @@ def main():
         elif event in ('Down', '<Down>', 'special 16777237'):
             # 标记结束帧并保存区间
             if curr_start is not None:
+                # 保证 start <= end
+                if frame_idx < curr_start:
+                    curr_start, frame_idx = frame_idx, curr_start
                 labels.append((curr_start, frame_idx))
-                # 按起始帧排序
-                labels.sort(key=lambda x: x[0])
+                labels = merge_overlaps(labels)
                 curr_start = None
                 # 更新列表框显示
                 window['-LIST-'].update([f"{s}-{e}" for s, e in labels])
@@ -197,9 +217,11 @@ def main():
         elif event == 'Mark End':
             # 标记结束帧并保存区间
             if curr_start is not None:
+                # 保证 start <= end
+                if frame_idx < curr_start:
+                    curr_start, frame_idx = frame_idx, curr_start
                 labels.append((curr_start, frame_idx))
-                # 按起始帧排序
-                labels.sort(key=lambda x: x[0])
+                labels = merge_overlaps(labels)
                 curr_start = None
                 # 更新列表框显示
                 window['-LIST-'].update([f"{s}-{e}" for s, e in labels])
@@ -224,10 +246,6 @@ def main():
     # 释放视频和关闭窗口
     cap.release()
     window.close()
-
-    # 清理临时帧图像文件
-    if os.path.exists(tmp_img_path):
-        os.remove(tmp_img_path)
 
     # 保存标签到 CSV
     os.makedirs(args.workdir, exist_ok=True)
