@@ -3,7 +3,6 @@ PoseDetection/__pycache__
 /PoseDetection/raw_videos/*.csv
 utils/__pycache__
 PoseDetection/dataset
-PoseDetection/models
 PoseDetection/raw_videos
 PoseDetection/raw_videos_2
 record_output
@@ -11,3 +10,4 @@ PoseDetection/dataset_3
 PoseDetection/raw_videos_3
 /PoseDetection/mlruns/
 logs.log
+/PoseDetection/model_files/

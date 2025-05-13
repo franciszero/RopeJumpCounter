@@ -28,7 +28,7 @@ class CNNModel(TrainMyModel):
             EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
             ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1),
             ModelCheckpoint(
-                filepath=f"models/best_{self.model_name}_w{self.window_size}.keras",
+                filepath=f"{self.dest_root}/best_{self.model_name}_w{self.window_size}.keras",
                 monitor="val_accuracy",
                 save_best_only=True,
                 verbose=1

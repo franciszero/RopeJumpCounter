@@ -24,7 +24,7 @@ class LSTMModel(TrainMyModel):
             tf.keras.callbacks.ReduceLROnPlateau(
                 monitor='val_loss', factor=0.5, patience=3, verbose=1),
             tf.keras.callbacks.ModelCheckpoint(
-                filepath=f"models/best_lstm.keras",
+                filepath=f"{self.dest_root}/best_lstm.keras",
                 monitor="val_accuracy", save_best_only=True, verbose=1
             )
         ]

@@ -33,7 +33,7 @@ class LSTMAttentionModel(TrainMyModel):
             tf.keras.callbacks.ReduceLROnPlateau(
                 monitor='val_loss', factor=0.4, patience=4, verbose=1),
             tf.keras.callbacks.ModelCheckpoint(
-                filepath=f"models/best_lstm_attention.keras",
+                filepath=f"{self.dest_root}/best_lstm_attention.keras",
                 monitor="val_accuracy", save_best_only=True, verbose=1
             )
         ]
