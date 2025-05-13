@@ -27,6 +27,9 @@ class TrainMyModel(ABC):
             "crnn": 4,  # 12,
             "resnet1d": 4,  # 16,
             "tcn": 4,  # 24,
+            "inception": 4,
+            "transformer": 4,  # 8,
+            "efficientnet1d": 4,
         }
 
         self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test, self.y_true \

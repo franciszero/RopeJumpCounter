@@ -5,6 +5,9 @@ from PoseDetection.models.CRNN import CRNNModel
 from PoseDetection.models.LSTM import LSTMModel
 from PoseDetection.models.LSTM_Attention import LSTMAttentionModel
 from PoseDetection.models.ResNET1D import ResNET1DModel
+from PoseDetection.models.EfficientNet1D import EfficientNet1DModel
+from PoseDetection.models.InceptionTime import InceptionTimeModel
+from PoseDetection.models.TransformerLite import TransformerLiteModel
 
 # 汇总各模型的评估数据
 import pandas as pd
@@ -15,12 +18,15 @@ class Trainer:
     def __init__(self):
         # Set up models with their respective window sizes
         self.models = [
-            CNNModel(),
-            TCNModel(),
-            CRNNModel(),
-            LSTMModel(),
-            LSTMAttentionModel(),
-            ResNET1DModel(),
+            # CNNModel(),
+            # TCNModel(),
+            # CRNNModel(),
+            # LSTMModel(),
+            # LSTMAttentionModel(),
+            # ResNET1DModel(),
+            EfficientNet1DModel(),
+            # InceptionTimeModel(),
+            # TransformerLiteModel(),
         ]
 
     def train(self):
