@@ -45,15 +45,63 @@ import argparse
 from tqdm import tqdm
 import logging
 import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from collections import Counter
 
 from features import FeaturePipeline
 from utils.VideoStabilizer import VideoStabilizer
+
+import matplotlib
+matplotlib.rcParams['font.family'] = 'AppleGothic'  # 适用于 macOS 中文字体
+matplotlib.rcParams['axes.unicode_minus'] = False  # 显示负号
 
 # 将项目根目录加入模块搜索路径，以便能够导入顶层的 utils 包
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+# 分析每个窗口中正例帧数量分布，并保存直方图
+def analyze_window_label_distribution(df_labeled, window_size, output_dir, base):
+    """分析每个窗口中包含多少个正例帧（label=1）"""
+    label_counts = []
+    labels = df_labeled['label'].values
+    for i in range(0, len(labels) - window_size + 1):
+        window = labels[i:i + window_size]
+        label_counts.append(int(np.sum(window)))
+
+    # 打印统计摘要
+    unique, counts = np.unique(label_counts, return_counts=True)
+    logger.info(f"[{base}] Window内跳跃帧数量分布（label=1）:")
+    for u, c in zip(unique, counts):
+        logger.info(f"  {u} 个跳跃帧的窗口: {c} 个")
+
+    # 绘图
+    plt.figure(figsize=(8, 4))
+    sns.histplot(label_counts, bins=range(0, window_size + 2), discrete=True)
+    plt.title(f"每个窗口中含跳跃帧数量分布 [{base}]")
+    plt.xlabel("跳跃帧数量")
+    plt.ylabel("窗口个数")
+    plt.grid(True)
+    plot_path = os.path.join(output_dir, f"{base}_label_dist.png")
+    plt.savefig(plot_path)
+    plt.close()
+    logger.info(f"  跳跃帧分布图已保存: {plot_path}")
+
+
+# 检查数组中是否存在长度不少于 min_len 的连续1
+def has_continuous_ones(arr, min_len=3):
+    count = 0
+    for v in arr:
+        if v == 1:
+            count += 1
+            if count >= min_len:
+                return True
+        else:
+            count = 0
+    return False
 
 
 def extract_features(video_path, window_size, logger):
@@ -127,7 +175,7 @@ def main():
     parser.add_argument('--videos_dir', default='raw_videos_3', help='输入视频目录，支持 *.avi, *.mp4')
     parser.add_argument('--labels_dir', default='raw_videos_3', help='标签目录，包含 *_labels.csv')
     parser.add_argument('--output_dir', default='dataset_3', help='输出目录，保存数据集')
-    parser.add_argument('--window_size', default=32, type=int, help='窗口大小，=1 时仅帧级')
+    parser.add_argument('--window_size', default=6, type=int, help='窗口大小，=1 时仅帧级')
     parser.add_argument('--stride', default=1, type=int, help='滑动步长')
 
     # New stabilizer params
@@ -175,13 +223,19 @@ def main():
                     window = df_labeled.iloc[start:start+args.window_size]
                     arr = window[feature_cols].values  # shape: (window_size, feature_dim)
                     X_win.append(arr)
-                    y_win.append(int(window['label'].any()))
+                    lbl = has_continuous_ones(window['label'].values, min_len=3)
+                    y_win.append(int(lbl))
                 X_win = np.stack(X_win)  # shape: (n_windows, window_size, feature_dim)
                 y_win = np.array(y_win)
                 npz_win = os.path.join(args.output_dir, f"{base}_windows.npz")
                 np.savez_compressed(npz_win, X=X_win, y=y_win)
                 logger.info(f'  Saved window-level npz: {npz_win}')
                 print(f"Window-level data shape: X={X_win.shape}, y={y_win.shape}")
+                # 打印窗口标签分布统计
+                cnt = Counter(y_win)
+                logger.info(f"[{base}] 标签分布：负类={cnt[0]}，正类={cnt[1]}，正例比例={(cnt[1]/(cnt[0]+cnt[1]) * 100):.2f}%")
+                # 分析窗口内正例帧数量分布
+                analyze_window_label_distribution(df_labeled, args.window_size, args.output_dir, base)
 
 
 if __name__ == '__main__':
