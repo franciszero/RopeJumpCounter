@@ -28,6 +28,32 @@ import matplotlib.pyplot as plt
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 
+# === 通用绘图函数 plot_curve ===
+import matplotlib.pyplot as plt
+
+def plot_curve(x_values_dict, y_values_dict, title, xlabel, ylabel):
+    """
+    通用绘图函数，可用于绘制 ROC 或 PR 曲线。
+
+    Args:
+        x_values_dict (dict): 每个模型的 x 轴数值（如 FPR 或 Recall）。
+        y_values_dict (dict): 每个模型的 y 轴数值（如 TPR 或 Precision）。
+        title (str): 图表标题。
+        xlabel (str): x 轴标签。
+        ylabel (str): y 轴标签。
+    """
+    plt.figure(figsize=(8, 6))
+    for model_name in x_values_dict:
+        plt.plot(x_values_dict[model_name], y_values_dict[model_name], label=model_name)
+
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.legend(loc='best')
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
 plt.ioff()
 import itertools
 from sklearn.metrics import confusion_matrix, roc_curve, auc, precision_recall_curve, average_precision_score
@@ -332,10 +358,42 @@ def main():
         )
     )
 
-    # 2. 训练并评估 1D-CNN
-    cnn = build_cnn_model(input_shape, num_classes)
-    print("\n=== Training 1D-CNN ===")
-    history_cnn = cnn.fit(
+    # === 训练并评估 LSTM+Attention v1（如存在），以及 lstm_v1, cnn_v1, rf_v1, xgb_v1 ===
+    # 保留 LSTM+Attention v1（如存在），以及 lstm_v1, cnn_v1, rf_v1, xgb_v1 的训练、评估与结果输出
+    # 其余 *_v0 相关的训练、评估、路径定义均已移除
+    # 训练 LSTM+Attention v1
+    from tensorflow.keras.layers import Input, LSTM, Dense, Dropout, Multiply, Flatten, Softmax, Lambda
+    from tensorflow.keras.models import Model
+    import tensorflow.keras.backend as K
+
+    def build_lstm_attention_model(input_shape, num_classes):
+        inputs = Input(shape=input_shape)
+        x = LSTM(128, return_sequences=True)(inputs)
+        x = LSTM(64, return_sequences=True)(x)
+        attention_scores = Dense(1, activation='tanh')(x)
+        attention_scores = Flatten()(attention_scores)
+        attention_weights = Softmax()(attention_scores)
+        attention_weights = Lambda(lambda w: K.expand_dims(w, axis=-1))(attention_weights)
+        context = Multiply()([x, attention_weights])
+        context = Lambda(lambda x: K.sum(x, axis=1))(context)
+        context = Dense(64, activation="relu")(context)
+        context = Dropout(0.5)(context)
+        outputs = Dense(num_classes, activation="softmax")(context)
+        model = Model(inputs, outputs)
+        model.compile(
+            optimizer="adam",
+            loss="categorical_crossentropy",
+            metrics=["accuracy"]
+        )
+        return model
+
+    y_true = np.argmax(y_test, axis=1)
+    model_reports = []
+
+    # LSTM+Attention v1
+    print("\n=== Training LSTM+Attention v1 ===")
+    lstm_att_v1 = build_lstm_attention_model(input_shape, num_classes)
+    history_lstm_att_v1 = lstm_att_v1.fit(
         X_train, y_train,
         validation_data=(X_val, y_val),
         batch_size=args.batch_size,
@@ -343,172 +401,276 @@ def main():
         callbacks=cb,
         class_weight=class_weight_dict
     )
-    cnn.evaluate(X_test, y_test, verbose=2)
-    cnn.save("models/1d_cnn_jump_classifier.h5")
-    print("Saved 1D-CNN model to models/1d_cnn_jump_classifier.h5")
+    lstm_att_v1.evaluate(X_test, y_test, verbose=2)
+    lstm_att_v1.save("models/lstm_attention_v1.keras")
+    print("Saved LSTM+Attention v1 model to models/lstm_attention_v1.keras")
+    pred_lstm_att_v1 = np.argmax(lstm_att_v1.predict(X_test), axis=1)
+    model_reports.append(("lstm_attention_v1", (y_true, pred_lstm_att_v1)))
 
-    # 3. 训练并评估 LSTM
-    lstm = build_lstm_model(input_shape, num_classes)
-    print("\n=== Training LSTM ===")
-    history_lstm = lstm.fit(
+    # LSTM v1
+    print("\n=== Training LSTM v1 ===")
+    lstm_v1 = build_lstm_model(input_shape, num_classes)
+    history_lstm_v1 = lstm_v1.fit(
         X_train, y_train,
         validation_data=(X_val, y_val),
         batch_size=args.batch_size,
         epochs=args.epochs,
         callbacks=cb,
-        class_weight=class_weight_dict
+        class_weight=class_weight_dict,
+        verbose=2
     )
-    lstm.evaluate(X_test, y_test, verbose=2)
-    lstm.save("models/lstm_jump_classifier.h5")
-    print("Saved LSTM model to models/lstm_jump_classifier.h5")
+    pred_lstm_v1 = np.argmax(lstm_v1.predict(X_test), axis=1)
+    model_reports.append(("lstm_v1", (y_true, pred_lstm_v1)))
 
-    # 5. 训练并评估 CRNN
+    # CNN v1
+    print("\n=== Training CNN v1 ===")
+    cnn_v1 = build_cnn_model(input_shape, num_classes)
+    history_cnn_v1 = cnn_v1.fit(
+        X_train, y_train,
+        validation_data=(X_val, y_val),
+        batch_size=args.batch_size,
+        epochs=args.epochs,
+        callbacks=cb,
+        class_weight=class_weight_dict,
+        verbose=2
+    )
+    pred_cnn_v1 = np.argmax(cnn_v1.predict(X_test), axis=1)
+    model_reports.append(("cnn_v1", (y_true, pred_cnn_v1)))
+
+    # CRNN v1
+    print("\n=== Training CRNN v1 ===")
     crnn = build_crnn_model(input_shape, num_classes)
-    print("\n=== Training CRNN (Conv + BiLSTM) ===")
     history_crnn = crnn.fit(
         X_train, y_train,
         validation_data=(X_val, y_val),
         batch_size=args.batch_size,
         epochs=args.epochs,
         callbacks=cb,
-        class_weight=class_weight_dict
+        class_weight=class_weight_dict,
+        verbose=2
     )
-    crnn.evaluate(X_test, y_test, verbose=2)
-    crnn.save("models/crnn_jump_classifier.h5")
-    print("Saved CRNN model to models/crnn_jump_classifier.h5")
+    pred_crnn = np.argmax(crnn.predict(X_test), axis=1)
+    model_reports.append(("crnn_v1", (y_true, pred_crnn)))
 
-    # 4. 打印测试集详细报告
-    from sklearn.metrics import classification_report
-    y_pred_cnn = np.argmax(cnn.predict(X_test), axis=1)
-    y_pred_lstm = np.argmax(lstm.predict(X_test), axis=1)
-    y_true = np.argmax(y_test, axis=1)
-
-    # 6. CRNN 测试集报告
-    y_pred_crnn = np.argmax(crnn.predict(X_test), axis=1)
-
-    # 7. 训练并评估 1D ResNet
+    # ResNet1D v1
+    print("\n=== Training ResNet1D v1 ===")
     resnet = build_resnet1d_model(input_shape, num_classes)
-    print("\n=== Training ResNet1D ===")
     history_resnet = resnet.fit(
         X_train, y_train,
         validation_data=(X_val, y_val),
         batch_size=args.batch_size,
         epochs=args.epochs,
         callbacks=cb,
-        class_weight=class_weight_dict
+        class_weight=class_weight_dict,
+        verbose=2
     )
-    resnet.evaluate(X_test, y_test, verbose=2)
-    resnet.save("models/resnet1d_jump_classifier.h5")
-    print("Saved ResNet1D model to models/resnet1d_jump_classifier.h5")
+    pred_resnet = np.argmax(resnet.predict(X_test), axis=1)
+    model_reports.append(("resnet1d_v1", (y_true, pred_resnet)))
 
-    # ResNet1D 分类报告
-    y_pred_resnet = np.argmax(resnet.predict(X_test), axis=1)
-
-    # 8. 训练并评估 TCN 模型
+    # TCN v1
+    print("\n=== Training TCN v1 ===")
     tcn = build_tcn_model(input_shape, num_classes)
-    print("\n=== Training TCN Model ===")
     history_tcn = tcn.fit(
         X_train, y_train,
         validation_data=(X_val, y_val),
         batch_size=args.batch_size,
         epochs=args.epochs,
         callbacks=cb,
-        class_weight=class_weight_dict
+        class_weight=class_weight_dict,
+        verbose=2
     )
-    tcn.evaluate(X_test, y_test, verbose=2)
-    tcn.save("models/tcn_jump_classifier.h5")
-    print("Saved TCN model to models/tcn_jump_classifier.h5")
+    pred_tcn = np.argmax(tcn.predict(X_test), axis=1)
+    model_reports.append(("tcn_v1", (y_true, pred_tcn)))
 
-    # TCN 分类报告
-    y_pred_tcn = np.argmax(tcn.predict(X_test), axis=1)
+    # === 训练 RF v1 和 XGB v1（如需要，可补充实现） ===
+    # 这里只保留接口，具体实现可根据实际项目补充
+    # 例如:
+    # from sklearn.ensemble import RandomForestClassifier
+    # from xgboost import XGBClassifier
+    # ... 训练 rf_v1, xgb_v1 并添加到 model_reports
 
-    # 9. 汇总所有模型分类报告
-    from sklearn.metrics import classification_report
+    # 9. 汇总模型分类报告和混淆矩阵等详细指标
+    from sklearn.metrics import classification_report, confusion_matrix, roc_auc_score, average_precision_score, roc_curve, precision_recall_curve
     print("\n=== All Models Classification Reports ===")
-    model_reports = [
-        ("1D-CNN", y_pred_cnn),
-        ("LSTM", y_pred_lstm),
-        ("CRNN", y_pred_crnn),
-        ("ResNet1D", y_pred_resnet),
-        ("TCN", y_pred_tcn),
-    ]
-    for name, y_pred in model_reports:
+    model_metric_table = []
+    model_confusion_info = {}
+    model_curve_info = {}
+    model_class_reports = {}
+    for name, (y_true_flat, y_pred) in model_reports:
         print(f"\n--- {name} classification report ---")
-        print(classification_report(y_true, y_pred, target_names=[str(c) for c in le.classes_]))
+        print(classification_report(y_true_flat, y_pred, target_names=[str(c) for c in le.classes_]))
+        # 分类报告
+        rep = classification_report(y_true_flat, y_pred, output_dict=True)
+        model_class_reports[name] = rep
+        # 混淆矩阵
+        cm = confusion_matrix(y_true_flat, y_pred)
+        # 只支持二分类和多分类下的每类TP,TN,FP,FN
+        confusion_stats = {}
+        for idx, cls in enumerate(le.classes_):
+            # TP: 预测为i且真实为i
+            TP = cm[idx, idx]
+            # FP: 预测为i但真实不为i
+            FP = cm[:, idx].sum() - TP
+            # FN: 真实为i但预测不为i
+            FN = cm[idx, :].sum() - TP
+            # TN: 其他
+            TN = cm.sum() - TP - FP - FN
+            confusion_stats[cls] = dict(TP=int(TP), TN=int(TN), FP=int(FP), FN=int(FN))
+        model_confusion_info[name] = confusion_stats
+        # 主要指标
+        acc = rep['accuracy'] if 'accuracy' in rep else None
+        # 支持数量
+        support = {cls: rep[str(cls)]['support'] for cls in le.classes_}
+        # 取macro avg
+        macro_f1 = rep['macro avg']['f1-score']
+        macro_precision = rep['macro avg']['precision']
+        macro_recall = rep['macro avg']['recall']
+        # ROC AUC & PR AUC
+        # 模型名映射
+        model_name_map = {
+            "lstm_attention_v1": "LSTM+Att",
+            "cnn_v1": "CNN",
+            "lstm_v1": "LSTM",
+            "crnn_v1": "CRNN",
+            "resnet1d_v1": "ResNet1D",
+            "tcn_v1": "TCN"
+        }
+        display_name = model_name_map.get(name, name)
+        # 获取概率分数
+        model_obj = None
+        if display_name in ["LSTM+Att", "CNN", "LSTM", "CRNN", "ResNet1D", "TCN"]:
+            model_obj = {
+                "LSTM+Att": lstm_att_v1,
+                "CNN": cnn_v1,
+                "LSTM": lstm_v1,
+                "CRNN": crnn,
+                "ResNet1D": resnet,
+                "TCN": tcn
+            }[display_name]
+        y_score = None
+        y_scores = None
+        if model_obj is not None:
+            y_scores = model_obj.predict(X_test)
+            if y_scores.ndim == 2 and y_scores.shape[1] > 1:
+                # 二分类取正类
+                y_score = y_scores[:, 1]
+            else:
+                y_score = y_scores.ravel()
+        # ROC AUC 和 PR AUC
+        roc_auc = None
+        pr_auc = None
+        if y_score is not None:
+            try:
+                roc_auc = roc_auc_score(y_true_flat, y_score)
+                pr_auc = average_precision_score(y_true_flat, y_score)
+            except Exception:
+                roc_auc, pr_auc = None, None
+        # 保存曲线
+        if y_score is not None:
+            fpr, tpr, _ = roc_curve(y_true_flat, y_score)
+            precision, recall, _ = precision_recall_curve(y_true_flat, y_score)
+            model_curve_info[name] = dict(
+                fpr=fpr, tpr=tpr, precision=precision, recall=recall,
+                roc_auc=roc_auc, pr_auc=pr_auc
+            )
+        # 汇总表
+        model_metric_table.append({
+            'model': display_name,
+            'accuracy': acc,
+            'macro_precision': macro_precision,
+            'macro_recall': macro_recall,
+            'macro_f1': macro_f1,
+            'roc_auc': roc_auc,
+            'pr_auc': pr_auc,
+            'support': sum(support.values()) if hasattr(support, 'values') else None,
+            'name_key': name
+        })
 
-    # 生成综合报告曲线（Plotly 交互式）
-    os.makedirs('models', exist_ok=True)
-    curves = [
-        ('1d_cnn', history_cnn),
-        ('lstm', history_lstm),
-        ('crnn', history_crnn),
-        ('resnet1d', history_resnet),
-        ('tcn', history_tcn),
-    ]
     # 9. Interactive summary plot with Plotly
+    os.makedirs('models', exist_ok=True)
+    # === 汇总训练曲线 curves ===
+    curves = [("lstm_attention_v1", history_lstm_att_v1)]
+    curves.append(("lstm_v1", history_lstm_v1))
+    curves.append(("cnn_v1", history_cnn_v1))
+    curves.append(("crnn_v1", history_crnn))
+    curves.append(("resnet1d_v1", history_resnet))
+    curves.append(("tcn_v1", history_tcn))
     fig_plot = make_subplots(rows=2, cols=1, shared_xaxes=True,
-        subplot_titles=('Training & Validation Loss', 'Training & Validation Accuracy'))
+                             subplot_titles=('Training & Validation Loss', 'Training & Validation Accuracy'))
     for key, hist in curves:
         epochs = list(range(1, len(hist.history['loss']) + 1))
         fig_plot.add_trace(go.Scatter(x=epochs, y=hist.history['loss'], name=f"{key}-train"), row=1, col=1)
-        fig_plot.add_trace(go.Scatter(x=epochs, y=hist.history['val_loss'], name=f"{key}-val", line=dict(dash='dash')), row=1, col=1)
+        fig_plot.add_trace(go.Scatter(x=epochs, y=hist.history['val_loss'], name=f"{key}-val", line=dict(dash='dash')),
+                           row=1, col=1)
         fig_plot.add_trace(go.Scatter(x=epochs, y=hist.history['accuracy'], name=f"{key}-train"), row=2, col=1)
-        fig_plot.add_trace(go.Scatter(x=epochs, y=hist.history['val_accuracy'], name=f"{key}-val", line=dict(dash='dash')), row=2, col=1)
+        fig_plot.add_trace(
+            go.Scatter(x=epochs, y=hist.history['val_accuracy'], name=f"{key}-val", line=dict(dash='dash')), row=2,
+            col=1)
     fig_plot.update_layout(height=700, showlegend=True)
     interactive_summary = fig_plot.to_html(full_html=False, include_plotlyjs='cdn')
 
     # 10a. 生成交互式分类指标对比
     metrics = []
-    for name, y_pred in model_reports:
-        rep = classification_report(y_true, y_pred, output_dict=True)
-        for cls in [str(c) for c in le.classes_]:
-            metrics.append({
-                'model': name,
-                'class': cls,
-                'precision': rep[cls]['precision'],
-                'recall': rep[cls]['recall'],
-                'f1': rep[cls]['f1-score']
-            })
+    for name, (y_true_flat, y_pred) in model_reports:
+        rep = model_class_reports[name]
+        cls = '1'  # 仅保留正例指标
+        metrics.append({
+            'model': name,
+            'precision': rep[cls]['precision'],
+            'recall': rep[cls]['recall'],
+            'f1': rep[cls]['f1-score'],
+            'support': rep[cls]['support']
+        })
     df_metrics = pd.DataFrame(metrics)
     fig_metrics = go.Figure()
     for metric in ['precision', 'recall', 'f1']:
         fig_metrics.add_trace(go.Bar(
-            x=df_metrics['model'] + ' ' + df_metrics['class'],
+            x=df_metrics['model'],
             y=df_metrics[metric],
-            name=metric
+            name=metric,
+            customdata=df_metrics['support'],
+            hovertemplate='Model: %{x}<br>'+metric+': %{y:.3f}<br>Support: %{customdata}<extra></extra>'
         ))
     fig_metrics.update_layout(barmode='group', title='分类指标对比')
     interactive_metrics = fig_metrics.to_html(full_html=False, include_plotlyjs='cdn')
 
-    # 10b. 生成交互式 ROC & PR 曲线
+    # 10b. 生成交互式 ROC & PR 曲线 (Plotly)
     fig_roc = go.Figure()
     fig_pr = go.Figure()
-    y_true_bin = y_true  # 二分类标签 0/1
-    # 对每个模型计算概率分数
-    for name, model in [("1D-CNN", cnn), ("LSTM", lstm), ("CRNN", crnn), ("ResNet1D", resnet), ("TCN", tcn)]:
-        # 获取正类概率
-        y_score = model.predict(X_test)[:, 1]
-        # ROC
-        fpr, tpr, _ = roc_curve(y_true_bin, y_score)
-        roc_auc = auc(fpr, tpr)
-        fig_roc.add_trace(go.Scatter(x=fpr, y=tpr, mode='lines', name=f"{name} (AUC={roc_auc:.3f})"))
-        # PR
-        precision, recall, _ = precision_recall_curve(y_true_bin, y_score)
-        ap = average_precision_score(y_true_bin, y_score)
-        fig_pr.add_trace(go.Scatter(x=recall, y=precision, mode='lines', name=f"{name} (AP={ap:.3f})"))
+    auc_dict = {}
+    ap_dict = {}
+    # 缩放坐标轴默认视野，便于观察左下角/右上角
+    roc_xrange = [0, 0.2]
+    roc_yrange = [0.8, 1.0]
+    pr_xrange = [0.7, 1.0]
+    pr_yrange = [0.7, 1.0]
+    for name, info in model_curve_info.items():
+        display_name = [m['model'] for m in model_metric_table if m['name_key'] == name][0]
+        auc_val = info['roc_auc']
+        ap_val = info['pr_auc']
+        auc_dict[display_name] = auc_val
+        ap_dict[display_name] = ap_val
+        fig_roc.add_trace(go.Scatter(
+            x=info['fpr'], y=info['tpr'], mode='lines',
+            name=f"{display_name} (AUC={auc_val:.3f})",
+            hovertemplate='FPR=%{x:.3f}<br>TPR=%{y:.3f}<extra>'+display_name+'</extra>'
+        ))
+        fig_pr.add_trace(go.Scatter(
+            x=info['recall'], y=info['precision'], mode='lines',
+            name=f"{display_name} (AP={ap_val:.3f})",
+            hovertemplate='Recall=%{x:.3f}<br>Precision=%{y:.3f}<extra>'+display_name+'</extra>'
+        ))
     fig_roc.update_layout(
-        title="ROC 曲线",
-        xaxis=dict(title="False Positive Rate", constrain="domain"),
-        yaxis=dict(title="True Positive Rate", scaleanchor="x", scaleratio=1),
-        width=600,
-        height=600
+        title='ROC Curve for All Models',
+        xaxis_title='False Positive Rate', yaxis_title='True Positive Rate',
+        xaxis=dict(range=roc_xrange), yaxis=dict(range=roc_yrange),
+        legend_title='Model'
     )
     fig_pr.update_layout(
-        title="Precision-Recall 曲线",
-        xaxis_title="Recall",
-        yaxis_title="Precision",
-        width=600,
-        height=600
+        title='Precision-Recall Curve for All Models',
+        xaxis_title='Recall', yaxis_title='Precision',
+        xaxis=dict(range=pr_xrange), yaxis=dict(range=pr_yrange),
+        legend_title='Model'
     )
     interactive_roc = fig_roc.to_html(full_html=False, include_plotlyjs='cdn')
     interactive_pr = fig_pr.to_html(full_html=False, include_plotlyjs='cdn')
@@ -517,15 +679,91 @@ def main():
     html = [
         "<!DOCTYPE html>",
         "<html><head><meta charset='UTF-8'><title>本地模型评估报告</title>",
-        "<style>body{font-family:sans-serif;padding:2em;}h2{margin-top:1.5em;}table{border-collapse:collapse;}th,td{border:1px solid #ccc;padding:0.5em;text-align:center;}</style>",
+        "<style>body{font-family:sans-serif;padding:2em;}h2{margin-top:1.5em;}table{border-collapse:collapse;}th,td{border:1px solid #ccc;padding:0.5em;text-align:center;}.best-row{background:#ffe082;font-weight:bold;} .metric-scores {margin-top: 5px; font-size: 14px;}</style>",
         "</head><body>",
         "<h1>RopeJumpCounter 本地模型评估报告</h1>"
     ]
-    for name, y_pred in model_reports:
-        rep = classification_report(y_true, y_pred, output_dict=True)
+    # --- 指标表格(高亮最佳) ---
+    # 排序主指标
+    main_metric = "macro_f1"
+    best_row_idx = None
+    if main_metric in ["macro_f1", "roc_auc"]:
+        sorted_table = sorted(model_metric_table, key=lambda x: (x[main_metric] if x[main_metric] is not None else -1), reverse=True)
+        best_row_idx = 0
+    else:
+        sorted_table = model_metric_table
+    # 汇总表格
+    html.append("<h2>模型主要指标总览</h2>")
+    html.append("<table><tr><th>模型</th><th>Accuracy</th><th>Precision</th><th>Recall</th><th>F1</th><th>ROC AUC</th><th>PR AUC</th><th>Support</th></tr>")
+    for idx, row in enumerate(sorted_table):
+        is_best = idx == best_row_idx
+        tr_cls = ' class="best-row"' if is_best else ''
+        html.append(f"<tr{tr_cls}><td>{row['model']}</td><td>{row['accuracy']:.3f}</td><td>{row['macro_precision']:.3f}</td><td>{row['macro_recall']:.3f}</td><td>{row['macro_f1']:.3f}</td><td>{row['roc_auc']:.3f}</td><td>{row['pr_auc']:.3f}</td><td>{row['support']}</td></tr>")
+    html.append("</table>")
+    # --- 每模型详细报告 ---
+    for idx, row in enumerate(sorted_table):
+        name = row['name_key']
+        display_name = row['model']
+        html.append(f"<h2>{display_name} 评估报告</h2>")
+        # 指标表格
+        rep = model_class_reports[name]
         df = pd.DataFrame(rep).transpose().round(3)
-        html.append(f"<h2>{name} 分类报告</h2>")
+        html.append("<h3>分类报告</h3>")
         html.append(df.to_html(border=0))
+        # 输出AUC/AP
+        auc_val = row['roc_auc']
+        ap_val = row['pr_auc']
+        # 新增：插入统一格式的AUC/AP信息
+        html.append(f"""
+<div class="metric-scores">
+    <p><strong>ROC AUC:</strong> {auc_val:.3f}</p>
+    <p><strong>Average Precision:</strong> {ap_val:.3f}</p>
+</div>
+""")
+        # 混淆矩阵
+        html.append("<h3>混淆矩阵 (TP/TN/FP/FN)</h3>")
+        confusion = model_confusion_info[name]
+        html.append("<table><tr><th>类</th><th>TP</th><th>TN</th><th>FP</th><th>FN</th></tr>")
+        for cls, vals in confusion.items():
+            html.append(f"<tr><td>{cls}</td><td>{vals['TP']}</td><td>{vals['TN']}</td><td>{vals['FP']}</td><td>{vals['FN']}</td></tr>")
+        html.append("</table>")
+        # 曲线
+        if name in model_curve_info:
+            # 单模型ROC/PR曲线
+            info = model_curve_info[name]
+            # ROC
+            fig_single_roc = go.Figure()
+            fig_single_roc.add_trace(go.Scatter(
+                x=info['fpr'], y=info['tpr'], mode='lines',
+                name=f"{display_name} (AUC={auc_val:.3f})",
+                hovertemplate='FPR=%{x:.3f}<br>TPR=%{y:.3f}<extra></extra>'
+            ))
+            fig_single_roc.update_layout(title=f"{display_name} ROC Curve", xaxis_title='FPR', yaxis_title='TPR',
+                                         xaxis=dict(range=[0, 0.2]), yaxis=dict(range=[0.8, 1.0]))
+            html.append(fig_single_roc.to_html(full_html=False, include_plotlyjs='cdn'))
+            # 新增：插入AUC/AP信息到曲线下方
+            html.append(f"""
+<div class="metric-scores">
+    <p><strong>ROC AUC:</strong> {auc_val:.3f}</p>
+    <p><strong>Average Precision:</strong> {ap_val:.3f}</p>
+</div>
+""")
+            # PR
+            fig_single_pr = go.Figure()
+            fig_single_pr.add_trace(go.Scatter(
+                x=info['recall'], y=info['precision'], mode='lines',
+                name=f"{display_name} (AP={ap_val:.3f})",
+                hovertemplate='Recall=%{x:.3f}<br>Precision=%{y:.3f}<extra></extra>'
+            ))
+            fig_single_pr.update_layout(title=f"{display_name} PR Curve", xaxis_title='Recall', yaxis_title='Precision',
+                                        xaxis=dict(range=[0.7, 1.0]), yaxis=dict(range=[0.7, 1.0]))
+            html.append(fig_single_pr.to_html(full_html=False, include_plotlyjs=False))
+            html.append(f"""
+<div class="metric-scores">
+    <p><strong>ROC AUC:</strong> {auc_val:.3f}</p>
+    <p><strong>Average Precision:</strong> {ap_val:.3f}</p>
+</div>
+""")
     html.append("</body></html>")
     report_path = os.path.join('models', 'model_report.html')
     with open(report_path, "w", encoding="utf-8") as f_html:
@@ -543,16 +781,16 @@ def main():
 
     # 1. Yellowbrick 报告 (示例: 1D-CNN)
     # Wrap the trained Keras model in our sklearn‑compatible class
-    skl_cnn = SklearnKerasWrapper(cnn)
-    viz = YBClassificationReport(skl_cnn, support=True)
-    # Use original windowed data for Yellowbrick
-    viz.fit(X_train, np.argmax(y_train, axis=1))
-    viz.score(X_test, np.argmax(y_test, axis=1))
-    viz.show(outpath="models/yellowbrick_1dcnn.png")
-    plt.close('all')
+    # skl_cnn = SklearnKerasWrapper(cnn)
+    # viz = YBClassificationReport(skl_cnn, support=True)
+    # # Use original windowed data for Yellowbrick
+    # viz.fit(X_train, np.argmax(y_train, axis=1))
+    # viz.score(X_test, np.argmax(y_test, axis=1))
+    # viz.show(outpath="models/yellowbrick_1dcnn.png")
+    # plt.close('all')
 
     # 2. Imbalanced-learn 报告
-    for name, y_pred in model_reports:
+    for name, (y_true_flat, y_pred) in model_reports:
         rpt = classification_report_imbalanced(np.argmax(y_test, axis=1), y_pred)
         with open(f"models/imbalanced_{name}.txt", "w") as f:
             f.write(rpt)
@@ -560,10 +798,10 @@ def main():
     # 3. MLflow 记录所有分类报告
     mlflow.start_run()
     mlflow.log_params({"window_size": args.window_size, "mode": args.mode})
-    for name, y_pred in model_reports:
+    for name, (y_true_flat, y_pred) in model_reports:
         txt = f"models/mlflow_{name}_report.txt"
         with open(txt, "w") as f:
-            f.write(classification_report(y_true, y_pred))
+            f.write(classification_report(y_true_flat, y_pred))
         mlflow.log_artifact(txt)
     mlflow.end_run()
 
@@ -639,6 +877,29 @@ def main():
         interactive_metrics,
         "<h2>ROC 曲线</h2>",
         interactive_roc,
+        # 插入每个模型的AUC分数
+        "<div>",
+    ]
+    for name, (y_true_flat, y_pred) in model_reports:
+        model_name_map = {
+            "lstm_attention_v1": "LSTM+Att",
+            "cnn_v1": "CNN",
+            "lstm_v1": "LSTM",
+            "crnn_v1": "CRNN",
+            "resnet1d_v1": "ResNet1D",
+            "tcn_v1": "TCN"
+        }
+        display_name = model_name_map.get(name, name)
+        if display_name in auc_dict and display_name in ap_dict:
+            unified.append(f"""
+<h3>Model: {display_name}</h3>
+<ul>
+  <li>ROC AUC: {auc_dict[display_name]:.4f}</li>
+  <li>Average Precision (AP): {ap_dict[display_name]:.4f}</li>
+</ul>
+""")
+    unified.append("</div>")
+    unified += [
         "<h2>Precision-Recall 曲线</h2>",
         interactive_pr,
         "<h2>不平衡分类文本报告</h2>"
