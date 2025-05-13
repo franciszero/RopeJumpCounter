@@ -47,7 +47,7 @@ import logging
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-from collections import Counter
+# from collections import Counter  # Removed as per instructions
 
 from features import FeaturePipeline
 from utils.VideoStabilizer import VideoStabilizer
@@ -175,13 +175,13 @@ def extract_features(video_path, window_size, logger):
     records = []
     frame_idx = 0
 
-    # 用 tqdm 包装循环
+    # 用 tqdm 包装循环，按照真实帧数上限遍历
     pbar = tqdm(total=total_frames, desc=f"Extracting [{video_path}]", unit="frame")
-    while True:
+    while frame_idx < total_frames:
         try:
-            if not pipe.success_process_frame(frame_idx):
-                break
-            records.append(pipe.fs.rec)
+            ok = pipe.success_process_frame(frame_idx)
+            if ok:
+                records.append(pipe.fs.rec)
         except Exception as e:
             logger.warning(f"Frame {frame_idx} processing error: {e}, skipping")
         frame_idx += 1
@@ -206,23 +206,24 @@ def merge_labels(df_feat, labels_path):
     return df_feat
 
 
-def build_windows(df_labeled, window_size, stride):
-    """基于滑动窗口生成窗口级样本，返回 DataFrame 每行包含 window_start, window_end, flatten_features..., label"""
-    feature_cols = [c for c in df_labeled.columns if c not in ('frame', 'timestamp', 'label')]
-    windows = []
-    num_frames = len(df_labeled)
-    for start in range(0, num_frames - window_size + 1, stride):
-        end = start + window_size
-        window = df_labeled.iloc[start:end]
-        feats = window[feature_cols].values.flatten()
-        lbl = int(window['label'].any())
-        windows.append({
-            'window_start': window['frame'].iloc[0],
-            'window_end': window['frame'].iloc[-1],
-            **{f'feat_{i}': feats[i] for i in range(len(feats))},
-            'label': lbl
-        })
-    return pd.DataFrame(windows)
+# def build_windows(df_labeled, window_size, stride):
+#     """基于滑动窗口生成窗口级样本，返回 DataFrame 每行包含 window_start, window_end, flatten_features..., label"""
+#     feature_cols = [c for c in df_labeled.columns if c not in ('frame', 'timestamp', 'label')]
+#     windows = []
+#     num_frames = len(df_labeled)
+#     for start in range(0, num_frames - window_size + 1, stride):
+#         end = start + window_size
+#         window = df_labeled.iloc[start:end]
+#         feats = window[feature_cols].values.flatten()
+#         lbl = int(window['label'].any())
+#         windows.append({
+#             'window_start': window['frame'].iloc[0],
+#             'window_end': window['frame'].iloc[-1],
+#             **{f'feat_{i}': feats[i] for i in range(len(feats))},
+#             'label': lbl
+#         })
+#     return pd.DataFrame(windows)
+# Removed entire build_windows function as per instructions
 
 
 def main():
@@ -260,6 +261,14 @@ def main():
 
             # 步骤2：合并标签，生成帧级带label
             df_labeled = merge_labels(df_feat, labels_path)
+
+            # --- 数据完整性检查 ---
+            assert len(df_labeled) == len(df_feat), "Label merge length mismatch"
+            assert df_labeled['frame'].is_monotonic_increasing, "Frame index not monotonic"
+            pos_ratio = df_labeled['label'].mean()
+            if pos_ratio < 0.01 or pos_ratio > 0.99:
+                logger.warning(f"Extreme class imbalance detected: positive ratio={pos_ratio:.4f}")
+
             # 跳跃帧间隔与跳跃段长分布分析
             analyze_jump_stretch_distributions(df_labeled, args.output_dir, base)
             # Save frame-level numpy data and report shapes
@@ -274,12 +283,9 @@ def main():
             window_sizes = [4, 6, 8, 12, 16, 24, 32]
 
             # --- 新增 is_jump_window 函数 ---
-            def is_jump_window(window, win_size):
-                labels = window['label'].values
-                if win_size < 12:
-                    return has_continuous_ones(labels, min_len=3)
-                else:
-                    return not np.all(labels[-10:] == 0)
+            def is_jump_window(window):
+                # 统一：窗口内出现 >=3 连续正例则记为正
+                return has_continuous_ones(window['label'].values, min_len=3)
 
             for win_size in window_sizes:
                 # Build and save window-level numpy data without flattening
@@ -290,7 +296,7 @@ def main():
                     window = df_labeled.iloc[start:start + win_size]
                     arr = window[feature_cols].values  # shape: (win_size, feature_dim)
                     X_win.append(arr)
-                    lbl = is_jump_window(window, win_size)
+                    lbl = is_jump_window(window)
                     y_win.append(int(lbl))
                 if X_win:
                     X_win = np.stack(X_win)
@@ -302,6 +308,7 @@ def main():
                 np.savez_compressed(npz_win, X=X_win, y=y_win)
                 logger.info(f'  Saved window-level npz: {npz_win}')
                 print(f"Window-level data shape (size={win_size}): X={X_win.shape}, y={y_win.shape}")
+                from collections import Counter
                 cnt = Counter(y_win)
                 logger.info(
                     f"[{base}] size={win_size} 标签分布：负类={cnt[0]}，正类={cnt[1]}，正例比例={(cnt[1] / (cnt[0] + cnt[1]) * 100):.2f}%")
