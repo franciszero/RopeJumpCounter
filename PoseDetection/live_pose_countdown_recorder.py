@@ -86,7 +86,7 @@ def record_segment(prefix, output_dir, seg_idx, width, height, fps):
 # Parses command-line arguments and invokes recording for each segment
 def main():
     parser = argparse.ArgumentParser(description="Record multiple video segments")
-    parser.add_argument("--output_dir", default="./raw_videos_2", help="Directory to save video files")
+    parser.add_argument("--output_dir", default="./raw_videos_3", help="Directory to save video files")
     parser.add_argument("--prefix", default="jump", help="Filename prefix, e.g. jump")
     parser.add_argument("--segments", type=int, default=1, help="Number of segments to record")
     parser.add_argument("--width", type=int, default=640, help="Video frame width")
