@@ -63,107 +63,122 @@ class ModelReportGenerator:
             rows.append(row)
         self.summary_df = pd.DataFrame(rows)
 
-    def display(self):
-        if self.summary_df is None:
-            self.generate_summary()
-        print(self.summary_df.sort_values(by="roc_auc", ascending=False))
-
-    def export_csv(self, path="report_summary.csv"):
-        if self.summary_df is None:
-            self.generate_summary()
-        self.summary_df.to_csv(path, index=False)
-
-    def export_html(self, path="model_files/report_summary.html"):
-        import matplotlib.pyplot as plt
-        import seaborn as sns
+    def export_html(self, path):
         if self.summary_df is None:
             self.generate_summary()
 
-        # ---- Generate loss curves for each model (if available) ----
-        import base64
-        from io import BytesIO
+        import plotly.graph_objs as go
+        from plotly.io import to_html
 
-        figs_html = ""
+        # Prepare summary table HTML
+        summary_html = self.summary_df.sort_values(by="roc_auc", ascending=False).to_html(index=False)
+
+        # Prepare visual comparison table rows
+        rows_html = ""
         for model in self.models:
-            if hasattr(model, "history") and model.history and "loss" in getattr(model.history, "history", {}):
-                fig, ax = plt.subplots(figsize=(6, 4))
-                ax.plot(model.history.history["loss"], label="train_loss")
-                if "val_loss" in model.history.history:
-                    ax.plot(model.history.history["val_loss"], label="val_loss")
-                ax.set_title(f"Loss Curve: {getattr(model, 'model_name', 'Model')}")
-                ax.set_xlabel("Epoch")
-                ax.set_ylabel("Loss")
-                ax.legend()
-                buf = BytesIO()
-                plt.tight_layout()
-                fig.savefig(buf, format="png")
-                buf.seek(0)
-                img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-                plt.close(fig)
-                figs_html += f'<h4>{getattr(model, "model_name", "Model")}</h4><img src="data:image/png;base64,{img_b64}"><hr>'
+            model_name = getattr(model, "model_name", "Model")
 
-        # ---- Generate ROC and PR curves for each model (if available) ----
-        roc_pr_html = ""
-        for model in self.models:
-            rep = getattr(model, "report", {})
-            # ROC curve image or data
-            if "roc_curve" in rep:
-                roc_data = rep["roc_curve"]
-                fig, ax = plt.subplots(figsize=(6, 4))
-                ax.plot(roc_data["fpr"], roc_data["tpr"], label=f'ROC curve (area = {rep.get("roc_auc", 0):.2f})')
-                ax.plot([0, 1], [0, 1], 'k--')
-                ax.set_xlabel('False Positive Rate')
-                ax.set_ylabel('True Positive Rate')
-                ax.set_title(f'ROC Curve: {getattr(model, "model_name", "Model")}')
-                ax.legend(loc="lower right")
-                buf = BytesIO()
-                plt.tight_layout()
-                fig.savefig(buf, format="png")
-                buf.seek(0)
-                img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-                plt.close(fig)
-                roc_pr_html += f'<h4>{getattr(model, "model_name", "Model")} ROC Curve</h4><img src="data:image/png;base64,{img_b64}"><hr>'
-
-            # PR curve image or data
-            if "pr_curve" in rep:
-                pr_data = rep["pr_curve"]
-                fig, ax = plt.subplots(figsize=(6, 4))
-                ax.plot(pr_data["recall"], pr_data["precision"],
-                        label=f'PR curve (AP = {rep.get("average_precision", 0):.2f})')
-                ax.set_xlabel('Recall')
-                ax.set_ylabel('Precision')
-                ax.set_title(f'Precision-Recall Curve: {getattr(model, "model_name", "Model")}')
-                ax.legend(loc="lower left")
-                buf = BytesIO()
-                plt.tight_layout()
-                fig.savefig(buf, format="png")
-                buf.seek(0)
-                img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-                plt.close(fig)
-                roc_pr_html += f'<h4>{getattr(model, "model_name", "Model")} PR Curve</h4><img src="data:image/png;base64,{img_b64}"><hr>'
-
-        import matplotlib.pyplot as plt
-        from sklearn.metrics import ConfusionMatrixDisplay
-        import base64
-        from io import BytesIO
-
-        cm_html = ""
-        for model in self.models:
+            # Confusion Matrix
+            cm_img_html = ""
+            import numpy as np
             if hasattr(model, "y_true") and hasattr(model,
                                                     "y_pred") and model.y_true is not None and model.y_pred is not None:
-                fig, ax = plt.subplots(figsize=(4, 4))
-                ConfusionMatrixDisplay.from_predictions(model.y_true, model.y_pred, ax=ax)
-                ax.set_title(f"Confusion Matrix: {model.model_name}")
-                buf = BytesIO()
-                plt.tight_layout()
-                fig.savefig(buf, format="png")
-                buf.seek(0)
-                img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
-                plt.close(fig)
-                cm_html += f'<h4>{model.model_name}</h4><img src="data:image/png;base64,{img_b64}"><hr>'
+                from sklearn.metrics import confusion_matrix
+                cm = confusion_matrix(model.y_true, model.y_pred)
+                import matplotlib.pyplot as plt
+                import seaborn as sns
+                from sklearn.metrics import ConfusionMatrixDisplay
+                from io import BytesIO
+                import base64
 
-        # Evaluation Summary
-        html = self.summary_df.sort_values(by="roc_auc", ascending=False).to_html(index=False)
+                fig_cm, ax = plt.subplots(figsize=(3, 2.5))
+                disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+                disp.plot(ax=ax, cmap='viridis', colorbar=False)
+                plt.title("Confusion Matrix")
+                plt.tight_layout()
+                buf = BytesIO()
+                fig_cm.savefig(buf, format="png")
+                buf.seek(0)
+                img_base64 = base64.b64encode(buf.read()).decode("utf-8")
+                plt.close(fig_cm)
+                cm_img_html = f'<img src="data:image/png;base64,{img_base64}" style="width:100%;max-height:240px;height:auto;">'
+
+            # ROC Curve
+            roc_img_html = ""
+            rep = getattr(model, "report", {})
+            if "roc_curve" in rep:
+                roc_data = rep["roc_curve"]
+                fig_roc = go.Figure()
+                fig_roc.add_trace(go.Scatter(x=roc_data["fpr"], y=roc_data["tpr"], mode='lines', name='ROC'))
+                fig_roc.add_trace(go.Scatter(x=[0, 1], y=[0, 1], mode='lines', name='Random', line=dict(dash='dash')))
+                fig_roc.update_layout(title="ROC Curve",
+                                      xaxis_title="FPR",
+                                      yaxis_title="TPR",
+                                      height=300,
+                                      autosize=True)
+                roc_img_html = to_html(fig_roc, include_plotlyjs=False, full_html=False, config={"responsive": True})
+
+            # PR Curve
+            pr_img_html = ""
+            if "pr_curve" in rep:
+                pr_data = rep["pr_curve"]
+                fig_pr = go.Figure()
+                fig_pr.add_trace(go.Scatter(x=pr_data["recall"], y=pr_data["precision"], mode='lines', name='PR'))
+                fig_pr.update_layout(title="Precision-Recall Curve",
+                                     xaxis_title="Recall",
+                                     yaxis_title="Precision",
+                                     height=300,
+                                     autosize=True)
+                pr_img_html = to_html(fig_pr, include_plotlyjs=False, full_html=False, config={"responsive": True})
+
+            # Loss Curve
+            loss_img_html = ""
+            if hasattr(model, "history") and model.history and "loss" in getattr(model.history, "history", {}):
+                fig_loss = go.Figure()
+                fig_loss.add_trace(go.Scatter(y=model.history.history["loss"], mode='lines', name='train_loss'))
+                if "val_loss" in model.history.history:
+                    fig_loss.add_trace(go.Scatter(y=model.history.history["val_loss"], mode='lines', name='val_loss'))
+                fig_loss.update_layout(title="Loss Curve",
+                                       xaxis_title="Epoch",
+                                       yaxis_title="Loss",
+                                       height=300,
+                                       autosize=True)
+                loss_img_html = to_html(fig_loss, include_plotlyjs=False, full_html=False, config={"responsive": True})
+
+            rows_html += f"""
+            <tr>
+                <td style="text-align:center; vertical-align:middle;">{model_name}</td>
+                <td style="text-align:center; vertical-align:middle;">{cm_img_html}</td>
+                <td style="text-align:center; vertical-align:middle;">{roc_img_html}</td>
+                <td style="text-align:center; vertical-align:middle;">{pr_img_html}</td>
+                <td style="text-align:center; vertical-align:middle;">{loss_img_html}</td>
+            </tr>
+            """
+
+            visual_table_html = f"""
+            <h2>Model Visual Comparisons</h2>
+            <table class="viz-table">
+                <colgroup>
+                    <col style="width:10%;">
+                    <col style="width:18%;">
+                    <col style="width:24%;">
+                    <col style="width:24%;">
+                    <col style="width:24%;">
+                </colgroup>
+                <thead>
+                    <tr>
+                        <th>Model</th>
+                        <th>Confusion Matrix</th>
+                        <th>ROC Curve</th>
+                        <th>PR Curve</th>
+                        <th>Loss Curve</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rows_html}
+                </tbody>
+            </table>
+            """
 
         # Header + styles
         style = """
@@ -178,20 +193,26 @@ class ModelReportGenerator:
         table {
             border-collapse: collapse;
             width: 100%;
+            table-layout: fixed;
+            margin-bottom: 40px;
         }
         th, td {
             border: 1px solid #dddddd;
             text-align: center;
             padding: 8px;
+            vertical-align: middle;
+            overflow: hidden;
         }
         th {
             background-color: #f2f2f2;
         }
         img {
-            max-width: 90%;
+            width: 100%;
+            max-height: 240px;
             height: auto;
             margin-bottom: 20px;
         }
+        .plotly-graph-div { width: 100% !important; }
         </style>
         """
 
@@ -199,16 +220,12 @@ class ModelReportGenerator:
         with open(path, "w", encoding="utf-8") as f:
             f.write("<html><head>")
             f.write(style)
+            f.write('<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>')
             f.write("</head><body>")
             f.write("<h1>Model Evaluation Report</h1>")
             f.write("<h2>1. Summary Table</h2>")
             f.write("<p><i>Sorted by ROC AUC</i></p>")
-            f.write(html)
-            f.write("<h2>2. Loss Curves</h2>")
-            f.write(figs_html)
-            f.write("<h2>3. ROC and PR Curves</h2>")
-            f.write(roc_pr_html)
-            f.write("<h2>4. Confusion Matrices</h2>")
-            f.write(cm_html)
+            f.write(summary_html)
+            f.write(visual_table_html)
             f.write("</body></html>")
         print(f"HTML report exported to: {path}")

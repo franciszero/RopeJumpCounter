@@ -4,6 +4,7 @@ import joblib
 from abc import ABC, abstractmethod
 from sklearn.metrics import classification_report, roc_auc_score, average_precision_score
 from sklearn.utils import class_weight
+from sklearn.metrics import roc_curve, precision_recall_curve
 
 
 class TrainMyModel(ABC):
@@ -15,7 +16,7 @@ class TrainMyModel(ABC):
         self.test_size = 0.2
         self.val_size = 0.1
         self.random_state = 42
-        self.epochs = 30
+        self.epochs = 100
         self.batch_size = 32
 
         # 配置: 各模型对应的 window_size
@@ -28,7 +29,8 @@ class TrainMyModel(ABC):
             "tcn": 24
         }
 
-        self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test = None, None, None, None, None, None
+        self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test, self.y_true \
+            = None, None, None, None, None, None, None
         self.history = None
         self.window_size = None
         self.y_prob = None  # self.model.predict(self.X_test).flatten()
@@ -41,6 +43,7 @@ class TrainMyModel(ABC):
         self.window_size = self.MODEL_WINDOW_SIZES[self.model_name]
         self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test \
             = self.__load_window_npz(self.window_size)
+        self.y_true = self.y_test
         weight = class_weight.compute_class_weight(
             class_weight='balanced',
             classes=np.unique(self.y_train),
@@ -78,10 +81,14 @@ class TrainMyModel(ABC):
     def evaluate(self):
         self.y_prob = self.model.predict(self.X_test).flatten()
         self.y_pred = (self.y_prob > 0.5).astype(int)
+        fpr, tpr, _ = roc_curve(self.y_test, self.y_prob)
+        precision, recall, _ = precision_recall_curve(self.y_test, self.y_prob)
         self.report = {
             'classification': classification_report(self.y_test, self.y_pred, output_dict=True),
             'roc_auc': roc_auc_score(self.y_test, self.y_pred),
-            'average_precision': average_precision_score(self.y_test, self.y_pred)
+            'average_precision': average_precision_score(self.y_test, self.y_pred),
+            "roc_curve": {"fpr": fpr.tolist(), "tpr": tpr.tolist()},
+            "pr_curve": {"precision": precision.tolist(), "recall": recall.tolist()},
         }
         self.save_report()
 
@@ -110,4 +117,4 @@ class TrainMyModel(ABC):
         self.model.save(f"{self.dest_root}/{self.model_name}.h5")
 
     def save_report(self):
-        joblib.dump(self.report, f"model_files/{self.model_name}_report.pkl")
+        joblib.dump(self.report, f"{self.dest_root}/{self.model_name}_report.pkl")
