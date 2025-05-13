@@ -111,7 +111,9 @@ def main():
          sg.Text('Time: 0.00s', key='-TIME-'),
          sg.Text('Start: None', key='-START-')],
         [sg.Button('Prev', size=(10, 2), font=('Helvetica', 14)),
+         sg.Button('Fast Prev', size=(10, 2), font=('Helvetica', 14)),
          sg.Button('Next', size=(10, 2), font=('Helvetica', 14)),
+         sg.Button('Fast Next', size=(10, 2), font=('Helvetica', 14)),
          sg.Button('Mark Start', size=(10, 2), font=('Helvetica', 14)),
          sg.Button('Mark End', size=(10, 2), font=('Helvetica', 14)),
          sg.Button('Save & Quit', size=(10, 2), font=('Helvetica', 14))]
@@ -165,6 +167,10 @@ def main():
         elif event in ('Right', '<Right>', 'special 16777236'):
             # 前进一步
             frame_idx = min(total_frames - 1, frame_idx + 1)
+        elif event in ('Fast Prev', 'j', 'J'):
+            frame_idx = max(0, frame_idx - 5)
+        elif event in ('Fast Next', 'l', 'L'):
+            frame_idx = min(total_frames - 1, frame_idx + 5)
         elif event in ('Up', '<Up>', 'special 16777235'):
             # 标记起始帧
             curr_start = frame_idx
