@@ -21,12 +21,12 @@ class TrainMyModel(ABC):
 
         # 配置: 各模型对应的 window_size
         self.MODEL_WINDOW_SIZES = {
-            "lstm_attention": 6,
-            "lstm": 6,
-            "cnn": 8,
-            "crnn": 12,
-            "resnet1d": 16,
-            "tcn": 24
+            "lstm_attention": 4,  # 6,
+            "lstm": 4,  # 6,
+            "cnn": 4,  # 8,
+            "crnn": 4,  # 12,
+            "resnet1d": 4,  # 16,
+            "tcn": 4,  # 24,
         }
 
         self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test, self.y_true \

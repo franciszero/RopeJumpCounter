@@ -53,7 +53,9 @@ from features import FeaturePipeline
 from utils.VideoStabilizer import VideoStabilizer
 
 import matplotlib
-matplotlib.rcParams['font.family'] = 'AppleGothic'  # 适用于 macOS 中文字体
+
+matplotlib.rcParams[
+    'font.family'] = 'Hiragino Sans GB'  # 'Heiti SC'  # 或 'STHeiti', 'Songti SC', 'Arial Unicode MS', 'Hiragino Sans GB'
 matplotlib.rcParams['axes.unicode_minus'] = False  # 显示负号
 
 # 将项目根目录加入模块搜索路径，以便能够导入顶层的 utils 包
@@ -102,6 +104,59 @@ def has_continuous_ones(arr, min_len=3):
         else:
             count = 0
     return False
+
+
+# 统计跳跃之间连续0和连续1的段长分布
+def analyze_jump_stretch_distributions(df_labeled, output_dir, base):
+    """
+    统计跳跃之间连续0的段长分布和跳跃阶段连续1的段长分布
+    """
+    labels = df_labeled['label'].values
+    zero_stretches = []
+    one_stretches = []
+    count = 0
+    current_val = labels[0]
+
+    for val in labels:
+        if val == current_val:
+            count += 1
+        else:
+            if current_val == 0:
+                zero_stretches.append(count)
+            else:
+                one_stretches.append(count)
+            current_val = val
+            count = 1
+    # Add the last stretch
+    if current_val == 0:
+        zero_stretches.append(count)
+    else:
+        one_stretches.append(count)
+
+    from collections import Counter
+    logger.info(f"[{base}] 跳跃之间连续0的段长分布（帧）:")
+    for val, cnt in Counter(zero_stretches).most_common(10):
+        logger.info(f"  {val} 帧: {cnt} 次")
+    logger.info(f"[{base}] 跳跃阶段连续1的段长分布（帧）:")
+    for val, cnt in Counter(one_stretches).most_common(10):
+        logger.info(f"  {val} 帧: {cnt} 次")
+
+    # 绘图
+    plt.figure(figsize=(10, 5))
+    if zero_stretches:
+        sns.histplot(zero_stretches, bins=range(0, max(zero_stretches)+2), color='blue', label='连续0段长', kde=False)
+    if one_stretches:
+        sns.histplot(one_stretches, bins=range(0, max(one_stretches)+2), color='orange', label='连续1段长', kde=False)
+    plt.yscale("log")
+    plt.xlabel("段长（帧）")
+    plt.ylabel("出现频次（对数）")
+    plt.title(f"连续0与连续1的段长分布 [{base}]")
+    plt.grid(True, which="both", linestyle="--", linewidth=0.5)
+    plt.legend()
+    plot_path = os.path.join(output_dir, f"{base}_jump_stretch_dist.png")
+    plt.savefig(plot_path)
+    plt.close()
+    logger.info(f"  跳跃帧段长分布图已保存: {plot_path}")
 
 
 def extract_features(video_path, window_size, logger):
@@ -175,7 +230,7 @@ def main():
     parser.add_argument('--videos_dir', default='raw_videos_3', help='输入视频目录，支持 *.avi, *.mp4')
     parser.add_argument('--labels_dir', default='raw_videos_3', help='标签目录，包含 *_labels.csv')
     parser.add_argument('--output_dir', default='dataset_3', help='输出目录，保存数据集')
-    parser.add_argument('--window_size', default=6, type=int, help='窗口大小，=1 时仅帧级')
+    parser.add_argument('--window_size', default=8, type=int, help='窗口大小，=1 时仅帧级')
     parser.add_argument('--stride', default=1, type=int, help='滑动步长')
 
     # New stabilizer params
@@ -205,6 +260,8 @@ def main():
 
             # 步骤2：合并标签，生成帧级带label
             df_labeled = merge_labels(df_feat, labels_path)
+            # 跳跃帧间隔与跳跃段长分布分析
+            analyze_jump_stretch_distributions(df_labeled, args.output_dir, base)
             # Save frame-level numpy data and report shapes
             X_frame = df_labeled.drop(columns=['frame', 'timestamp', 'label']).values
             y_frame = df_labeled['label'].values
@@ -213,29 +270,42 @@ def main():
             logger.info(f'  Saved frame-level npz: {npz_frame}')
             print(f"Frame-level data shape: X={X_frame.shape}, y={y_frame.shape}")
 
-            # 步骤3：窗口级数据（如果需要）
-            if args.window_size > 1:
+            # 步骤3：窗口级数据（多窗口大小）
+            window_sizes = [4, 6, 8, 12, 16, 24, 32]
+
+            # --- 新增 is_jump_window 函数 ---
+            def is_jump_window(window, win_size):
+                labels = window['label'].values
+                if win_size < 12:
+                    return has_continuous_ones(labels, min_len=3)
+                else:
+                    return not np.all(labels[-10:] == 0)
+
+            for win_size in window_sizes:
                 # Build and save window-level numpy data without flattening
                 feature_cols = [c for c in df_labeled.columns if c not in ('frame', 'timestamp', 'label')]
                 X_win, y_win = [], []
                 num_frames = len(df_labeled)
-                for start in range(0, num_frames - args.window_size + 1, args.stride):
-                    window = df_labeled.iloc[start:start+args.window_size]
-                    arr = window[feature_cols].values  # shape: (window_size, feature_dim)
+                for start in range(0, num_frames - win_size + 1, args.stride):
+                    window = df_labeled.iloc[start:start + win_size]
+                    arr = window[feature_cols].values  # shape: (win_size, feature_dim)
                     X_win.append(arr)
-                    lbl = has_continuous_ones(window['label'].values, min_len=3)
+                    lbl = is_jump_window(window, win_size)
                     y_win.append(int(lbl))
-                X_win = np.stack(X_win)  # shape: (n_windows, window_size, feature_dim)
-                y_win = np.array(y_win)
-                npz_win = os.path.join(args.output_dir, f"{base}_windows.npz")
+                if X_win:
+                    X_win = np.stack(X_win)
+                    y_win = np.array(y_win)
+                else:
+                    X_win = np.empty((0, win_size, len(feature_cols)))
+                    y_win = np.empty((0,))
+                npz_win = os.path.join(args.output_dir, f"{base}_windows_size{win_size}.npz")
                 np.savez_compressed(npz_win, X=X_win, y=y_win)
                 logger.info(f'  Saved window-level npz: {npz_win}')
-                print(f"Window-level data shape: X={X_win.shape}, y={y_win.shape}")
-                # 打印窗口标签分布统计
+                print(f"Window-level data shape (size={win_size}): X={X_win.shape}, y={y_win.shape}")
                 cnt = Counter(y_win)
-                logger.info(f"[{base}] 标签分布：负类={cnt[0]}，正类={cnt[1]}，正例比例={(cnt[1]/(cnt[0]+cnt[1]) * 100):.2f}%")
-                # 分析窗口内正例帧数量分布
-                analyze_window_label_distribution(df_labeled, args.window_size, args.output_dir, base)
+                logger.info(
+                    f"[{base}] size={win_size} 标签分布：负类={cnt[0]}，正类={cnt[1]}，正例比例={(cnt[1] / (cnt[0] + cnt[1]) * 100):.2f}%")
+                analyze_window_label_distribution(df_labeled, win_size, args.output_dir, f"{base}_size{win_size}")
 
 
 if __name__ == '__main__':

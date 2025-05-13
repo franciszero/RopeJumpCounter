@@ -9,15 +9,17 @@ class CNNModel(TrainMyModel):
         self._init_model()
 
     def _build(self):
-        input_shape = self.X_train.shape[1:]
+        # print(f"[DEBUG] self.X_train.shape = {self.X_train.shape}")
+        # input_shape = self.X_train.shape[1:]
 
         model = tf.keras.models.Sequential([
-            tf.keras.layers.Input(shape=input_shape),
-            tf.keras.layers.Conv1D(64, kernel_size=3, activation='relu'),
+            # tf.keras.layers.Input(shape=input_shape),
+            tf.keras.layers.Conv1D(64, kernel_size=3, padding='same', activation='relu'),
             tf.keras.layers.MaxPooling1D(pool_size=2),
-            tf.keras.layers.Conv1D(128, kernel_size=3, activation='relu'),
-            tf.keras.layers.GlobalMaxPooling1D(),
-            tf.keras.layers.Dense(64, activation='relu'),
+            tf.keras.layers.Conv1D(128, kernel_size=3, padding='same', activation='relu'),
+            tf.keras.layers.MaxPooling1D(pool_size=2),
+            tf.keras.layers.Flatten(),
+            tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dense(1, activation='sigmoid')
         ])
         model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
@@ -34,3 +36,23 @@ class CNNModel(TrainMyModel):
                 verbose=1
             )
         ]
+
+class CNN(tf.keras.Model):
+    def __init__(self, num_classes):
+        super(CNN, self).__init__()
+        self.num_classes = num_classes
+        self._build()
+
+    def _build(self):
+        self.model = tf.keras.Sequential([
+            tf.keras.layers.Conv1D(64, kernel_size=3, padding='same', activation='relu'),
+            tf.keras.layers.MaxPooling1D(pool_size=2),
+            tf.keras.layers.Conv1D(128, kernel_size=3, padding='same', activation='relu'),
+            tf.keras.layers.MaxPooling1D(pool_size=2),
+            tf.keras.layers.Flatten(),
+            tf.keras.layers.Dense(256, activation='relu'),
+            tf.keras.layers.Dense(self.num_classes, activation='softmax')
+        ])
+
+    def call(self, inputs):
+        return self.model(inputs)
