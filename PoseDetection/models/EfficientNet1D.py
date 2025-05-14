@@ -47,14 +47,19 @@ class EfficientNet1DModel(TrainMyModel):
         x = depthwise_conv1d(x, 128, 3, 2)
         x = depthwise_conv1d(x, 256, 3, 1)
 
+        # --- head ---
         x = layers.GlobalAveragePooling1D()(x)
-        x = layers.Dense(64, activation='relu')(x)
+        x = layers.Dense(64, activation='swish')(x)
+        x = layers.Dropout(0.4)(x)
         outputs = layers.Dense(1, activation='sigmoid')(x)
 
         model = models.Model(inputs, outputs)
-        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=3e-4),
-                      loss='binary_crossentropy',
-                      metrics=['accuracy'])
+        model.compile(
+            optimizer=tf.keras.optimizers.Adam(learning_rate=3e-4),
+            loss='binary_crossentropy',
+            metrics=['accuracy',tf.keras.metrics.AUC(name='auc')],
+            **self.compile_kwargs  # 透传额外参数
+        )
         return model
 
     def get_callbacks(self):
