@@ -28,7 +28,7 @@ def depthwise_conv1d(x, point_filters: int, kernel_size: int, stride: int):
         padding="same",
         use_bias=False
     )(x)
-    x = layers.BatchNormalization()(x)
+    x = layers.BatchNormalization(momentum=0.9, epsilon=1e-3)(x)
     x = layers.Activation("swish")(x)
     return x
 
