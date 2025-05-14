@@ -60,16 +60,3 @@ class TransformerLiteModel(TrainMyModel):
             **self.compile_kwargs
         )
         return model
-
-    def _get_callbacks(self):
-        import tensorflow as tf
-        return [
-            callbacks.EarlyStopping(monitor="val_loss", patience=8, restore_best_weights=True),
-            callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=4, verbose=1),
-            callbacks.ModelCheckpoint(
-                filepath=f"{self.dest_root}/best_{self.model_name}.keras",
-                monitor="val_accuracy",
-                save_best_only=True,
-                verbose=1
-            )
-        ]

@@ -63,16 +63,3 @@ class InceptionTimeModel(TrainMyModel):
             **self.compile_kwargs
         )
         return model
-
-    def _get_callbacks(self):
-        import tensorflow as tf
-        return [
-            tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=6, restore_best_weights=True),
-            tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1),
-            tf.keras.callbacks.ModelCheckpoint(
-                filepath=f"{self.dest_root}/best_{self.model_name}.keras",
-                monitor="val_accuracy",
-                save_best_only=True,
-                verbose=1
-            )
-        ]

@@ -1,3 +1,5 @@
+import os
+import tensorflow as tf
 import numpy as np
 import joblib
 from abc import ABC, abstractmethod
@@ -68,10 +70,23 @@ class TrainMyModel(ABC):
         """子类必须实现：构建模型结构"""
         pass
 
-    @abstractmethod
-    def get_callbacks(self):
-        """子类必须实现：callback"""
-        pass
+    # ------- 新增 / 替换 -------
+    def _get_callbacks(self):
+        """通用回调：EarlyStopping + ReduceLROnPlateau + ModelCheckpoint"""
+        ckpt_path = os.path.join(
+            self.dest_root, f"best_{self.model_name}_ws{self.window_size}.keras")
+
+        return [
+            tf.keras.callbacks.EarlyStopping(
+                monitor="val_loss", patience=8, restore_best_weights=True),
+            tf.keras.callbacks.ReduceLROnPlateau(
+                monitor="val_loss", factor=0.5, patience=4, min_lr=1e-6, verbose=1),
+            tf.keras.callbacks.ModelCheckpoint(
+                filepath=ckpt_path,
+                monitor="val_auc" if "auc" in self.model.metrics_names else "val_accuracy",
+                save_best_only=True,
+                verbose=1)
+        ]
 
     def train(self):
         print("\n======================================================")
@@ -83,7 +98,7 @@ class TrainMyModel(ABC):
             validation_data=(self.X_val, self.y_val),
             epochs=self.epochs,
             batch_size=self.batch_size,
-            callbacks=self.get_callbacks(),
+            callbacks=self._get_callbacks(),
             class_weight=self.class_weight_dict,
             verbose=2
         )

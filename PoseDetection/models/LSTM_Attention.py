@@ -45,17 +45,3 @@ class LSTMAttentionModel(TrainMyModel):
                 monitor="val_accuracy", save_best_only=True, verbose=1
             )
         ]
-
-
-class LSTM_Attention:
-    def __init__(self, window_size, compile_kwargs=None):
-        self.compile_kwargs = compile_kwargs or {}
-        self._init_model()
-
-        assert self.window_size >= 12, (f"LSTM_Attention needs window_size>=12, got {self.window_size}")
-
-    def _init_model(self):
-        self.model = self._build()
-
-    def _build(self):
-        return model

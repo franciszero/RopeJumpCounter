@@ -49,14 +49,3 @@ class CRNNModel(TrainMyModel):
             **self.compile_kwargs
         )
         return model
-
-    def _get_callbacks(self):
-        return [
-            tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=5, restore_best_weights=True),
-            tf.keras.callbacks.ReduceLROnPlateau(
-                monitor='val_loss', factor=0.5, patience=3, verbose=1),
-            tf.keras.callbacks.ModelCheckpoint(
-                filepath=f"{self.dest_root}/best_crnn.keras",
-                monitor="val_accuracy", save_best_only=True, verbose=1
-            )
-        ]

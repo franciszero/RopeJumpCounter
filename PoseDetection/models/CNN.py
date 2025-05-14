@@ -43,15 +43,3 @@ class CNNModel(TrainMyModel):
             **self.compile_kwargs  # 透传可能的参数
         )
         return model
-
-    def _get_callbacks(self):
-        return [
-            EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
-            ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1),
-            ModelCheckpoint(
-                filepath=f"{self.dest_root}/best_{self.model_name}_w{self.window_size}.keras",
-                monitor="val_accuracy",
-                save_best_only=True,
-                verbose=1
-            )
-        ]
