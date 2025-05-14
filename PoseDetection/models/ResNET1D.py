@@ -10,30 +10,42 @@ class ResNET1DModel(TrainMyModel):
         self._init_model()
 
     def _build(self):
-        def residual_block(x, filters, kernel_size, stride):
+        def residual_block(x, filters, stride=1):
             shortcut = x
-            x = Conv1D(filters, kernel_size, strides=stride, padding='same')(x)
-            x = BatchNormalization()(x)
-            x = ReLU()(x)
-            x = Conv1D(filters, kernel_size, strides=1, padding='same')(x)
-            x = BatchNormalization()(x)
-            if shortcut.shape[-1] != filters:
-                shortcut = Conv1D(filters, 1, strides=stride, padding='same')(shortcut)
-                shortcut = BatchNormalization()(shortcut)
-            x = Add()([shortcut, x])
-            x = ReLU()(x)
+            # --- Conv-BN-ReLU ---
+            x = tf.keras.layers.Conv1D(filters, 3, strides=stride, padding='same', use_bias=False)(x)
+            x = tf.keras.layers.BatchNormalization(momentum=0.9, epsilon=1e-3)(x)
+            x = tf.keras.layers.Activation('relu')(x)
+
+            x = tf.keras.layers.Conv1D(filters, 3, strides=1, padding='same', use_bias=False)(x)
+            x = tf.keras.layers.BatchNormalization(momentum=0.9, epsilon=1e-3)(x)
+
+            # --- shortcut ---
+            if shortcut.shape[-1] != filters or stride != 1:
+                shortcut = tf.keras.layers.Conv1D(filters, 1, strides=stride, padding='same', use_bias=False)(shortcut)
+                shortcut = tf.keras.layers.BatchNormalization(momentum=0.9, epsilon=1e-3)(shortcut)
+
+            x = tf.keras.layers.Add()([shortcut, x])
+            x = tf.keras.layers.Activation('relu')(x)
             return x
 
-        input_shape = self.X_train.shape[1:]
-        inputs = Input(shape=input_shape)
-        x = residual_block(inputs, 64, 3, 1)
-        x = residual_block(x, 128, 3, 1)
-        x = residual_block(x, 128, 3, 1)
-        x = GlobalAveragePooling1D()(x)
-        x = Dense(64, activation='relu')(x)
-        outputs = Dense(1, activation='sigmoid')(x)
-        model = Model(inputs, outputs)
-        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+        inputs = tf.keras.layers.Input(shape=self.X_train.shape[1:])
+        x = residual_block(inputs, 64, stride=1)
+        x = residual_block(x, 128, stride=2)
+        x = residual_block(x, 128, stride=1)
+
+        x = tf.keras.layers.GlobalAveragePooling1D()(x)
+        x = tf.keras.layers.Dense(64, activation='relu')(x)
+        x = tf.keras.layers.Dropout(0.4)(x)
+        outputs = tf.keras.layers.Dense(1, activation='sigmoid')(x)
+
+        model = tf.keras.models.Model(inputs, outputs)
+        model.compile(
+            optimizer=tf.keras.optimizers.Adam(learning_rate=3e-4),
+            loss='binary_crossentropy',
+            metrics=['accuracy', tf.keras.metrics.AUC(name='auc')],
+            **self.compile_kwargs
+        )
         return model
 
     def get_callbacks(self):
