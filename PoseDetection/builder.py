@@ -48,20 +48,25 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 # from collections import Counter  # Removed as per instructions
+import json
+import datetime
+import yaml  # pip install pyyaml  (optional for --split_yaml)
+import random
+from pathlib import Path
 
 from features import FeaturePipeline
 from utils.VideoStabilizer import VideoStabilizer
 
 import matplotlib
 
-matplotlib.rcParams[
-    'font.family'] = 'Hiragino Sans GB'  # 'Heiti SC'  # 或 'STHeiti', 'Songti SC', 'Arial Unicode MS', 'Hiragino Sans GB'
+# 可用字体：'Heiti SC'  # 或 'STHeiti', 'Songti SC', 'Arial Unicode MS', 'Hiragino Sans GB'
+matplotlib.rcParams['font.family'] = 'Hiragino Sans GB'
 matplotlib.rcParams['axes.unicode_minus'] = False  # 显示负号
 
 # 将项目根目录加入模块搜索路径，以便能够导入顶层的 utils 包
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 
@@ -144,9 +149,9 @@ def analyze_jump_stretch_distributions(df_labeled, output_dir, base):
     # 绘图
     plt.figure(figsize=(10, 5))
     if zero_stretches:
-        sns.histplot(zero_stretches, bins=range(0, max(zero_stretches)+2), color='blue', label='连续0段长', kde=False)
+        sns.histplot(zero_stretches, bins=range(0, max(zero_stretches) + 2), color='blue', label='连续0段长', kde=False)
     if one_stretches:
-        sns.histplot(one_stretches, bins=range(0, max(one_stretches)+2), color='orange', label='连续1段长', kde=False)
+        sns.histplot(one_stretches, bins=range(0, max(one_stretches) + 2), color='orange', label='连续1段长', kde=False)
     plt.yscale("log")
     plt.xlabel("段长（帧）")
     plt.ylabel("出现频次（对数）")
@@ -241,15 +246,83 @@ def main():
                         help='VideoStabilizer quality level')
     parser.add_argument('--stabilizer_min_distance', default=VideoStabilizer.min_distance, type=int,
                         help='VideoStabilizer min distance')
+    parser.add_argument('--val_ratio', type=float, default=0.15, help='验证集比例')
+    parser.add_argument('--test_ratio', type=float, default=0.15, help='测试集比例')
+    parser.add_argument('--seed', type=int, default=42, help='随机种子')
+    parser.add_argument('--split_yaml', default=None,
+                        help='预定义划分文件（yaml: train/val/test 列表），若提供则覆盖随机划分')
 
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
+
+    # -------- 统计每个候选视频的正例数量并做贪心平衡划分 ---------
+    video_stats = []
+    mp4s = glob.glob(os.path.join(args.videos_dir, '*.mp4'))
+    avis = glob.glob(os.path.join(args.videos_dir, '*.avi'))
+    for vp in sorted(mp4s + avis):
+        base = Path(vp).stem
+        label_csv = Path(args.labels_dir) / f"{base}_labels.csv"
+        if not label_csv.exists():
+            logger.warning(f"Skip (no label): {vp}")
+            continue
+        try:
+            ranges = pd.read_csv(label_csv)
+            pos_frames = int((ranges.end_frame - ranges.start_frame + 1).sum())
+        except Exception as e:
+            logger.error(f"Failed to read labels for {vp}: {e}")
+            continue
+        total_frames = int(cv2.VideoCapture(vp).get(cv2.CAP_PROP_FRAME_COUNT))
+        video_stats.append({'path': vp,
+                            'pos': pos_frames,
+                            'total': total_frames})
+
+    if len(video_stats) < 3:
+        logger.warning("可用视频少于3个，将全部划入 train；val/test 为空。")
+        train_vids = {v['path'] for v in video_stats}
+        val_vids, test_vids = set(), set()
+    else:
+        rng = random.Random(args.seed)
+        rng.shuffle(video_stats)  # 打散顺序再按正例降序
+        video_stats.sort(key=lambda x: x['pos'], reverse=True)
+
+        target_ratio = np.array([1 - args.val_ratio - args.test_ratio,
+                                 args.val_ratio,
+                                 args.test_ratio], dtype=float)
+        target_ratio /= target_ratio.sum()  # 归一化
+        tot_pos = sum(v['pos'] for v in video_stats)
+        deficits = target_ratio * tot_pos      # 初始还需多少正例
+        splits = [set(), set(), set()]         # train, val, test
+
+        for v in video_stats:
+            idx = int(np.argmax(deficits))
+            splits[idx].add(v['path'])
+            deficits[idx] -= v['pos']
+
+        train_vids, val_vids, test_vids = splits
+
+    # ---- 统计日志 ----
+    def sum_pos(s):
+        return sum(v['pos'] for v in video_stats if v['path'] in s)
+
+    logger.info(f"Train videos: {len(train_vids)} (pos={sum_pos(train_vids)}) | "
+                f"Val: {len(val_vids)} (pos={sum_pos(val_vids)}) | "
+                f"Test: {len(test_vids)} (pos={sum_pos(test_vids)})")
+
+    # optional detailed debug
+    for tag, group in zip(['TRAIN', 'VAL', 'TEST'], [train_vids, val_vids, test_vids]):
+        for p in group:
+            st = next(v for v in video_stats if v['path'] == p)
+            logger.debug(f"[{tag}] {Path(p).name}: pos={st['pos']}, total={st['total']}")
+
     video_patterns = [os.path.join(args.videos_dir, ext) for ext in ('*.avi', '*.mp4')]
 
     for pattern in video_patterns:
         for video_path in glob.glob(pattern):
             base = os.path.splitext(os.path.basename(video_path))[0]
+            split = ('train' if video_path in train_vids else
+                     'val' if video_path in val_vids else
+                     'test')
             logger.info(f'Processing {base}...')
             labels_path = os.path.join(args.labels_dir, f'{base}_labels.csv')
             if not os.path.exists(labels_path):
@@ -304,15 +377,34 @@ def main():
                 else:
                     X_win = np.empty((0, win_size, len(feature_cols)))
                     y_win = np.empty((0,))
-                npz_win = os.path.join(args.output_dir, f"{base}_windows_size{win_size}.npz")
-                np.savez_compressed(npz_win, X=X_win, y=y_win)
+                # ---------- 保存 .npz ----------
+                size_dir = os.path.join(args.output_dir, f"size{win_size}", split)
+                os.makedirs(size_dir, exist_ok=True)
+                npz_win = os.path.join(size_dir, f"{base}.npz")
+                np.savez_compressed(npz_win, X=X_win, y=y_win,
+                                    pos_ratio=float(y_win.mean()))
                 logger.info(f'  Saved window-level npz: {npz_win}')
                 print(f"Window-level data shape (size={win_size}): X={X_win.shape}, y={y_win.shape}")
+
+                # meta.json (仅首次创建)
+                meta_path = os.path.join(size_dir, 'meta.json')
+                if not os.path.exists(meta_path):
+                    meta = {
+                        "window_size": win_size,
+                        "feature_dim": int(len(feature_cols)),
+                        "generated_at": datetime.datetime.utcnow().isoformat(),
+                        "creator": "dataset_builder.py"
+                    }
+                    with open(meta_path, 'w') as f:
+                        json.dump(meta, f, indent=2, ensure_ascii=False)
+
                 from collections import Counter
                 cnt = Counter(y_win)
                 logger.info(
-                    f"[{base}] size={win_size} 标签分布：负类={cnt[0]}，正类={cnt[1]}，正例比例={(cnt[1] / (cnt[0] + cnt[1]) * 100):.2f}%")
-                analyze_window_label_distribution(df_labeled, win_size, args.output_dir, f"{base}_size{win_size}")
+                    f"[{base}] size={win_size} ({split}) 标签分布：负类={cnt[0]}，正类={cnt[1]}，正例比例={(cnt[1] / (cnt[0] + cnt[1]) * 100):.2f}%")
+                analyze_window_label_distribution(df_labeled, win_size,
+                                                  os.path.join(args.output_dir, f"size{win_size}"),
+                                                  f"{base}_size{win_size}")
 
 
 if __name__ == '__main__':
