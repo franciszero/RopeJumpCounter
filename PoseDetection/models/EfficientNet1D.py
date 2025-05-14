@@ -52,7 +52,7 @@ class EfficientNet1DModel(TrainMyModel):
         outputs = layers.Dense(1, activation='sigmoid')(x)
 
         model = models.Model(inputs, outputs)
-        model.compile(optimizer='adam',
+        model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=3e-4),
                       loss='binary_crossentropy',
                       metrics=['accuracy'])
         return model

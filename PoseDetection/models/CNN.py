@@ -22,7 +22,11 @@ class CNNModel(TrainMyModel):
             tf.keras.layers.Dense(256, activation='relu'),
             tf.keras.layers.Dense(1, activation='sigmoid')
         ])
-        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+        model.compile(
+            optimizer=tf.keras.optimizers.Adam(learning_rate=3e-4),
+            loss='binary_crossentropy',
+            metrics=['accuracy']
+        )
         return model
 
     def get_callbacks(self):
@@ -36,23 +40,3 @@ class CNNModel(TrainMyModel):
                 verbose=1
             )
         ]
-
-class CNN(tf.keras.Model):
-    def __init__(self, num_classes):
-        super(CNN, self).__init__()
-        self.num_classes = num_classes
-        self._build()
-
-    def _build(self):
-        self.model = tf.keras.Sequential([
-            tf.keras.layers.Conv1D(64, kernel_size=3, padding='same', activation='relu'),
-            tf.keras.layers.MaxPooling1D(pool_size=2),
-            tf.keras.layers.Conv1D(128, kernel_size=3, padding='same', activation='relu'),
-            tf.keras.layers.MaxPooling1D(pool_size=2),
-            tf.keras.layers.Flatten(),
-            tf.keras.layers.Dense(256, activation='relu'),
-            tf.keras.layers.Dense(self.num_classes, activation='softmax')
-        ])
-
-    def call(self, inputs):
-        return self.model(inputs)
