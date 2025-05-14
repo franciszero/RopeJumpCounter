@@ -1,5 +1,4 @@
 import numpy as np
-import os
 import joblib
 from abc import ABC, abstractmethod
 from sklearn.metrics import classification_report, roc_auc_score, average_precision_score
@@ -13,17 +12,16 @@ class TrainMyModel(ABC):
         self.dest_root = dest_root
         self.source_root = source_root
         self.num_classes = 2
-        self.test_size = 0.2
-        self.val_size = 0.1
         self.random_state = 42
         self.epochs = 100
         self.batch_size = 32
 
         # 配置: 各模型对应的 window_size
         self.MODEL_WINDOW_SIZES = {
+            "cnn": 4,  # 8,
+            "cnn_w8": 8,
             "lstm_attention": 4,  # 6,
             "lstm": 4,  # 6,
-            "cnn": 4,  # 8,
             "crnn": 4,  # 12,
             "resnet1d": 4,  # 16,
             "tcn": 4,  # 24,
@@ -96,24 +94,74 @@ class TrainMyModel(ABC):
         self.save_report()
 
     def __load_window_npz(self, window_size):
+        """
+        Load window‑level datasets for a given window size.
+
+        Preferred layout (produced by the updated builder):
+
+            {source_root}/
+                size{window_size}/
+                    train/*.npz
+                    val/*.npz
+                    test/*.npz
+
+        Each .npz file is expected to contain
+            X : shape (n, W, D)
+            y : shape (n,)
+        for a single video.
+
+        If the new directory structure is not found, we fall back to the
+        legacy flat layout and create the train/val/test splits on‑the‑fly
+        (previous behaviour).
+        """
         import glob
-        from sklearn.model_selection import train_test_split
-        files = glob.glob(os.path.join(self.source_root, f"*windows_size{window_size}.npz"))
-        Xs, ys = [], []
-        for f in files:
-            data = np.load(f)
-            # 假设 .npz 里保存了 'X' 形状 (n, W, D) 和 'y' (n,)
-            Xs.append(data["X"])
-            ys.append(data["y"])
-        X = np.vstack(Xs)
-        y = np.concatenate(ys)
-        # 同样划分
-        X_trainval, X_test, y_trainval, y_test = train_test_split(
-            X, y, test_size=self.test_size, random_state=self.random_state, stratify=y)
-        val_fraction = self.val_size / (1 - self.test_size)
-        X_train, X_val, y_train, y_val = train_test_split(
-            X_trainval, y_trainval, test_size=val_fraction,
-            random_state=self.random_state, stratify=y_trainval)
+        import os
+
+        def _load_split(split_dir):
+            """Stack all .npz files under `split_dir`. Returns (X, y) or (None, None) if absent."""
+            if not os.path.isdir(split_dir):
+                return None, None
+            Xs, ys = [], []
+            for f in glob.glob(os.path.join(split_dir, "*.npz")):
+                data = np.load(f)
+                Xs.append(data["X"])
+                ys.append(data["y"])
+            if not Xs:  # directory exists but empty
+                return None, None
+            return np.vstack(Xs), np.concatenate(ys)
+
+        # ---------- try new directory layout ----------
+        base_dir = os.path.join(self.source_root, f"size{window_size}")
+        X_train, y_train = _load_split(os.path.join(base_dir, "train"))
+        X_val, y_val = _load_split(os.path.join(base_dir, "val"))
+        X_test, y_test = _load_split(os.path.join(base_dir, "test"))
+
+        # # ---------- fallback to legacy flat layout ----------
+        # if X_train is None or X_val is None or X_test is None:
+        #     files = glob.glob(os.path.join(self.source_root, f"*windows_size{window_size}.npz"))
+        #     Xs, ys = [], []
+        #     for f in files:
+        #         data = np.load(f)
+        #         Xs.append(data["X"])
+        #         ys.append(data["y"])
+        #     X = np.vstack(Xs)
+        #     y = np.concatenate(ys)
+        #
+        #     # recreate splits as before
+        #     X_trainval, X_test, y_trainval, y_test = train_test_split(
+        #         X, y,
+        #         test_size=self.test_size,
+        #         random_state=self.random_state,
+        #         stratify=y
+        #     )
+        #     val_fraction = self.val_size / (1 - self.test_size)
+        #     X_train, X_val, y_train, y_val = train_test_split(
+        #         X_trainval, y_trainval,
+        #         test_size=val_fraction,
+        #         random_state=self.random_state,
+        #         stratify=y_trainval
+        #     )
+
         return X_train, y_train, X_val, y_val, X_test, y_test
 
     def save_model(self):
