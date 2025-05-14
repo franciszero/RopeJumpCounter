@@ -251,6 +251,8 @@ def main():
     parser.add_argument('--seed', type=int, default=42, help='随机种子')
     parser.add_argument('--split_yaml', default=None,
                         help='预定义划分文件（yaml: train/val/test 列表），若提供则覆盖随机划分')
+    parser.add_argument('--preview_split', default=True, action='store_true',
+                        help='仅预览 train/val/test 划分与正例数量，然后退出（不做特征提取）')
 
     args = parser.parse_args()
 
@@ -314,6 +316,27 @@ def main():
         for p in group:
             st = next(v for v in video_stats if v['path'] == p)
             logger.debug(f"[{tag}] {Path(p).name}: pos={st['pos']}, total={st['total']}")
+
+    # ---------- 如果只预览划分，则输出详细信息后退出 ----------
+    if args.preview_split:
+        def _detail(group):
+            return [
+                {
+                    "video": Path(p).name,
+                    "pos_frames": next(v['pos'] for v in video_stats if v['path'] == p),
+                    "total_frames": next(v['total'] for v in video_stats if v['path'] == p)
+                } for p in group
+            ]
+
+        preview = {
+            "train": _detail(train_vids),
+            "val":   _detail(val_vids),
+            "test":  _detail(test_vids)
+        }
+        import pprint
+        pprint.pprint(preview, sort_dicts=False)
+        logger.info("预览完成 (--preview_split). 未进行特征提取/文件写入。")
+        return
 
     video_patterns = [os.path.join(args.videos_dir, ext) for ext in ('*.avi', '*.mp4')]
 
