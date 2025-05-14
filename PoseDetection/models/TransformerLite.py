@@ -1,6 +1,6 @@
 # models/TransformerLite.py
 import tensorflow as tf
-from tensorflow.keras import layers, models
+from tensorflow.keras import layers, models, callbacks
 from PoseDetection.models.BaseModel import TrainMyModel
 
 
@@ -28,44 +28,45 @@ class TransformerLiteModel(TrainMyModel):
         self._init_model()
 
     def _build(self):
-        # Use the original feature dimension as embedding size so that the
-        # residual connection shapes match (x + ffn).
-        embed_dim = self.X_train.shape[2]  # e.g. 403
-        # Choose a num_heads that divides embed_dim; fall back to 1 otherwise.
-        num_heads = 4 if embed_dim % 4 == 0 else 1
-        key_dim = embed_dim // num_heads
-        inputs = layers.Input(shape=self.X_train.shape[1:])  # (W, D)
-        x = PositionalEncoding()(inputs)
-        # 单层 MHSA + FFN
-        x = layers.MultiHeadAttention(num_heads=num_heads,
-                                      key_dim=key_dim)(x, x)
-        x = layers.LayerNormalization()(x)
-        ffn = layers.Dense(embed_dim * 4, activation='relu')(x)
-        ffn = layers.Dense(embed_dim)(ffn)
-        x = layers.Add()([x, ffn])
-        x = layers.LayerNormalization()(x)
+        d_model = 64
+        inputs = layers.Input(shape=self.X_train.shape[1:])  # (T, D)
 
+        # --- Positional Encoding via Conv1D ---
+        x = layers.Conv1D(d_model, 1, padding='same')(inputs)
+
+        # --- Transformer Encoder blocks (lite) ---
+        for _ in range(2):
+            # Multi-head attention
+            attn_out = layers.MultiHeadAttention(num_heads=4, key_dim=d_model // 4,
+                                                 dropout=0.1)(x, x)
+            x = layers.LayerNormalization(epsilon=1e-6)(x + attn_out)
+
+            # Feed-forward
+            ff = layers.Dense(d_model * 2, activation='relu')(x)
+            ff = layers.Dense(d_model)(ff)
+            x = layers.LayerNormalization(epsilon=1e-6)(x + ff)
+
+        # --- Classification head ---
         x = layers.GlobalAveragePooling1D()(x)
         x = layers.Dense(64, activation='relu')(x)
+        x = layers.Dropout(0.3)(x)
         outputs = layers.Dense(1, activation='sigmoid')(x)
 
         model = models.Model(inputs, outputs)
-        model.compile(optimizer=tf.keras.optimizers.Adam(1e-3),
-                      loss='binary_crossentropy',
-                      metrics=['accuracy'])
+        model.compile(
+            optimizer=tf.keras.optimizers.Adam(learning_rate=3e-4, clipnorm=1.0),
+            loss='binary_crossentropy',
+            metrics=['accuracy', tf.keras.metrics.AUC(name='auc')],
+            **self.compile_kwargs
+        )
         return model
 
     def get_callbacks(self):
         import tensorflow as tf
         return [
-            tf.keras.callbacks.EarlyStopping(monitor="val_loss",
-                                             patience=8,
-                                             restore_best_weights=True),
-            tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss',
-                                                 factor=0.5,
-                                                 patience=4,
-                                                 verbose=1),
-            tf.keras.callbacks.ModelCheckpoint(
+            callbacks.EarlyStopping(monitor="val_loss", patience=8, restore_best_weights=True),
+            callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=4, verbose=1),
+            callbacks.ModelCheckpoint(
                 filepath=f"{self.dest_root}/best_{self.model_name}.keras",
                 monitor="val_accuracy",
                 save_best_only=True,
