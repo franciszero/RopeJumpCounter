@@ -44,7 +44,7 @@ class CNNModel(TrainMyModel):
         )
         return model
 
-    def get_callbacks(self):
+    def _get_callbacks(self):
         return [
             EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True),
             ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, verbose=1),

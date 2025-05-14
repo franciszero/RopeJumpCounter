@@ -37,7 +37,7 @@ class TCNModel(TrainMyModel):
         model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
         return model
 
-    def get_callbacks(self):
+    def _get_callbacks(self):
         return [
             tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=5, restore_best_weights=True),
             tf.keras.callbacks.ReduceLROnPlateau(

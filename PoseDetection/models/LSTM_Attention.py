@@ -35,7 +35,7 @@ class LSTMAttentionModel(TrainMyModel):
         )
         return model
 
-    def get_callbacks(self):
+    def _get_callbacks(self):
         return [
             tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=6, restore_best_weights=True),
             tf.keras.callbacks.ReduceLROnPlateau(
