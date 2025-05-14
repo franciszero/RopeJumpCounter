@@ -7,7 +7,11 @@ from sklearn.metrics import roc_curve, precision_recall_curve
 
 
 class TrainMyModel(ABC):
-    def __init__(self, name, dest_root="model_files", source_root="./dataset_3"):
+    def __init__(self, name, dest_root='model_files', source_root='./dataset_3', *, class_weight_dict=None,
+                 **compile_kwargs):
+        self.class_weight_dict = class_weight_dict
+        self.compile_kwargs = compile_kwargs
+
         self.model_name = name
         self.dest_root = dest_root
         self.source_root = source_root
@@ -15,19 +19,20 @@ class TrainMyModel(ABC):
         self.random_state = 42
         self.epochs = 100
         self.batch_size = 32
+        self.TEST_RATIO = 0.15
+        self.VAL_RATIO = 0.15
 
         # 配置: 各模型对应的 window_size
         self.MODEL_WINDOW_SIZES = {
-            "cnn": 4,  # 8,
-            "cnn_w8": 8,
-            "lstm_attention": 4,  # 6,
-            "lstm": 4,  # 6,
-            "crnn": 4,  # 12,
-            "resnet1d": 4,  # 16,
-            "tcn": 4,  # 24,
+            "cnn": 4,
+            "lstm_attention": 16,
+            "lstm": 16,
+            "crnn": 12,
+            "resnet1d": 16,
+            "tcn": 24,
             "inception": 4,
-            "transformer": 4,  # 8,
-            "efficientnet1d": 4,
+            "transformer": 16,
+            "efficientnet1d": 4
         }
 
         self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test, self.y_true \
@@ -38,7 +43,6 @@ class TrainMyModel(ABC):
         self.y_pred = None  # self.y_pred = (self.y_prob > 0.5).astype(int)
         self.report = None  # self.report = classification_report(self.y_test, self.y_pred, output_dict=True)
         self.model = None
-        self.class_weight_dict = None
 
     def _init_model(self):
         self.window_size = self.MODEL_WINDOW_SIZES[self.model_name]
@@ -51,7 +55,13 @@ class TrainMyModel(ABC):
             y=self.y_train
         )
         self.class_weight_dict = dict(enumerate(weight))
+
+        if self.class_weight_dict is None:
+            neg, pos = np.bincount(self.y_train.astype(int))
+            self.class_weight_dict = {0: (neg + pos) / (2.0 * neg), 1: (neg + pos) / (2.0 * pos)}
+
         self.model = self._build()
+
 
     @abstractmethod
     def _build(self):
@@ -67,6 +77,7 @@ class TrainMyModel(ABC):
         print("\n======================================================")
         print(f"\n============ Training {self.model_name} ============")
         print("\n======================================================")
+        print(f"Class‑weight: {self.class_weight_dict}")
         self.history = self.model.fit(
             self.X_train, self.y_train,
             validation_data=(self.X_val, self.y_val),
@@ -76,6 +87,7 @@ class TrainMyModel(ABC):
             class_weight=self.class_weight_dict,
             verbose=2
         )
+        print(f"Class‑weight: {self.class_weight_dict}")
         self.model.save(f"{self.dest_root}/{self.model_name}_ws{self.window_size}.keras")
         pass
 
@@ -86,8 +98,8 @@ class TrainMyModel(ABC):
         precision, recall, _ = precision_recall_curve(self.y_test, self.y_prob)
         self.report = {
             'classification': classification_report(self.y_test, self.y_pred, output_dict=True),
-            'roc_auc': roc_auc_score(self.y_test, self.y_pred),
-            'average_precision': average_precision_score(self.y_test, self.y_pred),
+            'roc_auc': roc_auc_score(self.y_test, self.y_prob),
+            'average_precision': average_precision_score(self.y_test, self.y_prob),
             "roc_curve": {"fpr": fpr.tolist(), "tpr": tpr.tolist()},
             "pr_curve": {"precision": precision.tolist(), "recall": recall.tolist()},
         }
@@ -136,36 +148,10 @@ class TrainMyModel(ABC):
         X_val, y_val = _load_split(os.path.join(base_dir, "val"))
         X_test, y_test = _load_split(os.path.join(base_dir, "test"))
 
-        # # ---------- fallback to legacy flat layout ----------
-        # if X_train is None or X_val is None or X_test is None:
-        #     files = glob.glob(os.path.join(self.source_root, f"*windows_size{window_size}.npz"))
-        #     Xs, ys = [], []
-        #     for f in files:
-        #         data = np.load(f)
-        #         Xs.append(data["X"])
-        #         ys.append(data["y"])
-        #     X = np.vstack(Xs)
-        #     y = np.concatenate(ys)
-        #
-        #     # recreate splits as before
-        #     X_trainval, X_test, y_trainval, y_test = train_test_split(
-        #         X, y,
-        #         test_size=self.test_size,
-        #         random_state=self.random_state,
-        #         stratify=y
-        #     )
-        #     val_fraction = self.val_size / (1 - self.test_size)
-        #     X_train, X_val, y_train, y_val = train_test_split(
-        #         X_trainval, y_trainval,
-        #         test_size=val_fraction,
-        #         random_state=self.random_state,
-        #         stratify=y_trainval
-        #     )
-
         return X_train, y_train, X_val, y_val, X_test, y_test
 
     def save_model(self):
-        self.model.save(f"{self.dest_root}/{self.model_name}.h5")
+        self.model.save(f"{self.dest_root}/{self.model_name}.keras")
 
     def save_report(self):
-        joblib.dump(self.report, f"{self.dest_root}/{self.model_name}_report.pkl")
+        joblib.dump(self.report, f"{self.dest_root}/{self.model_name}_report.pkl", compress=3)
