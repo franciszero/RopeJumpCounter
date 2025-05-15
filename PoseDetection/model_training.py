@@ -1,32 +1,41 @@
 from PoseDetection.models.ModelReportGenerator import ModelReportGenerator
 from PoseDetection.models.CNN import CNNModel
+from PoseDetection.models.ResNET1D_TCNHybrid import ResNET1DTcnHybridModel
+from PoseDetection.models.SEResNET1D import SEResNET1DModel
 from PoseDetection.models.TCN import TCNModel
 from PoseDetection.models.CRNN import CRNNModel
-from PoseDetection.models.LSTM import LSTMModel
 from PoseDetection.models.LSTM_Attention import LSTMAttentionModel
 from PoseDetection.models.ResNET1D import ResNET1DModel
 from PoseDetection.models.EfficientNet1D import EfficientNet1DModel
 from PoseDetection.models.InceptionTime import InceptionTimeModel
+from PoseDetection.models.TCN_SE import TCNSEModel
+from PoseDetection.models.TFTLite import TFTLiteModel
 from PoseDetection.models.TransformerLite import TransformerLiteModel
 
 # 汇总各模型的评估数据
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from PoseDetection.models.WaveNet import WaveNetModel
+
 
 class Trainer:
     def __init__(self):
         # Set up models with their respective window sizes
         self.models = [
+            # TCNSEModel(),
+            ResNET1DTcnHybridModel(),
             # CNNModel(),
             # TCNModel(),
             # CRNNModel(),
-            # LSTMModel(),
             # LSTMAttentionModel(),
             # ResNET1DModel(),
-            EfficientNet1DModel(),
+            # EfficientNet1DModel(),
             # InceptionTimeModel(),
             # TransformerLiteModel(),
+            # TFTLiteModel(),
+            # SEResNET1DModel(),
+            # WaveNetModel(),
         ]
 
     def train(self):
