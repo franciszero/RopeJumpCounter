@@ -30,6 +30,8 @@ import pathlib
 import sys
 import time
 
+import collections
+
 import cv2
 import base64
 import numpy as np
@@ -111,7 +113,7 @@ class PlayerGUI:
     简易播放器：空格暂停/继续；← → 单帧步进；Esc 退出
     """
 
-    def __init__(self, predictor: VideoPredictor, width, height, fps):
+    def __init__(self, predictor: VideoPredictor, width, height, fps, save_path: str | None = None):
         self.cap = cv2.VideoCapture(0)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
@@ -121,6 +123,17 @@ class PlayerGUI:
         self.playing = True
         self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
 
+        # ---- raw recording ----
+        self.writer = None
+        if save_path:
+            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+            self.writer = cv2.VideoWriter(
+                save_path, fourcc, self.fps, (width, height)
+            )
+
+        # ---- simple FPS meter ----
+        self.proc_times = collections.deque(maxlen=30)  # ms of recent frames
+
         sg.theme("DarkBlue3")
         layout = [[sg.Image(filename="", key="-IMAGE-")],
                   [sg.Text("Space:Play/Pause  ←/→:Step  Esc:Quit")]]
@@ -129,7 +142,8 @@ class PlayerGUI:
                                 return_keyboard_events=True,
                                 finalize=True)
 
-    def _overlay(self, frame: np.ndarray, prob: float) -> np.ndarray:
+    def _overlay(self, frame: np.ndarray, prob: float,
+                 fps_val: float | None = None, ms_val: float | None = None) -> np.ndarray:
         """在 frame 上绘制概率/标签"""
         if prob is not None and prob >= self.predictor.threshold:
             overlay = frame.copy()
@@ -143,6 +157,12 @@ class PlayerGUI:
         if prob is not None:
             cv2.putText(frame, f"p={prob:.2f}", (20, frame.shape[0] - 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 255, 200), 2,
+                        cv2.LINE_AA)
+        if fps_val is not None and ms_val is not None:
+            txt = f"{fps_val:4.1f} FPS | {ms_val:3.0f} ms"
+            cv2.putText(frame, txt,
+                        (frame.shape[1] - 260, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2,
                         cv2.LINE_AA)
         return frame
 
@@ -159,6 +179,7 @@ class PlayerGUI:
 
         # we do _one_ Window.read() per iteration to keep Qt alive
         while True:
+            t0 = time.time()
             timeout = 0 if self.playing else 100  # ms
             event, _ = self.window.read(timeout=timeout)
 
@@ -188,7 +209,14 @@ class PlayerGUI:
             feat_vec = pd.DataFrame([pipe.fs.rec]).iloc[0][2:].values.astype(np.float32)
             prob = self.predictor.predict(feat_vec)
 
-            frame_vis = self._overlay(pipe.fs.raw_frame, prob)
+            proc_ms = (time.time() - t0) * 1000.0
+            self.proc_times.append(proc_ms)
+            fps_disp = 1000.0 / (sum(self.proc_times) / len(self.proc_times))
+            frame_vis = self._overlay(pipe.fs.raw_frame.copy(),
+                                      prob, fps_disp, proc_ms)
+
+            if self.writer is not None:
+                self.writer.write(pipe.fs.raw_frame)
 
             png_bytes = cv2.imencode(".png", frame_vis)[1].tobytes()
             # Qt6: QByteArray.fromRawData now needs both buffer & length → pass a tuple
@@ -201,6 +229,8 @@ class PlayerGUI:
             prev_time = time.time()
 
         self.cap.release()
+        if self.writer is not None:
+            self.writer.release()
         self.window.close()
 
 
@@ -209,16 +239,21 @@ def main():
     # parser.add_argument("--model", default="PoseDetection/model_files/tcn_ws24.keras", help="path to *.keras model")
     # parser.add_argument("--model", default="PoseDetection/model_files/seresnet1d_ws16.keras", help="path to *.keras model")
     # parser.add_argument("--model", default="PoseDetection/model_files/resnet1d_ws16.keras", help="path to *.keras model")
-    parser.add_argument("--model", default="PoseDetection/model_files/efficientnet1d_ws4.keras", help="path to *.keras model")
+    parser.add_argument("--model", default="PoseDetection/model_files/efficientnet1d_ws4.keras",
+                        help="path to *.keras model")
     # parser.add_argument("--model", default="PoseDetection/model_files/inception_ws4.keras", help="path to *.keras model")
     # parser.add_argument("--model", default="PoseDetection/model_files/cnn_ws4.keras", help="path to *.keras model")
     parser.add_argument("--width", type=int, default=640, help="Video frame width")
     parser.add_argument("--height", type=int, default=480, help="Video frame height")
     parser.add_argument("--fps", type=int, default=30, help="Capture frames per second")
+    parser.add_argument("--save_video", default=None,
+                        help="If provided, saves the *raw* camera stream (no overlays) "
+                             "to this path, e.g. recordings/session.mp4")
     args = parser.parse_args()
 
     predictor = VideoPredictor(args.model)
-    gui = PlayerGUI(predictor, args.width, args.height, args.fps)
+    gui = PlayerGUI(predictor, args.width, args.height, args.fps,
+                    save_path=args.save_video)
     gui.run()
 
 
