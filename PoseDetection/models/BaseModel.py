@@ -15,6 +15,7 @@ import datetime, os
 class TrainMyModel(ABC):
     def __init__(self, name, dest_root='model_files', source_root='./dataset_3', *, class_weight_dict=None,
                  **compile_kwargs):
+        self.is_training = None
         self.class_weight_dict = class_weight_dict
         self.compile_kwargs = compile_kwargs
 
@@ -31,11 +32,13 @@ class TrainMyModel(ABC):
         # 配置: 各模型对应的 window_size
         self.MODEL_WINDOW_SIZES = {
             "cnn": 4,
-            "lstm_attention": 16,
             "lstm": 16,
+            "lstm_attention": 16,
             "crnn": 12,
             "resnet1d": 16,
+            'resnet1d_tcn': 16,
             "tcn": 24,
+            "tcn_se": 24,
             "inception": 4,
             "transformer": 16,
             "efficientnet1d": 4,
@@ -151,9 +154,14 @@ class TrainMyModel(ABC):
 
     def evaluate(self):
         self.y_prob = self.model.predict(self.X_test).flatten()
-        self.y_pred = (self.y_prob > 0.5).astype(int)
+        precision, recall, thresholds = precision_recall_curve(self.y_test, self.y_prob)
+        f1 = 2 * precision * recall / (precision + recall + 1e-9)
+        best_t = float(thresholds[np.argmax(f1)])
+        print("best F1 threshold =", best_t)
+
+        self.y_pred = (self.y_prob > best_t).astype(int)
         fpr, tpr, _ = roc_curve(self.y_test, self.y_prob)
-        precision, recall, _ = precision_recall_curve(self.y_test, self.y_prob)
+
         self.report = {
             'classification': classification_report(self.y_test, self.y_pred, output_dict=True),
             'roc_auc': roc_auc_score(self.y_test, self.y_prob),
@@ -162,6 +170,19 @@ class TrainMyModel(ABC):
             "pr_curve": {"precision": precision.tolist(), "recall": recall.tolist()},
         }
         self.save_report()
+
+    def _augment_window(self, window):
+        if self.is_training:  # 只在训练集增强
+            if tf.random.uniform([]) < 0.5:  # jitter
+                window += tf.random.normal(tf.shape(window), stddev=0.01)
+            if tf.random.uniform([]) < 0.5:  # scaling
+                scale = tf.random.uniform([], 0.8, 1.2)
+                window *= scale
+            if tf.random.uniform([]) < 0.3:  # flip
+                window = tf.concat([window[..., :1],  # 时间
+                                    -window[..., 1:]], axis=-1)
+            # time-warp 省略，可用 random time stretch + interpolation
+        return window
 
     def __load_window_npz(self, window_size):
         """
@@ -194,6 +215,8 @@ class TrainMyModel(ABC):
             Xs, ys = [], []
             for f in glob.glob(os.path.join(split_dir, "*.npz")):
                 data = np.load(f)
+                n, p = np.bincount(data["y"])
+                print(f'{f}: neg={n}, pos={p}, pos_ratio={p / len(data["y"]):.2%}')
                 Xs.append(data["X"])
                 ys.append(data["y"])
             if not Xs:  # directory exists but empty
@@ -205,6 +228,16 @@ class TrainMyModel(ABC):
         X_train, y_train = _load_split(os.path.join(base_dir, "train"))
         X_val, y_val = _load_split(os.path.join(base_dir, "val"))
         X_test, y_test = _load_split(os.path.join(base_dir, "test"))
+
+        for split, y in [('train', y_train), ('val', y_val), ('test', y_test)]:
+            neg, pos = np.bincount(y)
+            print(f'{split}: neg={neg}, pos={pos}, pos_ratio={pos / len(y):.2%}')
+
+        # --- data augmentation only on the training split ---
+        if X_train is not None:
+            self.is_training = True
+            X_train = np.array([self._augment_window(w) for w in X_train])
+            self.is_training = False
 
         return X_train, y_train, X_val, y_val, X_test, y_test
 
