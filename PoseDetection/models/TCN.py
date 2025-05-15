@@ -1,24 +1,6 @@
 from PoseDetection.models.BaseModel import TrainMyModel
 import tensorflow as tf
-from tensorflow import keras
-
-
-@keras.utils.register_keras_serializable(package="PoseDetection")
-class TCNBlock(tf.keras.layers.Layer):
-    def __init__(self, filters, kernel_size=3, dilation_rate=1, **kwargs):
-        super().__init__(**kwargs)
-        self.conv = tf.keras.layers.Conv1D(
-            filters,
-            kernel_size,
-            dilation_rate=dilation_rate,
-            padding='causal',
-            activation='relu'
-        )
-        self.norm = tf.keras.layers.BatchNormalization()
-
-    def call(self, inputs):
-        x = self.conv(inputs)
-        return self.norm(x)
+from PoseDetection.models.ModelParams.TCNBlock import TCNBlock
 
 
 class TCNModel(TrainMyModel):
