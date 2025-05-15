@@ -47,6 +47,7 @@ class TrainMyModel(ABC):
             "tftlite": 16,
             "transformerlite": 16,
         }
+        self._need_aug = name in {"cnn", "efficientnet1d"}
 
         self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test, self.y_true \
             = None, None, None, None, None, None, None
@@ -172,6 +173,8 @@ class TrainMyModel(ABC):
         self.save_report()
 
     def _augment_window(self, window):
+        if not (self.is_training and self._need_aug):
+            return window
         if self.is_training:  # 只在训练集增强
             if tf.random.uniform([]) < 0.5:  # jitter
                 window += tf.random.normal(tf.shape(window), stddev=0.01)
