@@ -39,6 +39,7 @@ import pandas as pd
 import tensorflow as tf
 import PySimpleGUIQt as sg
 from PoseDetection.models.ModelParams.TCNBlock import TCNBlock
+import imutils
 
 # --- Qt6 compatibility patch: allow fromRawData(buf) ---
 try:
@@ -214,6 +215,8 @@ class PlayerGUI:
             fps_disp = 1000.0 / (sum(self.proc_times) / len(self.proc_times))
             frame_vis = self._overlay(pipe.fs.raw_frame.copy(),
                                       prob, fps_disp, proc_ms)
+            # resize to fill the window height, maintain aspect ratio
+            frame_vis = imutils.resize(frame_vis, height=920)
 
             if self.writer is not None:
                 self.writer.write(pipe.fs.raw_frame)
@@ -250,15 +253,15 @@ def main():
     # parser.add_argument("--model", default="best_transformerlite_ws16_withT.keras")  # 45ms 22.3FPS
     # parser.add_argument("--model", default="best_wavenet_ws8_withT.keras")  # 57ms 17.7FPS
 
-    parser.add_argument("--width", type=int, default=640, help="Video frame width")
-    parser.add_argument("--height", type=int, default=480, help="Video frame height")
+    parser.add_argument("--width", type=int, default=80 * 3, help="Video frame width")
+    parser.add_argument("--height", type=int, default=80 * 2, help="Video frame height")
     parser.add_argument("--fps", type=int, default=30, help="Capture frames per second")
     parser.add_argument("--save_video", default=None,
                         help="If provided, saves the *raw* camera stream (no overlays) "
                              "to this path, e.g. recordings/session.mp4")
     args = parser.parse_args()
 
-    predictor = VideoPredictor("PoseDetection/model_files/"+args.model)
+    predictor = VideoPredictor("PoseDetection/model_files/" + args.model)
     gui = PlayerGUI(predictor, args.width, args.height, args.fps,
                     save_path=args.save_video)
     gui.run()
