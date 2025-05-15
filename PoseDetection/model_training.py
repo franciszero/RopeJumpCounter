@@ -23,19 +23,19 @@ class Trainer:
     def __init__(self):
         # Set up models with their respective window sizes
         self.models = [
-            # TCNSEModel(),
+            CNNModel(),
+            TCNModel(),
+            CRNNModel(),
+            LSTMAttentionModel(),
+            ResNET1DModel(),
+            EfficientNet1DModel(),
+            InceptionTimeModel(),
+            TransformerLiteModel(),
+            TFTLiteModel(),
+            SEResNET1DModel(),
+            WaveNetModel(),
+            TCNSEModel(),
             ResNET1DTcnHybridModel(),
-            # CNNModel(),
-            # TCNModel(),
-            # CRNNModel(),
-            # LSTMAttentionModel(),
-            # ResNET1DModel(),
-            # EfficientNet1DModel(),
-            # InceptionTimeModel(),
-            # TransformerLiteModel(),
-            # TFTLiteModel(),
-            # SEResNET1DModel(),
-            # WaveNetModel(),
         ]
 
     def train(self):
