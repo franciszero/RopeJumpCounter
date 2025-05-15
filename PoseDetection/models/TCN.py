@@ -1,7 +1,9 @@
 from PoseDetection.models.BaseModel import TrainMyModel
 import tensorflow as tf
+from tensorflow import keras
 
 
+@keras.utils.register_keras_serializable(package="PoseDetection")
 class TCNBlock(tf.keras.layers.Layer):
     def __init__(self, filters, kernel_size=3, dilation_rate=1, **kwargs):
         super().__init__(**kwargs)
