@@ -169,7 +169,7 @@ class TrainMyModel(ABC):
         self.model.best_threshold = best_t
 
         self.y_pred = (self.y_prob > best_t).astype(int)
-        self.save_report(precision, recall)
+        # self.save_report(precision, recall)
 
     def _augment_window(self, window):
         if not (self.is_training and self._need_aug):
@@ -244,7 +244,7 @@ class TrainMyModel(ABC):
         return X_train, y_train, X_val, y_val, X_test, y_test
 
     def save_model(self):
-        self.model.save(f"{self.dest_root}/{self.model_name}_ws{self.window_size}.keras", include_optimizer=False)
+        self.model.save(f"{self.dest_root}/best_{self.model_name}_ws{self.window_size}_withT.keras", include_optimizer=False)
 
     def save_report(self, precision, recall):
         fpr, tpr, _ = roc_curve(self.y_test, self.y_prob)
