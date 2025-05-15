@@ -57,7 +57,11 @@ class EfficientNet1DModel(TrainMyModel):
         model.compile(
             optimizer=tf.keras.optimizers.Adam(learning_rate=3e-4),
             loss='binary_crossentropy',
-            metrics=['accuracy',tf.keras.metrics.AUC(name='auc')],
+            metrics=[
+                'accuracy',
+                tf.keras.metrics.AUC(name='auc'),
+                tf.keras.metrics.AUC(curve='PR', name='pr_auc')
+            ],
             **self.compile_kwargs  # 透传额外参数
         )
         return model

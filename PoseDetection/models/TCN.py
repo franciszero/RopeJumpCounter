@@ -34,5 +34,14 @@ class TCNModel(TrainMyModel):
         x = tf.keras.layers.Dense(64, activation='relu')(x)
         outputs = tf.keras.layers.Dense(1, activation='sigmoid')(x)
         model = tf.keras.Model(inputs, outputs)
-        model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+        model.compile(
+            optimizer=tf.keras.optimizers.Adam(learning_rate=3e-4),
+            loss='binary_crossentropy',
+            metrics=[
+                'accuracy',
+                tf.keras.metrics.AUC(name='auc'),  # ROC‑AUC
+                tf.keras.metrics.AUC(curve='PR', name='pr_auc'),  # PR‑AUC
+            ],
+            **self.compile_kwargs
+        )
         return model

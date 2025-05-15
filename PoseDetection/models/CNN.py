@@ -1,6 +1,5 @@
 import tensorflow as tf
 from PoseDetection.models.BaseModel import TrainMyModel
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau, ModelCheckpoint
 
 
 class CNNModel(TrainMyModel):
@@ -38,7 +37,8 @@ class CNNModel(TrainMyModel):
             loss='binary_crossentropy',
             metrics=[
                 'accuracy',
-                tf.keras.metrics.AUC(name='auc')
+                tf.keras.metrics.AUC(name='auc'),          # ROC‑AUC
+                tf.keras.metrics.AUC(curve='PR', name='pr_auc'),  # PR‑AUC
             ],
             **self.compile_kwargs  # 透传可能的参数
         )

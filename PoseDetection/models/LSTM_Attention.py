@@ -30,18 +30,11 @@ class LSTMAttentionModel(TrainMyModel):
         model.compile(
             optimizer=tf.keras.optimizers.Adam(learning_rate=3e-4, clipnorm=1.0),
             loss='binary_crossentropy',
-            metrics=['accuracy', tf.keras.metrics.AUC(name='auc')],
+            metrics=[
+                'accuracy',
+                tf.keras.metrics.AUC(name='auc'),  # ROC‑AUC
+                tf.keras.metrics.AUC(curve='PR', name='pr_auc'),  # PR‑AUC
+            ],
             **self.compile_kwargs
         )
         return model
-
-    def _get_callbacks(self):
-        return [
-            tf.keras.callbacks.EarlyStopping(monitor="val_loss", patience=6, restore_best_weights=True),
-            tf.keras.callbacks.ReduceLROnPlateau(
-                monitor='val_loss', factor=0.4, patience=4, verbose=1),
-            tf.keras.callbacks.ModelCheckpoint(
-                filepath=f"{self.dest_root}/best_lstm_attention.keras",
-                monitor="val_accuracy", save_best_only=True, verbose=1
-            )
-        ]
