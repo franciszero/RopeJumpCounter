@@ -27,6 +27,8 @@ Review Checklist:
 """
 
 import pandas as pd
+import numpy as np
+from sklearn.metrics import f1_score
 
 
 class ModelReportGenerator:
@@ -78,30 +80,50 @@ class ModelReportGenerator:
         for model in self.models:
             model_name = getattr(model, "model_name", "Model")
 
-            # Confusion Matrix
-            cm_img_html = ""
-            import numpy as np
-            if hasattr(model, "y_true") and hasattr(model,
-                                                    "y_pred") and model.y_true is not None and model.y_pred is not None:
-                from sklearn.metrics import confusion_matrix
-                cm = confusion_matrix(model.y_true, model.y_pred)
+            # Confusion Matrices at τ=0.50 and best τ*
+            cm_block_html = ""
+            if hasattr(model, "y_true") and hasattr(model, "y_prob"):
+                y_true = model.y_true
+                y_prob = model.y_prob
+
+                # default τ = 0.50
+                from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
                 import matplotlib.pyplot as plt
                 import seaborn as sns
-                from sklearn.metrics import ConfusionMatrixDisplay
                 from io import BytesIO
                 import base64
 
-                fig_cm, ax = plt.subplots(figsize=(3, 2.5))
-                disp = ConfusionMatrixDisplay(confusion_matrix=cm)
-                disp.plot(ax=ax, cmap='viridis', colorbar=False)
-                plt.title("Confusion Matrix")
-                plt.tight_layout()
-                buf = BytesIO()
-                fig_cm.savefig(buf, format="png")
-                buf.seek(0)
-                img_base64 = base64.b64encode(buf.read()).decode("utf-8")
-                plt.close(fig_cm)
-                cm_img_html = f'<img src="data:image/png;base64,{img_base64}" style="width:100%;max-height:240px;height:auto;">'
+                def _cm_img(y_pred, title):
+                    cm = confusion_matrix(y_true, y_pred)
+                    fig, ax = plt.subplots(figsize=(2.6, 2.2))
+                    disp = ConfusionMatrixDisplay(confusion_matrix=cm)
+                    disp.plot(ax=ax, cmap="viridis", colorbar=False)
+                    ax.set_title(title, fontsize=10)
+                    plt.tight_layout(pad=0.4)
+                    buf = BytesIO()
+                    fig.savefig(buf, format="png")
+                    buf.seek(0)
+                    img64 = base64.b64encode(buf.read()).decode("utf-8")
+                    plt.close(fig)
+                    return f'<img src="data:image/png;base64,{img64}" style="width:100%;">'
+
+                # τ = 0.5
+                cm_default_html = _cm_img((y_prob >= 0.5), "τ=0.50")
+
+                # best τ* by F1 if available / cache on model
+                best_tau = getattr(model, "best_threshold", None)
+                if best_tau is None:
+                    # brute search 0.05–0.95 step 0.01
+                    taus = np.linspace(0.05, 0.95, 91)
+                    f1s = [f1_score(y_true, y_prob >= t) for t in taus]
+                    best_tau = taus[int(np.argmax(f1s))]
+                cm_best_html = _cm_img((y_prob >= best_tau), f"τ={best_tau:.2f}")
+
+                cm_block_html = (
+                    '<div style="display:flex;flex-direction:column;gap:4px">'
+                    f'{cm_default_html}{cm_best_html}</div>'
+                )
+            cm_img_html = cm_block_html
 
             # ROC Curve
             roc_img_html = ""
@@ -160,7 +182,7 @@ class ModelReportGenerator:
             <table class="viz-table">
                 <colgroup>
                     <col style="width:10%;">
-                    <col style="width:18%;">
+                    <col style="width:22%;">
                     <col style="width:24%;">
                     <col style="width:24%;">
                     <col style="width:24%;">
