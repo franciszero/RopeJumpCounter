@@ -119,6 +119,7 @@ class PlayerGUI:
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
         self.cap.set(cv2.CAP_PROP_FPS, fps)
+        self.zoom_height = 920  # 原始 cv2 图像，高度变成 zoom_height，放大一点
 
         self.predictor = predictor
         self.playing = True
@@ -216,7 +217,7 @@ class PlayerGUI:
             frame_vis = self._overlay(pipe.fs.raw_frame.copy(),
                                       prob, fps_disp, proc_ms)
             # resize to fill the window height, maintain aspect ratio
-            frame_vis = imutils.resize(frame_vis, height=920)
+            frame_vis = imutils.resize(frame_vis, height=self.zoom_height)
 
             if self.writer is not None:
                 self.writer.write(pipe.fs.raw_frame)
