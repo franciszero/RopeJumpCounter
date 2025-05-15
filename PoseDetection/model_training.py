@@ -24,24 +24,25 @@ class Trainer:
         # Set up models with their respective window sizes
         self.models = [
             CNNModel(),
-            TCNModel(),
-            CRNNModel(),
-            LSTMAttentionModel(),
-            ResNET1DModel(),
-            EfficientNet1DModel(),
-            InceptionTimeModel(),
-            TransformerLiteModel(),
-            TFTLiteModel(),
-            SEResNET1DModel(),
-            WaveNetModel(),
-            TCNSEModel(),
-            ResNET1DTcnHybridModel(),
+            # TCNModel(),
+            # CRNNModel(),
+            # LSTMAttentionModel(),
+            # ResNET1DModel(),
+            # EfficientNet1DModel(),
+            # InceptionTimeModel(),
+            # TransformerLiteModel(),
+            # TFTLiteModel(),
+            # SEResNET1DModel(),
+            # WaveNetModel(),
+            # TCNSEModel(),
+            # ResNET1DTcnHybridModel(),
         ]
 
     def train(self):
         for m in self.models:
             m.train()
             m.evaluate()
+            m.save_model()
         return
 
 

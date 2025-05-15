@@ -84,8 +84,7 @@ class TrainMyModel(ABC):
     # ------- 新增 / 替换 -------
     def _get_callbacks(self):
         """通用回调：EarlyStopping + ReduceLROnPlateau + ModelCheckpoint + PRCurve + TensorBoard"""
-        ckpt_path = os.path.join(
-            self.dest_root, f"best_{self.model_name}_ws{self.window_size}.keras")
+        ckpt_path = os.path.join(self.dest_root, f"best_{self.model_name}_ws{self.window_size}.keras")
 
         # --- 核心回调 ---
         callbacks = [
@@ -150,7 +149,6 @@ class TrainMyModel(ABC):
             verbose=2
         )
         print(f"Class‑weight: {self.class_weight_dict}")
-        self.model.save(f"{self.dest_root}/{self.model_name}_ws{self.window_size}.keras")
         pass
 
     def evaluate(self):
@@ -159,6 +157,8 @@ class TrainMyModel(ABC):
         f1 = 2 * precision * recall / (precision + recall + 1e-9)
         best_t = float(thresholds[np.argmax(f1)])
         print("best F1 threshold =", best_t)
+        # 动态加属性
+        self.model.best_threshold = best_t
 
         self.y_pred = (self.y_prob > best_t).astype(int)
         fpr, tpr, _ = roc_curve(self.y_test, self.y_prob)
@@ -245,7 +245,7 @@ class TrainMyModel(ABC):
         return X_train, y_train, X_val, y_val, X_test, y_test
 
     def save_model(self):
-        self.model.save(f"{self.dest_root}/{self.model_name}.keras")
+        self.model.save(f"{self.dest_root}/{self.model_name}_ws{self.window_size}.keras")
 
     def save_report(self):
         joblib.dump(self.report, f"{self.dest_root}/{self.model_name}_report.pkl", compress=3)
