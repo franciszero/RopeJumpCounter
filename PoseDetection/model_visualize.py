@@ -43,7 +43,9 @@ from PoseDetection.models.ModelParams.TCNBlock import TCNBlock
 # --- Qt6 compatibility patch: allow fromRawData(buf) ---
 try:
     from PySide6 import QtCore  # PySimpleGUIQt uses PySide6 on Qt6
+
     _orig_from_raw = QtCore.QByteArray.fromRawData
+
 
     @staticmethod
     def _from_raw_compat(buf, length=None):
@@ -66,6 +68,7 @@ try:
         # Make an owned copy → safe after Python buffer is freed
         # buf should be bytes or bytearray, slice returns bytes
         return QtCore.QByteArray(buf[:length])
+
 
     QtCore.QByteArray.fromRawData = _from_raw_compat  # monkey‑patch
 except Exception:
@@ -244,19 +247,19 @@ class PlayerGUI:
 def main():
     parser = argparse.ArgumentParser()
     # ========= models ==========
-    # parser.add_argument("--model", default="model_files/best_cnn_ws4_withT.keras")  # 38ms 25.6FPS
-    # parser.add_argument("--model", default="model_files/best_crnn_ws12_withT.keras")  # 68ms 14.2FPS
-    # parser.add_argument("--model", default="model_files/best_efficientnet1d_ws4_withT.keras")  # 39ms 25.6FPS
-    # parser.add_argument("--model", default="model_files/best_inception_ws4_withT.keras")  # 50ms 19.7FPS
-    # parser.add_argument("--model", default="model_files/best_lstm_attention_ws16_withT.keras")  # 124ms 8FPS
-    # parser.add_argument("--model", default="model_files/best_resnet1d_ws16_withT.keras")  # 44ms 22.7FPS
-    # parser.add_argument("--model", default="model_files/best_resnet1d_tcn_ws16_withT.keras")  # 58ms 17FPS
-    # parser.add_argument("--model", default="model_files/best_seresnet1d_ws16_withT.keras")  # 49ms 19.5FPS
-    # parser.add_argument("--model", default="model_files/best_tcn_ws24_withT.keras")  # 40ms 24FPS
-    # parser.add_argument("--model", default="model_files/best_tcn_se_ws24_withT.keras")  # 60ms 16FPS
-    # parser.add_argument("--model", default="model_files/best_tftlite_ws16_withT.keras")  # 127ms 8FPS
-    # parser.add_argument("--model", default="model_files/best_transformerlite_ws16_withT.keras")  # 45ms 22.3FPS
-    # parser.add_argument("--model", default="model_files/best_wavenet_ws8_withT.keras")  # 57ms 17.7FPS
+    parser.add_argument("--model", default="best_cnn_ws4_withT.keras")  # 38ms 25.6FPS
+    # parser.add_argument("--model", default="best_crnn_ws12_withT.keras")  # 68ms 14.2FPS
+    # parser.add_argument("--model", default="best_efficientnet1d_ws4_withT.keras")  # 39ms 25.6FPS
+    # parser.add_argument("--model", default="best_inception_ws4_withT.keras")  # 50ms 19.7FPS
+    # parser.add_argument("--model", default="best_lstm_attention_ws16_withT.keras")  # 124ms 8FPS
+    # parser.add_argument("--model", default="best_resnet1d_ws16_withT.keras")  # 44ms 22.7FPS
+    # parser.add_argument("--model", default="best_resnet1d_tcn_ws16_withT.keras")  # 58ms 17FPS
+    # parser.add_argument("--model", default="best_seresnet1d_ws16_withT.keras")  # 49ms 19.5FPS
+    # parser.add_argument("--model", default="best_tcn_ws24_withT.keras")  # 40ms 24FPS
+    # parser.add_argument("--model", default="best_tcn_se_ws24_withT.keras")  # 60ms 16FPS
+    # parser.add_argument("--model", default="best_tftlite_ws16_withT.keras")  # 127ms 8FPS
+    # parser.add_argument("--model", default="best_transformerlite_ws16_withT.keras")  # 45ms 22.3FPS
+    # parser.add_argument("--model", default="best_wavenet_ws8_withT.keras")  # 57ms 17.7FPS
 
     # ========= videos ==========
     # parser.add_argument("--video", default="raw_videos_3/jump_2025.05.14.08.34.44.avi")
@@ -267,7 +270,7 @@ def main():
     parser.add_argument("--threshold", type=float, default=0.5)
     args = parser.parse_args()
 
-    predictor = VideoPredictor(args.model, args.threshold)
+    predictor = VideoPredictor("model_files/" + args.model, args.threshold)
     gui = PlayerGUI(args.video, predictor)
     gui.run()
 
