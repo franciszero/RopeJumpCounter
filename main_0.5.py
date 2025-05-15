@@ -117,8 +117,8 @@ class PlayerGUI:
 
     def __init__(self, predictor: VideoPredictor, width, height, fps, save_path: str | None = None):
         self.cap = cv2.VideoCapture(0, cv2.CAP_AVFOUNDATION)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
         # self.cap.set(cv2.CAP_PROP_FPS, fps)
         w, h = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH), self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         self.zoom_height = 920  # 原始 cv2 图像，高度变成 zoom_height，放大一点
@@ -277,8 +277,8 @@ def main():
     # parser.add_argument("--model", default="best_transformerlite_ws16_withT.keras")  # 45ms 22.3FPS
     # parser.add_argument("--model", default="best_wavenet_ws8_withT.keras")  # 57ms 17.7FPS
 
-    parser.add_argument("--width", type=int, default=80 * 3, help="Video frame width")
-    parser.add_argument("--height", type=int, default=80 * 2, help="Video frame height")
+    parser.add_argument("--width", type=int, default=640, help="Video frame width")
+    parser.add_argument("--height", type=int, default=480, help="Video frame height")
     parser.add_argument("--fps", type=int, default=30, help="Capture frames per second")
     parser.add_argument("--save_video", default=None,
                         help="If provided, saves the *raw* camera stream (no overlays) "
