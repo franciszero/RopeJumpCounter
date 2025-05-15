@@ -52,8 +52,8 @@ class ResNET1DTcnHybridModel(TrainMyModel):
                 x = res_block(x, f, name=f"res{i}_{j + 1}")
             x = layers.MaxPooling1D(2, name=f"pool{i}")(x)
 
-        # Hybrid stage: TCN stack
-        x = tcn_stack(x, 256, name="tcn")
+        # TCN stack – keep same channel width (128) to allow residual add
+        x = tcn_stack(x, 128, name="tcn")
 
         x = layers.GlobalAveragePooling1D(name="gap")(x)
         x = layers.Dense(128, activation="relu", name="fc")(x)
