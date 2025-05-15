@@ -36,7 +36,7 @@ def tcn_stack(x, filters, name):
     return x
 
 
-class ResNET1DModelTcnHybridModel(TrainMyModel):
+class ResNET1DTcnHybridModel(TrainMyModel):
     def __init__(self, name="resnet1d_tcn"):
         super().__init__(name)
         self._init_model()
