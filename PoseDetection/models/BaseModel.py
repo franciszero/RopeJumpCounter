@@ -1,11 +1,15 @@
 import os
 import tensorflow as tf
-import numpy as np
 import joblib
 from abc import ABC, abstractmethod
 from sklearn.metrics import classification_report, roc_auc_score, average_precision_score
 from sklearn.utils import class_weight
 from sklearn.metrics import roc_curve, precision_recall_curve
+import io
+import numpy as np
+from matplotlib import pyplot as plt
+from sklearn.metrics import auc, precision_recall_curve
+import datetime, os
 
 
 class TrainMyModel(ABC):
@@ -34,7 +38,11 @@ class TrainMyModel(ABC):
             "tcn": 24,
             "inception": 4,
             "transformer": 16,
-            "efficientnet1d": 4
+            "efficientnet1d": 4,
+            "wavenet": 8,
+            "seresnet1d": 16,
+            "tftlite": 16,
+            "transformerlite": 16,
         }
 
         self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test, self.y_true \
@@ -64,7 +72,6 @@ class TrainMyModel(ABC):
 
         self.model = self._build()
 
-
     @abstractmethod
     def _build(self):
         """子类必须实现：构建模型结构"""
@@ -72,21 +79,57 @@ class TrainMyModel(ABC):
 
     # ------- 新增 / 替换 -------
     def _get_callbacks(self):
-        """通用回调：EarlyStopping + ReduceLROnPlateau + ModelCheckpoint"""
+        """通用回调：EarlyStopping + ReduceLROnPlateau + ModelCheckpoint + PRCurve + TensorBoard"""
         ckpt_path = os.path.join(
             self.dest_root, f"best_{self.model_name}_ws{self.window_size}.keras")
 
-        return [
+        # --- 核心回调 ---
+        callbacks = [
             tf.keras.callbacks.EarlyStopping(
-                monitor="val_loss", patience=8, restore_best_weights=True),
+                monitor="val_loss",
+                patience=8,
+                restore_best_weights=True),
             tf.keras.callbacks.ReduceLROnPlateau(
-                monitor="val_loss", factor=0.5, patience=4, min_lr=1e-6, verbose=1),
+                monitor="val_loss",
+                factor=0.5,
+                patience=4,
+                min_lr=1e-6,
+                verbose=1),
             tf.keras.callbacks.ModelCheckpoint(
                 filepath=ckpt_path,
-                monitor="val_auc" if "auc" in self.model.metrics_names else "val_accuracy",
+                monitor="val_pr_auc" if "pr_auc" in self.model.metrics_names else "val_accuracy",
                 save_best_only=True,
                 verbose=1)
         ]
+
+        # --- PR‑AUC 曲线监控 & TensorBoard ---
+        log_dir = os.path.join(
+            self.dest_root,
+            "logs",
+            self.model_name,
+            datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        )
+
+        # 自定义 PR 曲线回调
+        callbacks.append(
+            PRCurveCallback(
+                val_data=(self.X_val, self.y_val),
+                log_dir=log_dir,
+                prefix="val"
+            )
+        )
+
+        # TensorBoard 可视化
+        callbacks.append(
+            tf.keras.callbacks.TensorBoard(
+                log_dir=log_dir,
+                histogram_freq=1,
+                write_graph=False,
+                update_freq="epoch"
+            )
+        )
+
+        return callbacks
 
     def train(self):
         print("\n======================================================")
@@ -170,3 +213,52 @@ class TrainMyModel(ABC):
 
     def save_report(self):
         joblib.dump(self.report, f"{self.dest_root}/{self.model_name}_report.pkl", compress=3)
+
+
+class PRCurveCallback(tf.keras.callbacks.Callback):
+    """
+    每个 epoch 结束后：
+    1. 在验证集上跑一次预测
+    2. 计算 PR-AUC
+    3. 使用 matplotlib 画 PR 曲线
+    4. 写到 TensorBoard（Scalars + Images）
+    """
+
+    def __init__(self, val_data, log_dir, prefix="val"):
+        super().__init__()
+        self.val_data = val_data  # tf.data 或 (X_val, y_val)
+        self.file_writer = tf.summary.create_file_writer(log_dir)
+        self.prefix = prefix
+
+    def on_epoch_end(self, epoch, logs=None):
+        # 1. 收集预测结果
+        if isinstance(self.val_data, tf.data.Dataset):
+            y_true = np.concatenate([y.numpy() for _, y in self.val_data], axis=0)
+            y_pred = np.concatenate([self.model.predict(X) for X, _ in self.val_data], axis=0)
+        else:
+            X_val, y_true = self.val_data
+            y_pred = self.model.predict(X_val, verbose=0)
+
+        # 2. precision-recall
+        precision, recall, _ = precision_recall_curve(y_true, y_pred)
+        pr_auc = auc(recall, precision)
+
+        # 3. 画图
+        fig, ax = plt.subplots()
+        ax.plot(recall, precision, label=f"PR curve (AUC={pr_auc:.4f})")
+        ax.set_xlabel("Recall")
+        ax.set_ylabel("Precision")
+        ax.legend()
+        ax.grid(True)
+
+        # 4. 写入 TensorBoard
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png')
+        plt.close(fig)
+        buf.seek(0)
+        image = tf.image.decode_png(buf.getvalue(), channels=4)
+        image = tf.expand_dims(image, 0)
+
+        with self.file_writer.as_default():
+            tf.summary.scalar(f"{self.prefix}_pr_auc", pr_auc, step=epoch)
+            tf.summary.image(f"{self.prefix}_pr_curve", image, step=epoch)
