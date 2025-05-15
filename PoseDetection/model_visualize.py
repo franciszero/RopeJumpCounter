@@ -243,13 +243,20 @@ class PlayerGUI:
 
 def main():
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--model", default="model_files/tcn_ws24.keras", help="path to *.keras model")
-    # parser.add_argument("--model", default="model_files/resnet1d_ws16.keras", help="path to *.keras model")
-    # parser.add_argument("--model", default="model_files/lstm_attention_ws16.keras", help="path to *.keras model")
-    parser.add_argument("--model", default="model_files/cnn_ws4.keras", help="path to *.keras model")
-    # parser.add_argument("--model", default="model_files/inception_ws4.keras", help="path to *.keras model")
-    # parser.add_argument("--model", default="model_files/efficientnet1d_ws4.keras", help="path to *.keras model")
-    parser.add_argument("--video", default="raw_videos_3/jump_2025.05.14.08.33.08__166.avi", help="path to video file")
+    # ========= models ==========
+    # parser.add_argument("--model", default="model_files/best_tcn_ws24.keras")
+    # parser.add_argument("--model", default="model_files/best_seresnet1d_ws16.keras")
+    # parser.add_argument("--model", default="model_files/best_resnet1d_ws16.keras")
+    parser.add_argument("--model", default="model_files/best_efficientnet1d_ws4.keras")
+    # parser.add_argument("--model", default="model_files/best_inception_ws4.keras")
+    # parser.add_argument("--model", default="model_files/best_cnn_ws4.keras")
+
+    # ========= videos ==========
+    # parser.add_argument("--video", default="raw_videos_3/jump_2025.05.14.08.34.44.avi")
+    parser.add_argument("--video", default="raw_videos_3/jump_2025.05.15.08.35.38.avi")
+    # parser.add_argument("--video", default="raw_videos_3/jump_2025.05.15.08.37.31.avi")
+
+    # ===========================
     parser.add_argument("--threshold", type=float, default=0.5)
     args = parser.parse_args()
 
