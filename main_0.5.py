@@ -36,11 +36,14 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import PySimpleGUIQt as sg
+from PoseDetection.models.ModelParams.TCNBlock import TCNBlock
 
 # --- Qt6 compatibility patch: allow fromRawData(buf) ---
 try:
     from PySide6 import QtCore  # PySimpleGUIQt uses PySide6 on Qt6
+
     _orig_from_raw = QtCore.QByteArray.fromRawData
+
 
     @staticmethod
     def _from_raw_compat(buf, length=None):
@@ -54,6 +57,7 @@ try:
             length = len(buf)
         # Make an owned copy → safe after Python buffer is freed
         return QtCore.QByteArray(bytes(buf[:length]))
+
 
     QtCore.QByteArray.fromRawData = _from_raw_compat  # monkey‑patch
 except Exception:
@@ -202,7 +206,12 @@ class PlayerGUI:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default="PoseDetection/model_files/cnn_ws4.keras", help="path to *.keras model")
+    # parser.add_argument("--model", default="PoseDetection/model_files/tcn_ws24.keras", help="path to *.keras model")
+    # parser.add_argument("--model", default="PoseDetection/model_files/seresnet1d_ws16.keras", help="path to *.keras model")
+    # parser.add_argument("--model", default="PoseDetection/model_files/resnet1d_ws16.keras", help="path to *.keras model")
+    parser.add_argument("--model", default="PoseDetection/model_files/efficientnet1d_ws4.keras", help="path to *.keras model")
+    # parser.add_argument("--model", default="PoseDetection/model_files/inception_ws4.keras", help="path to *.keras model")
+    # parser.add_argument("--model", default="PoseDetection/model_files/cnn_ws4.keras", help="path to *.keras model")
     parser.add_argument("--width", type=int, default=640, help="Video frame width")
     parser.add_argument("--height", type=int, default=480, help="Video frame height")
     parser.add_argument("--fps", type=int, default=30, help="Capture frames per second")

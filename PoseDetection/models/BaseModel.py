@@ -26,7 +26,7 @@ class TrainMyModel(ABC):
         self.source_root = source_root
         self.num_classes = 2
         self.random_state = 42
-        self.epochs = 5
+        self.epochs = 100
         self.batch_size = 32
         self.TEST_RATIO = 0.15
         self.VAL_RATIO = 0.15
