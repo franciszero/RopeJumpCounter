@@ -1,33 +1,29 @@
+# PoseDetection/models/ModelParams/ThresholdHolder.py
 import tensorflow as tf
+from tensorflow import keras
 
-import tensorflow as tf
 
+@keras.utils.register_keras_serializable(package="custom")
+class ThresholdHolder(keras.layers.Layer):
+    """在 SavedModel / .keras 里持久化一个标量阈值 t"""
 
-class ThresholdHolder(tf.keras.layers.Layer):
-    """
-    把最佳阈值 τ 保存进 SavedModel。
-    纯 passthrough，不修改张量，只负责在权重里存一标量。
-    """
-
-    def __init__(self, t: float, **kwargs):
-        super().__init__(trainable=False, **kwargs)
-        self._t_init = float(t)
+    def __init__(self, t=0.5, **kwargs):
+        super().__init__(**kwargs)  # ← 不再重复传 trainable
+        self.trainable = False  # 依然保持不可训练
+        self.t_init = float(t)
 
     def build(self, input_shape):
-        # 把 t 作为不可训练权重保存
         self.t = self.add_weight(
             name="threshold",
-            shape=[],
-            dtype=tf.float32,
-            initializer=tf.constant_initializer(self._t_init),
+            shape=(),
+            initializer=tf.constant_initializer(self.t_init),
             trainable=False,
         )
-        super().build(input_shape)  # 标记已 build
 
-    def call(self, inputs, **kwargs):
-        return inputs  # 原样透传
+    def call(self, inputs):
+        return inputs  # 透传 ── 只为保存 t
 
     def get_config(self):
         cfg = super().get_config()
-        cfg.update({"t": float(self.t.numpy())})
+        cfg.update({"t": self.t_init})
         return cfg

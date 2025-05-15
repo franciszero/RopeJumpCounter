@@ -11,6 +11,8 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import auc, precision_recall_curve
 import datetime, os
 
+from PoseDetection.models.ModelParams.ThresholdHolder import ThresholdHolder
+
 
 class TrainMyModel(ABC):
     def __init__(self, name, dest_root='model_files', source_root='./dataset_3', *, class_weight_dict=None,
@@ -24,7 +26,7 @@ class TrainMyModel(ABC):
         self.source_root = source_root
         self.num_classes = 2
         self.random_state = 42
-        self.epochs = 100
+        self.epochs = 5
         self.batch_size = 32
         self.TEST_RATIO = 0.15
         self.VAL_RATIO = 0.15
@@ -158,19 +160,16 @@ class TrainMyModel(ABC):
         best_t = float(thresholds[np.argmax(f1)])
         print("best F1 threshold =", best_t)
         # 动态加属性
+        best_t = float(thresholds[np.argmax(f1)])
+
+        holder = ThresholdHolder(best_t, name="f1_threshold")
+        new_output = holder(self.model.output)
+        self.model = tf.keras.Model(self.model.input, new_output, name=f"{self.model.name}_with_t")
+        # 再附一个 Python 属性，双保险（可选）
         self.model.best_threshold = best_t
 
         self.y_pred = (self.y_prob > best_t).astype(int)
-        fpr, tpr, _ = roc_curve(self.y_test, self.y_prob)
-
-        self.report = {
-            'classification': classification_report(self.y_test, self.y_pred, output_dict=True),
-            'roc_auc': roc_auc_score(self.y_test, self.y_prob),
-            'average_precision': average_precision_score(self.y_test, self.y_prob),
-            "roc_curve": {"fpr": fpr.tolist(), "tpr": tpr.tolist()},
-            "pr_curve": {"precision": precision.tolist(), "recall": recall.tolist()},
-        }
-        self.save_report()
+        self.save_report(precision, recall)
 
     def _augment_window(self, window):
         if not (self.is_training and self._need_aug):
@@ -245,9 +244,18 @@ class TrainMyModel(ABC):
         return X_train, y_train, X_val, y_val, X_test, y_test
 
     def save_model(self):
-        self.model.save(f"{self.dest_root}/{self.model_name}_ws{self.window_size}.keras")
+        self.model.save(f"{self.dest_root}/{self.model_name}_ws{self.window_size}.keras", include_optimizer=False)
 
-    def save_report(self):
+    def save_report(self, precision, recall):
+        fpr, tpr, _ = roc_curve(self.y_test, self.y_prob)
+
+        self.report = {
+            'classification': classification_report(self.y_test, self.y_pred, output_dict=True),
+            'roc_auc': roc_auc_score(self.y_test, self.y_prob),
+            'average_precision': average_precision_score(self.y_test, self.y_prob),
+            "roc_curve": {"fpr": fpr.tolist(), "tpr": tpr.tolist()},
+            "pr_curve": {"precision": precision.tolist(), "recall": recall.tolist()},
+        }
         joblib.dump(self.report, f"{self.dest_root}/{self.model_name}_report.pkl", compress=3)
 
 
