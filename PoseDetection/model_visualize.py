@@ -26,6 +26,7 @@ python ModelVisualize.py \
 """
 import argparse
 import collections
+from typing import Deque
 import pathlib
 import sys
 import time
@@ -36,6 +37,8 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import PySimpleGUIQt as sg
+
+from PoseDetection.models.ModelParams.TCNBlock import TCNBlock
 
 # --- Qt6 compatibility patch: allow fromRawData(buf) ---
 try:
@@ -48,12 +51,21 @@ try:
         Qt6’s QByteArray.fromRawData keeps a *view* of the Python buffer.
         When the Python `bytes` object is GC‑ed the image data becomes invalid,
         leading to “wrong (missing signature)” PNG errors a few frames later.
-        We therefore **copy** the bytes so that QByteArray owns its own memory.
+
+        PySimpleGUIQt (Qt6) may pass either:
+          • raw bytes
+          • a tuple ``(bytes, len)`` we supplied in Element.update
+        Therefore we accept both.
         """
+        # --- handle tuple wrapper (buf, len) ---
+        if isinstance(buf, tuple):
+            buf, length = buf  # unpack
+        # fall back to automatic len if not provided
         if length is None:
             length = len(buf)
         # Make an owned copy → safe after Python buffer is freed
-        return QtCore.QByteArray(bytes(buf[:length]))
+        # buf should be bytes or bytearray, slice returns bytes
+        return QtCore.QByteArray(buf[:length])
 
     QtCore.QByteArray.fromRawData = _from_raw_compat  # monkey‑patch
 except Exception:
@@ -118,6 +130,11 @@ class PlayerGUI:
         self.playing = True
         self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
 
+        # --- runtime statistics ---
+        self.proc_times: Deque[float] = collections.deque(maxlen=60)  # last 60 frames
+        self.proc_fps: float = 0.0
+        self.last_latency_ms: float = 0.0
+
         sg.theme("DarkBlue3")
         layout = [[sg.Image(filename="", key="-IMAGE-")],
                   [sg.Text("Space:Play/Pause  ←/→:Step  Esc:Quit")]]
@@ -141,7 +158,25 @@ class PlayerGUI:
             cv2.putText(frame, f"p={prob:.2f}", (20, frame.shape[0] - 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 255, 200), 2,
                         cv2.LINE_AA)
+
+        # draw runtime metrics (bottom‑right)
+        info = f"video FPS {self.fps:.1f} | proc FPS {self.proc_fps:.1f} | latency {self.last_latency_ms:.1f} ms"
+        (tw, th), _ = cv2.getTextSize(info, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 1)
+        cv2.rectangle(frame, (frame.shape[1] - tw - 20, frame.shape[0] - th - 30),
+                      (frame.shape[1] - 10, frame.shape[0] - 10), (0, 0, 0), thickness=-1)
+        cv2.putText(frame, info,
+                    (frame.shape[1] - tw - 15, frame.shape[0] - 15),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (220, 220, 220), 1, cv2.LINE_AA)
         return frame
+
+    # ---------- stats ----------
+    def _update_stats(self, elapsed: float):
+        "Keep a sliding‑window FPS / latency estimate"
+        self.proc_times.append(elapsed)
+        if self.proc_times:
+            total = sum(self.proc_times)
+            self.proc_fps = len(self.proc_times) / total if total > 0 else 0.0
+            self.last_latency_ms = elapsed * 1000.0
 
     def run(self):
         """
@@ -173,6 +208,8 @@ class PlayerGUI:
                 continue  # wait for next loop
 
             # ---------- decode & infer next frame ----------
+            loop_t0 = time.time()
+
             if not self.playing:
                 continue
 
@@ -189,7 +226,10 @@ class PlayerGUI:
 
             png_bytes = cv2.imencode(".png", frame_vis)[1].tobytes()
             # Qt6: QByteArray.fromRawData now needs both buffer & length → pass a tuple
-            self.window["-IMAGE-"].update(data=png_bytes)
+            self.window["-IMAGE-"].update(data=(png_bytes, len(png_bytes)))
+
+            # update stats
+            self._update_stats(time.time() - loop_t0)
 
             # ---------- pacing ----------
             elapsed = time.time() - prev_time
@@ -203,7 +243,12 @@ class PlayerGUI:
 
 def main():
     parser = argparse.ArgumentParser()
+    # parser.add_argument("--model", default="model_files/tcn_ws24.keras", help="path to *.keras model")
+    # parser.add_argument("--model", default="model_files/resnet1d_ws16.keras", help="path to *.keras model")
+    # parser.add_argument("--model", default="model_files/lstm_attention_ws16.keras", help="path to *.keras model")
     parser.add_argument("--model", default="model_files/cnn_ws4.keras", help="path to *.keras model")
+    # parser.add_argument("--model", default="model_files/inception_ws4.keras", help="path to *.keras model")
+    # parser.add_argument("--model", default="model_files/efficientnet1d_ws4.keras", help="path to *.keras model")
     parser.add_argument("--video", default="raw_videos_3/jump_2025.05.14.08.33.08__166.avi", help="path to video file")
     parser.add_argument("--threshold", type=float, default=0.5)
     args = parser.parse_args()
