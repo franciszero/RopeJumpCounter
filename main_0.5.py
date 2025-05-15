@@ -29,9 +29,8 @@ import collections
 import pathlib
 import sys
 import time
-
 import collections
-
+from collections import deque
 import cv2
 import base64
 import numpy as np
@@ -40,6 +39,8 @@ import tensorflow as tf
 import PySimpleGUIQt as sg
 from PoseDetection.models.ModelParams.TCNBlock import TCNBlock
 import imutils
+
+from utils.Perf import PerfStats
 
 # --- Qt6 compatibility patch: allow fromRawData(buf) ---
 try:
@@ -91,7 +92,7 @@ class VideoPredictor:
         self.threshold = float(self.model.get_layer("f1_threshold").t.numpy())
 
         # 用 deque 维护最近 window_size 帧特征
-        self.buffer = collections.deque(maxlen=self.window_size)
+        self.buffer = deque(maxlen=self.window_size)
         # 在首次喂满窗口前，无推理结果
         self._warmup = self.window_size
 
@@ -121,6 +122,8 @@ class PlayerGUI:
         self.cap.set(cv2.CAP_PROP_FPS, fps)
         self.zoom_height = 920  # 原始 cv2 图像，高度变成 zoom_height，放大一点
 
+        self.stats = PerfStats(window_size=10)
+
         self.predictor = predictor
         self.playing = True
         self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
@@ -134,7 +137,7 @@ class PlayerGUI:
             )
 
         # ---- simple FPS meter ----
-        self.proc_times = collections.deque(maxlen=30)  # ms of recent frames
+        self.proc_times = deque(maxlen=30)  # ms of recent frames
 
         sg.theme("DarkBlue3")
         layout = [[sg.Image(filename="", key="-IMAGE-")],
@@ -144,10 +147,13 @@ class PlayerGUI:
                                 return_keyboard_events=True,
                                 finalize=True)
 
-    def _overlay(self, frame: np.ndarray, prob: float,
-                 fps_val: float | None = None, ms_val: float | None = None) -> np.ndarray:
+    def _overlay(self, frame: np.ndarray, jump_cnt: int, prob: float, is_on_rising: bool, t0) -> np.ndarray:
         """在 frame 上绘制概率/标签"""
-        if prob is not None and prob >= self.predictor.threshold:
+        if jump_cnt is not None:
+            cv2.putText(frame, f"JUMPS: {jump_cnt}", (20, 40),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.2, (20, 20, 255), 2,
+                        cv2.LINE_AA)
+        if prob is not None and is_on_rising:
             overlay = frame.copy()
             cv2.rectangle(overlay, (0, 0), (frame.shape[1], frame.shape[0]),
                           (0, 0, 255), thickness=-1)
@@ -160,8 +166,8 @@ class PlayerGUI:
             cv2.putText(frame, f"p={prob:.2f}", (20, frame.shape[0] - 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (200, 255, 200), 2,
                         cv2.LINE_AA)
-        if fps_val is not None and ms_val is not None:
-            txt = f"{fps_val:4.1f} FPS | {ms_val:3.0f} ms"
+        if self.stats.proc_fps is not None and self.stats.last_latency_ms is not None:
+            txt = f"{self.stats.proc_fps:4.1f} FPS | {self.stats.last_latency_ms:3.0f} ms"
             cv2.putText(frame, txt,
                         (frame.shape[1] - 260, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2,
@@ -178,10 +184,11 @@ class PlayerGUI:
         pipe = FeaturePipeline(self.cap, self.predictor.window_size)
         frame_idx = 0
         prev_time = time.time()
+        jump_cnt = 0
+        jump_cnt_binary_mark = 0  # start with 000 然后
 
         # we do _one_ Window.read() per iteration to keep Qt alive
         while True:
-            t0 = time.time()
             timeout = 0 if self.playing else 100  # ms
             event, _ = self.window.read(timeout=timeout)
 
@@ -202,22 +209,34 @@ class PlayerGUI:
             if not self.playing:
                 continue
 
+            arr_ts = list()
+            arr_ts.append(time.time())
             ok = pipe.success_process_frame(frame_idx)
             if not ok:
                 break  # EOF
             frame_idx += 1
 
+            arr_ts.append(time.time())
             # numeric feature vector (length = feature_dim)
             feat_vec = pd.DataFrame([pipe.fs.rec]).iloc[0][2:].values.astype(np.float32)
             prob = self.predictor.predict(feat_vec)
+            y_pred = int((prob > self.predictor.threshold))
 
-            proc_ms = (time.time() - t0) * 1000.0
-            self.proc_times.append(proc_ms)
-            fps_disp = 1000.0 / (sum(self.proc_times) / len(self.proc_times))
-            frame_vis = self._overlay(pipe.fs.raw_frame.copy(),
-                                      prob, fps_disp, proc_ms)
-            # resize to fill the window height, maintain aspect ratio
-            frame_vis = imutils.resize(frame_vis, height=self.zoom_height)
+            arr_ts.append(time.time())
+            jump_cnt_binary_mark = ((jump_cnt_binary_mark << 1) | y_pred) & 0b111  # 保留最后3位
+            mark1 = jump_cnt_binary_mark << 1
+            jump_cnt_binary_mark = (mark1 | y_pred) & 0b111
+            # print(f"[DEBUG] jump mask: {mark1:03b}+{y_pred:03b}={jump_cnt_binary_mark:03b}")
+            if jump_cnt_binary_mark in [3, 7]:   # 3:011 -> 7:111
+                is_on_rising = True
+                if jump_cnt_binary_mark == 3:  # 只有事件 3 检测为起跳事件，进行跳绳计数
+                    jump_cnt += 1  # 判断为一次起跳，由 0 变为 1 表明模型判断起跳，2个以上连续 1 表明模型认为目标一直在上升
+            else: # 0:000, 1:001, 2:010, 4:100, 5:101, 不是稳定的检测结果, 6:110 表明跳绳刚结束
+                is_on_rising = False
+
+            frame_vis = self._overlay(pipe.fs.raw_frame.copy(), jump_cnt, prob, is_on_rising, arr_ts[0])
+            # # resize to fill the window height, maintain aspect ratio
+            # frame_vis = imutils.resize(frame_vis, height=self.zoom_height)
 
             if self.writer is not None:
                 self.writer.write(pipe.fs.raw_frame)
@@ -226,6 +245,9 @@ class PlayerGUI:
             # Qt6: QByteArray.fromRawData now needs both buffer & length → pass a tuple
             self.window["-IMAGE-"].update(data=png_bytes)
 
+            # update stats
+            arr_ts.append(time.time())
+            self.stats.update("[Main Process]: ", arr_ts)
             # ---------- pacing ----------
             elapsed = time.time() - prev_time
             wait = max(1.0 / self.fps - elapsed, 0)

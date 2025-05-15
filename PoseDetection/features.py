@@ -4,6 +4,8 @@ import math
 from collections import deque
 import numpy as np
 import cv2
+
+from utils.Perf import PerfStats
 from utils.vision import PoseEstimator
 from utils.VideoStabilizer import VideoStabilizer
 from utils.Differentiator import get_differentiator
@@ -21,17 +23,29 @@ class FeaturePipeline:
         self.dist_calc = DistanceCalculator()
         self.ang_calc = AngleCalculator()
 
+        self.stats = PerfStats(window_size=10)
+
     def success_process_frame(self, frame_idx):
+        arr_ts = list()
+        arr_ts.append(time.time())
         self.fs.init_current_frame(frame_idx)
         if not self.fs.ret:
             return False
 
+        arr_ts.append(time.time())
         stable = self.stabilizer.stabilize(self.fs.raw_frame)
+
+        arr_ts.append(time.time())
         lm = self.pose_est.get_pose_landmarks(stable)
+
+        arr_ts.append(time.time())
         self.fs.compute_raw(lm)
         self.fs.compute_diff(self.diff)
         self.fs.compute_spatial(lm, self.dist_calc, self.ang_calc)
         self.fs.windowed_features()
+        # update stats
+        arr_ts.append(time.time())
+        self.stats.update("[success_process_frame]: ", arr_ts)
         return True
 
 
