@@ -34,20 +34,18 @@ class TrainMyModel(ABC):
         # 配置: 各模型对应的 window_size
         self.MODEL_WINDOW_SIZES = {
             "cnn": 4,
-            "lstm": 16,
-            "lstm_attention": 16,
             "crnn": 12,
+            "efficientnet1d": 4,
+            "inception": 4,
+            "lstm_attention": 16,
             "resnet1d": 16,
             'resnet1d_tcn': 16,
+            "seresnet1d": 16,
             "tcn": 24,
             "tcn_se": 24,
-            "inception": 4,
-            "transformer": 16,
-            "efficientnet1d": 4,
-            "wavenet": 8,
-            "seresnet1d": 16,
             "tftlite": 16,
             "transformerlite": 16,
+            "wavenet": 8,
         }
         self._need_aug = name in {"cnn", "efficientnet1d"}
 
@@ -169,7 +167,15 @@ class TrainMyModel(ABC):
         self.model.best_threshold = best_t
 
         self.y_pred = (self.y_prob > best_t).astype(int)
-        # self.save_report(precision, recall)
+
+        fpr, tpr, _ = roc_curve(self.y_test, self.y_prob)
+        self.report = {
+            'classification': classification_report(self.y_test, self.y_pred, output_dict=True),
+            'roc_auc': roc_auc_score(self.y_test, self.y_prob),
+            'average_precision': average_precision_score(self.y_test, self.y_prob),
+            "roc_curve": {"fpr": fpr.tolist(), "tpr": tpr.tolist()},
+            "pr_curve": {"precision": precision.tolist(), "recall": recall.tolist()},
+        }
 
     def _augment_window(self, window):
         if not (self.is_training and self._need_aug):
@@ -245,18 +251,6 @@ class TrainMyModel(ABC):
 
     def save_model(self):
         self.model.save(f"{self.dest_root}/best_{self.model_name}_ws{self.window_size}_withT.keras", include_optimizer=False)
-
-    def save_report(self, precision, recall):
-        fpr, tpr, _ = roc_curve(self.y_test, self.y_prob)
-
-        self.report = {
-            'classification': classification_report(self.y_test, self.y_pred, output_dict=True),
-            'roc_auc': roc_auc_score(self.y_test, self.y_prob),
-            'average_precision': average_precision_score(self.y_test, self.y_prob),
-            "roc_curve": {"fpr": fpr.tolist(), "tpr": tpr.tolist()},
-            "pr_curve": {"precision": precision.tolist(), "recall": recall.tolist()},
-        }
-        joblib.dump(self.report, f"{self.dest_root}/{self.model_name}_report.pkl", compress=3)
 
 
 class PRCurveCallback(tf.keras.callbacks.Callback):

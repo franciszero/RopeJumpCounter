@@ -23,7 +23,7 @@ class PositionalEncoding(layers.Layer):
 class TransformerLiteModel(TrainMyModel):
     """Encoder‑only Transformer，用于短时序"""
 
-    def __init__(self, name="transformer"):
+    def __init__(self, name="transformerlite"):
         super().__init__(name)
         self._init_model()
 
