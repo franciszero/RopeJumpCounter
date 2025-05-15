@@ -236,12 +236,20 @@ class PlayerGUI:
 
 def main():
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--model", default="PoseDetection/model_files/tcn_ws24.keras")
-    # parser.add_argument("--model", default="PoseDetection/model_files/seresnet1d_ws16.keras")
-    # parser.add_argument("--model", default="PoseDetection/model_files/resnet1d_ws16.keras")
-    parser.add_argument("--model", default="PoseDetection/model_files/efficientnet1d_ws4.keras")
-    # parser.add_argument("--model", default="PoseDetection/model_files/inception_ws4.keras")
-    # parser.add_argument("--model", default="PoseDetection/model_files/cnn_ws4.keras")
+    parser.add_argument("--model", default="model_files/best_cnn_ws4_withT.keras")  # 38ms 25.6FPS
+    # parser.add_argument("--model", default="model_files/best_crnn_ws12_withT.keras")  # 68ms 14.2FPS
+    # parser.add_argument("--model", default="model_files/best_efficientnet1d_ws4_withT.keras")  # 39ms 25.6FPS
+    # parser.add_argument("--model", default="model_files/best_inception_ws4_withT.keras")  # 50ms 19.7FPS
+    # parser.add_argument("--model", default="model_files/best_lstm_attention_ws16_withT.keras")  # 124ms 8FPS
+    # parser.add_argument("--model", default="model_files/best_resnet1d_ws16_withT.keras")  # 44ms 22.7FPS
+    # parser.add_argument("--model", default="model_files/best_resnet1d_tcn_ws16_withT.keras")  # 58ms 17FPS
+    # parser.add_argument("--model", default="model_files/best_seresnet1d_ws16_withT.keras")  # 49ms 19.5FPS
+    # parser.add_argument("--model", default="model_files/best_tcn_ws24_withT.keras")  # 40ms 24FPS
+    # parser.add_argument("--model", default="model_files/best_tcn_se_ws24_withT.keras")  # 60ms 16FPS
+    # parser.add_argument("--model", default="model_files/best_tftlite_ws16_withT.keras")  # 127ms 8FPS
+    # parser.add_argument("--model", default="model_files/best_transformerlite_ws16_withT.keras")  # 45ms 22.3FPS
+    # parser.add_argument("--model", default="model_files/best_wavenet_ws8_withT.keras")  # 57ms 17.7FPS
+
     parser.add_argument("--width", type=int, default=640, help="Video frame width")
     parser.add_argument("--height", type=int, default=480, help="Video frame height")
     parser.add_argument("--fps", type=int, default=30, help="Capture frames per second")
@@ -250,7 +258,7 @@ def main():
                              "to this path, e.g. recordings/session.mp4")
     args = parser.parse_args()
 
-    predictor = VideoPredictor(args.model)
+    predictor = VideoPredictor("PoseDetection/"+args.model)
     gui = PlayerGUI(predictor, args.width, args.height, args.fps,
                     save_path=args.save_video)
     gui.run()
