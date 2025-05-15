@@ -75,9 +75,7 @@ logger = logging.getLogger(__name__)
 class VideoPredictor:
     """封装模型 + 滑动窗口推理逻辑"""
 
-    def __init__(self,
-                 model_path: str,
-                 threshold: float = 0.5):
+    def __init__(self, model_path: str):
         self.model = tf.keras.models.load_model(model_path, compile=False)
         # (batch, timesteps, feature_dim)
         _, self.window_size, feat_dim = self.model.input_shape
@@ -109,10 +107,11 @@ class PlayerGUI:
     简易播放器：空格暂停/继续；← → 单帧步进；Esc 退出
     """
 
-    def __init__(self, video_path: str, predictor: VideoPredictor):
-        self.cap = cv2.VideoCapture(video_path)
-        if not self.cap.isOpened():
-            raise RuntimeError(f"Cannot open video {video_path}")
+    def __init__(self, predictor: VideoPredictor, width, height, fps):
+        self.cap = cv2.VideoCapture(0)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        self.cap.set(cv2.CAP_PROP_FPS, fps)
 
         self.predictor = predictor
         self.playing = True
@@ -121,7 +120,7 @@ class PlayerGUI:
         sg.theme("DarkBlue3")
         layout = [[sg.Image(filename="", key="-IMAGE-")],
                   [sg.Text("Space:Play/Pause  ←/→:Step  Esc:Quit")]]
-        self.window = sg.Window(f"Visualize – {pathlib.Path(video_path).name}",
+        self.window = sg.Window(f"Visualize – camera",
                                 layout,
                                 return_keyboard_events=True,
                                 finalize=True)
@@ -203,13 +202,14 @@ class PlayerGUI:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default="model_files/cnn_ws4.keras", help="path to *.keras model")
-    parser.add_argument("--video", default="raw_videos_3/jump_2025.05.14.08.33.08__166.avi", help="path to video file")
-    parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument("--model", default="PoseDetection/model_files/cnn_ws4.keras", help="path to *.keras model")
+    parser.add_argument("--width", type=int, default=640, help="Video frame width")
+    parser.add_argument("--height", type=int, default=480, help="Video frame height")
+    parser.add_argument("--fps", type=int, default=30, help="Capture frames per second")
     args = parser.parse_args()
 
-    predictor = VideoPredictor(args.model, args.threshold)
-    gui = PlayerGUI(args.video, predictor)
+    predictor = VideoPredictor(args.model)
+    gui = PlayerGUI(predictor, args.width, args.height, args.fps)
     gui.run()
 
 
