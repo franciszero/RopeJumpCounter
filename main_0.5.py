@@ -116,10 +116,11 @@ class PlayerGUI:
     """
 
     def __init__(self, predictor: VideoPredictor, width, height, fps, save_path: str | None = None):
-        self.cap = cv2.VideoCapture(0)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        self.cap.set(cv2.CAP_PROP_FPS, fps)
+        self.cap = cv2.VideoCapture(0, cv2.CAP_AVFOUNDATION)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 3)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 2)
+        # self.cap.set(cv2.CAP_PROP_FPS, fps)
+        w, h = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH), self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         self.zoom_height = 920  # 原始 cv2 图像，高度变成 zoom_height，放大一点
 
         self.stats = PerfStats(window_size=10)
