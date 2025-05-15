@@ -160,6 +160,7 @@ class ModelReportGenerator:
                 fig_loss.add_trace(go.Scatter(y=model.history.history["loss"], mode='lines', name='train_loss'))
                 if "val_loss" in model.history.history:
                     fig_loss.add_trace(go.Scatter(y=model.history.history["val_loss"], mode='lines', name='val_loss'))
+                fig_loss.update_yaxes(type="log")
                 fig_loss.update_layout(title="Loss Curve",
                                        xaxis_title="Epoch",
                                        yaxis_title="Loss",
