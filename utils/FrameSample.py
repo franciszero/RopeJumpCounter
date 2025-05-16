@@ -28,7 +28,7 @@ class FrameSample:
         # Sliding window buffer to hold sequences of feature vectors for models that require temporal context
         self.buffer = deque(maxlen=self.window_size)
 
-        self.ret, self.raw_frame = None, None
+        self.raw_frame = None
         self.h, self.w = None, None
         self.timestamp = None
 
@@ -43,9 +43,6 @@ class FrameSample:
         self.rec = None
 
     def init_current_frame(self, frame_idx):
-        self.ret, self.raw_frame = self.cap.read()  # Original BGR frame
-        if not self.ret:
-            return
         self.h, self.w = self.raw_frame.shape[:2]
 
         timestamp_ms = self.cap.get(cv2.CAP_PROP_POS_MSEC)
