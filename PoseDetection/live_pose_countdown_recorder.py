@@ -56,18 +56,27 @@ def record_segment(prefix, output_dir, seg_idx, width, height, fps):
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     writer = cv2.VideoWriter(video_path, fourcc, fps, (width, height))
 
+    stats = PerfStats(window_size=10)
     # 显示提示，等待用户按 's' 键启动录制
     print("按 's' 键开始录制，按 'e' 键停止录制")
     while True:
+        arr_ts = list()
+
+        #
+        arr_ts.append(time.time())
         ret, frame = cap.read()
         if not ret:
             break
+
+        arr_ts.append(time.time())
+        stats.update("[Main Process]: ", arr_ts)
         cv2.imshow("Recorder", frame)
         key = cv2.waitKey(1) & 0xFF
         if key == ord('s'):
             break
 
-    stats = PerfStats(window_size=10)
+        time.sleep(0.02)
+
     # 开始录制，直到用户按 'e' 停止
     while True:
         arr_ts = list()
@@ -79,7 +88,6 @@ def record_segment(prefix, output_dir, seg_idx, width, height, fps):
             break
 
         arr_ts.append(time.time())
-        # 5) 更新性能统计
         stats.update("[Main Process]: ", arr_ts)
 
         #
