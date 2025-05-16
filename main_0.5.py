@@ -122,14 +122,16 @@ class PlayerGUI:
         jump_cnt = 0
         jump_cnt_binary_mark = 0  # start with 000 然后
 
-        # we do _one_ Window.read() per iteration to keep Qt alive
         while True:
             arr_ts = list()
+
+            ret, frame = self.cap.read()  # Original BGR frame
+            if not ret:
+                break
+
             arr_ts.append(time.time())
             # 1) 拉帧 + 特征抽取
-            ok = pipe.success_process_frame(frame_idx)
-            if not ok:
-                break  # EOF
+            pipe.process_frame(frame, frame_idx)
             frame_idx += 1
 
             arr_ts.append(time.time())
@@ -160,7 +162,6 @@ class PlayerGUI:
         self.cap.release()
         if self.writer is not None:
             self.writer.release()
-        self.window.close()
 
     def jump_event_detect(self, jump_cnt, jump_cnt_binary_mark, prob):
         y_pred = int((prob > self.predictor.threshold))
