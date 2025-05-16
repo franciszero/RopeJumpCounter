@@ -26,31 +26,14 @@ class FeaturePipeline:
         self.stats = PerfStats(window_size=10)
 
     def process_frame(self, frame, frame_idx):
-        arr_ts = list()
         self.fs.raw_frame = frame
-
-        #
-        arr_ts.append(time.time())
         self.fs.init_current_frame(frame_idx)
-
-        #
-        arr_ts.append(time.time())
         stable = self.stabilizer.stabilize(self.fs.raw_frame)
-
-        #
-        arr_ts.append(time.time())
         lm = self.pose_est.get_pose_landmarks(stable)
-
-        #
-        arr_ts.append(time.time())
         self.fs.compute_raw(lm)
         self.fs.compute_diff(self.diff)
         self.fs.compute_spatial(lm, self.dist_calc, self.ang_calc)
         self.fs.windowed_features()
-
-        # update stats
-        arr_ts.append(time.time())
-        self.stats.update("[success_process_frame]: ", arr_ts)
 
 
 # class FrameSample:

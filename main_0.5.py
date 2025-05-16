@@ -145,7 +145,6 @@ class PlayerGUI:
             frame_vis = self._overlay(pipe.fs.raw_frame.copy(), jump_cnt, prob, is_on_rising, arr_ts[0])
             # frame_vis = imutils.resize(frame_vis, height=self.zoom_height)
 
-            arr_ts.append(time.time())
             # 4) 显示 & 可选录制
             cv2.imshow("JumpRope RealTime", frame_vis)
             if self.writer:
