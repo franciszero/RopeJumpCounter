@@ -225,7 +225,7 @@ class PlayerGUI:
 
             arr_ts = list()
             arr_ts.append(time.time())
-            ok = pipe.success_process_frame(frame_idx)
+            ok = pipe.process_frame(frame_idx)
             if not ok:
                 break  # EOF
             frame_idx += 1
