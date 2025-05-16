@@ -27,22 +27,32 @@ class FeaturePipeline:
 
     def success_process_frame(self, frame_idx):
         arr_ts = list()
+
+        #
+        arr_ts.append(time.time())
+        self.fs.ret, self.fs.raw_frame = self.fs.cap.read()  # Original BGR frame
+
+        #
         arr_ts.append(time.time())
         self.fs.init_current_frame(frame_idx)
         if not self.fs.ret:
             return False
 
+        #
         arr_ts.append(time.time())
         stable = self.stabilizer.stabilize(self.fs.raw_frame)
 
+        #
         arr_ts.append(time.time())
         lm = self.pose_est.get_pose_landmarks(stable)
 
+        #
         arr_ts.append(time.time())
         self.fs.compute_raw(lm)
         self.fs.compute_diff(self.diff)
         self.fs.compute_spatial(lm, self.dist_calc, self.ang_calc)
         self.fs.windowed_features()
+
         # update stats
         arr_ts.append(time.time())
         self.stats.update("[success_process_frame]: ", arr_ts)

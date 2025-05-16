@@ -1,29 +1,5 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-ModelVisualize.py
-
-小工具：载入训练好的 *.keras 模型，对 *未参与训练* 的本地视频做逐帧推理，
-在播放窗口实时叠加 “rising” 标签，并用浅红色蒙版高亮。
-
-依赖：
-    pip install opencv-python PySimpleGUIQt tensorflow
-
-⚠️ 注意：
-    1. 下面示例的 `_extract_feature_vec()` 仅作演示，返回空向量。
-       你应当按自己的 FeaturePipeline / mediapipe 逻辑改写此函数，确保
-         `feat.shape == (feature_dim,)`
-    2. 如果模型是 Conv1D / TCN 等时序网络，需要指定正确的 `window_size`
-       与特征维 `feature_dim`。
-
-Usage
-------
-python ModelVisualize.py \
-    --model model_files/best_cnn_ws4.keras \
-    --video ../raw_videos/new_jump.mp4 \
-    --window_size 4 \
-    --threshold 0.5
-"""
 import argparse
 import collections
 import pathlib
@@ -36,37 +12,10 @@ import base64
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import PySimpleGUIQt as sg
 from PoseDetection.models.ModelParams.TCNBlock import TCNBlock
 import imutils
 
 from utils.Perf import PerfStats
-
-# --- Qt6 compatibility patch: allow fromRawData(buf) ---
-try:
-    from PySide6 import QtCore  # PySimpleGUIQt uses PySide6 on Qt6
-
-    _orig_from_raw = QtCore.QByteArray.fromRawData
-
-
-    @staticmethod
-    def _from_raw_compat(buf, length=None):
-        """
-        Qt6’s QByteArray.fromRawData keeps a *view* of the Python buffer.
-        When the Python `bytes` object is GC‑ed the image data becomes invalid,
-        leading to “wrong (missing signature)” PNG errors a few frames later.
-        We therefore **copy** the bytes so that QByteArray owns its own memory.
-        """
-        if length is None:
-            length = len(buf)
-        # Make an owned copy → safe after Python buffer is freed
-        return QtCore.QByteArray(bytes(buf[:length]))
-
-
-    QtCore.QByteArray.fromRawData = _from_raw_compat  # monkey‑patch
-except Exception:
-    # If PySide6 unavailable / already Qt5, ignore
-    pass
 
 from tqdm import tqdm
 
@@ -126,27 +75,19 @@ class PlayerGUI:
         self.stats = PerfStats(window_size=10)
 
         self.predictor = predictor
-        self.playing = True
         self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
-
-        # ---- raw recording ----
-        self.writer = None
-        if save_path:
-            fourcc = cv2.VideoWriter_fourcc(*"mp4v")
-            self.writer = cv2.VideoWriter(
-                save_path, fourcc, self.fps, (width, height)
-            )
 
         # ---- simple FPS meter ----
         self.proc_times = deque(maxlen=30)  # ms of recent frames
 
-        sg.theme("DarkBlue3")
-        layout = [[sg.Image(filename="", key="-IMAGE-")],
-                  [sg.Text("Space:Play/Pause  ←/→:Step  Esc:Quit")]]
-        self.window = sg.Window(f"Visualize – camera",
-                                layout,
-                                return_keyboard_events=True,
-                                finalize=True)
+        if save_path:
+            self.writer = cv2.VideoWriter(save_path,
+                                          cv2.VideoWriter_fourcc(*"mp4v"),
+                                          fps,
+                                          (int(self.cap.get(3)), int(self.cap.get(4)))
+                                          )
+        else:
+            self.writer = None
 
     def _overlay(self, frame: np.ndarray, jump_cnt: int, prob: float, is_on_rising: bool, t0) -> np.ndarray:
         """在 frame 上绘制概率/标签"""
@@ -156,8 +97,7 @@ class PlayerGUI:
                         cv2.LINE_AA)
         if prob is not None and is_on_rising:
             overlay = frame.copy()
-            cv2.rectangle(overlay, (0, 0), (frame.shape[1], frame.shape[0]),
-                          (0, 0, 255), thickness=-1)
+            cv2.rectangle(overlay, (0, 0), (frame.shape[1], frame.shape[0]), (0, 0, 255), thickness=-1)
             alpha = 0.15
             frame = cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0)
             cv2.putText(frame, "RISING", (20, 40),
@@ -176,12 +116,6 @@ class PlayerGUI:
         return frame
 
     def run(self):
-        """
-        Main event‑loop.
-        * Space – play / pause
-        * ← / → – single‑step back / forward (while paused)
-        * Esc / window‑close – quit
-        """
         pipe = FeaturePipeline(self.cap, self.predictor.window_size)
         frame_idx = 0
         prev_time = time.time()
@@ -190,75 +124,57 @@ class PlayerGUI:
 
         # we do _one_ Window.read() per iteration to keep Qt alive
         while True:
-            timeout = 0 if self.playing else 100  # ms
-            event, _ = self.window.read(timeout=timeout)
-
-            # ---------- handle UI events ----------
-            if event in (sg.WIN_CLOSED, "Escape:27"):
-                break
-            if event in ("space:32",):
-                self.playing = not self.playing
-            if (event in ("Left:37", "Right:39")) and not self.playing:
-                step = -1 if "Left" in event else 1
-                new_pos = max(0, int(self.cap.get(cv2.CAP_PROP_POS_FRAMES)) + step)
-                self.cap.set(cv2.CAP_PROP_POS_FRAMES, new_pos)
-                frame_idx = new_pos
-                self.predictor.buffer.clear()  # window reset
-                continue  # wait for next loop
-
-            # ---------- decode & infer next frame ----------
-            if not self.playing:
-                continue
-
             arr_ts = list()
             arr_ts.append(time.time())
+            # 1) 拉帧 + 特征抽取
             ok = pipe.success_process_frame(frame_idx)
             if not ok:
                 break  # EOF
             frame_idx += 1
 
             arr_ts.append(time.time())
-            # numeric feature vector (length = feature_dim)
+            # 2) 模型推理
             feat_vec = pd.DataFrame([pipe.fs.rec]).iloc[0][2:].values.astype(np.float32)
             prob = self.predictor.predict(feat_vec)
-            y_pred = int((prob > self.predictor.threshold))
 
             arr_ts.append(time.time())
-            jump_cnt_binary_mark = ((jump_cnt_binary_mark << 1) | y_pred) & 0b111  # 保留最后3位
-            mark1 = jump_cnt_binary_mark << 1
-            jump_cnt_binary_mark = (mark1 | y_pred) & 0b111
-            # print(f"[DEBUG] jump mask: {mark1:03b}+{y_pred:03b}={jump_cnt_binary_mark:03b}")
-            if jump_cnt_binary_mark in [3, 7]:   # 3:011 -> 7:111
-                is_on_rising = True
-                if jump_cnt_binary_mark == 3:  # 只有事件 3 检测为起跳事件，进行跳绳计数
-                    jump_cnt += 1  # 判断为一次起跳，由 0 变为 1 表明模型判断起跳，2个以上连续 1 表明模型认为目标一直在上升
-            else: # 0:000, 1:001, 2:010, 4:100, 5:101, 不是稳定的检测结果, 6:110 表明跳绳刚结束
-                is_on_rising = False
-
+            # 3) 叠加性能统计 & 跳绳计数/高亮等
+            is_on_rising, jump_cnt = self.jump_event_detect(jump_cnt, jump_cnt_binary_mark, prob)
             frame_vis = self._overlay(pipe.fs.raw_frame.copy(), jump_cnt, prob, is_on_rising, arr_ts[0])
-            # # resize to fill the window height, maintain aspect ratio
             # frame_vis = imutils.resize(frame_vis, height=self.zoom_height)
 
-            if self.writer is not None:
+            arr_ts.append(time.time())
+            # 4) 显示 & 可选录制
+            cv2.imshow("JumpRope RealTime", frame_vis)
+            if self.writer:
                 self.writer.write(pipe.fs.raw_frame)
 
-            png_bytes = cv2.imencode(".png", frame_vis)[1].tobytes()
-            # Qt6: QByteArray.fromRawData now needs both buffer & length → pass a tuple
-            self.window["-IMAGE-"].update(data=png_bytes)
-
-            # update stats
             arr_ts.append(time.time())
+            # 5) 更新性能统计
             self.stats.update("[Main Process]: ", arr_ts)
-            # ---------- pacing ----------
-            elapsed = time.time() - prev_time
-            wait = max(1.0 / self.fps - elapsed, 0)
-            time.sleep(wait)
-            prev_time = time.time()
+
+            # 6) 唯一键：按 'q' 退出
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
 
         self.cap.release()
         if self.writer is not None:
             self.writer.release()
         self.window.close()
+
+    def jump_event_detect(self, jump_cnt, jump_cnt_binary_mark, prob):
+        y_pred = int((prob > self.predictor.threshold))
+        jump_cnt_binary_mark = ((jump_cnt_binary_mark << 1) | y_pred) & 0b111  # 保留最后3位
+        mark1 = jump_cnt_binary_mark << 1
+        jump_cnt_binary_mark = (mark1 | y_pred) & 0b111
+        # print(f"[DEBUG] jump mask: {mark1:03b}+{y_pred:03b}={jump_cnt_binary_mark:03b}")
+        if jump_cnt_binary_mark in [3, 7]:  # 3:011 -> 7:111
+            is_on_rising = True
+            if jump_cnt_binary_mark == 3:  # 只有事件 3 检测为起跳事件，进行跳绳计数
+                jump_cnt += 1  # 判断为一次起跳，由 0 变为 1 表明模型判断起跳，2个以上连续 1 表明模型认为目标一直在上升
+        else:  # 0:000, 1:001, 2:010, 4:100, 5:101, 不是稳定的检测结果, 6:110 表明跳绳刚结束
+            is_on_rising = False
+        return is_on_rising, jump_cnt
 
 
 def main():
@@ -279,15 +195,12 @@ def main():
 
     parser.add_argument("--width", type=int, default=640, help="Video frame width")
     parser.add_argument("--height", type=int, default=480, help="Video frame height")
-    parser.add_argument("--fps", type=int, default=30, help="Capture frames per second")
-    parser.add_argument("--save_video", default=None,
-                        help="If provided, saves the *raw* camera stream (no overlays) "
-                             "to this path, e.g. recordings/session.mp4")
+    parser.add_argument("--fps", type=int, default=30)
+    parser.add_argument("--save_video", default="PoseDetection/raw_video_3/", help="Video save path")
     args = parser.parse_args()
 
     predictor = VideoPredictor("PoseDetection/model_files/" + args.model)
-    gui = PlayerGUI(predictor, args.width, args.height, args.fps,
-                    save_path=args.save_video)
+    gui = PlayerGUI(predictor, args.width, args.height, args.fps, save_path=args.save_video)
     gui.run()
 
 

@@ -22,6 +22,8 @@ import time  # Time-related functions for countdown and duration handling
 import argparse  # Command-line argument parsing
 from datetime import datetime
 
+from utils.Perf import PerfStats
+
 
 def record_segment(prefix, output_dir, seg_idx, width, height, fps):
     """
@@ -65,11 +67,22 @@ def record_segment(prefix, output_dir, seg_idx, width, height, fps):
         if key == ord('s'):
             break
 
+    stats = PerfStats(window_size=10)
     # 开始录制，直到用户按 'e' 停止
     while True:
+        arr_ts = list()
+
+        #
+        arr_ts.append(time.time())
         ret, frame = cap.read()
         if not ret:
             break
+
+        arr_ts.append(time.time())
+        # 5) 更新性能统计
+        stats.update("[Main Process]: ", arr_ts)
+
+        #
         writer.write(frame)
         cv2.imshow("Recorder", frame)
         key = cv2.waitKey(1) & 0xFF
