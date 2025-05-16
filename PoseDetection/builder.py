@@ -184,7 +184,7 @@ def extract_features(video_path, window_size, logger):
     pbar = tqdm(total=total_frames, desc=f"Extracting [{video_path}]", unit="frame")
     while frame_idx < total_frames:
         try:
-            ok = pipe.success_process_frame(frame_idx)
+            ok = pipe.process_frame(frame_idx)
             if ok:
                 records.append(pipe.fs.rec)
         except Exception as e:

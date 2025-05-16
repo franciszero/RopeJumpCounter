@@ -246,7 +246,7 @@ class MainApp:
     def run(self, HIGH_FREQ_MODE=True):
         frame_idx = 0
         while True:
-            if not self.pipe.success_process_frame(frame_idx):
+            if not self.pipe.process_frame(frame_idx):
                 break
 
             # 1) 全量可见性 mask

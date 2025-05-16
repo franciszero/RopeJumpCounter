@@ -25,18 +25,13 @@ class FeaturePipeline:
 
         self.stats = PerfStats(window_size=10)
 
-    def success_process_frame(self, frame_idx):
+    def process_frame(self, frame, frame_idx):
         arr_ts = list()
-
-        #
-        arr_ts.append(time.time())
-        self.fs.ret, self.fs.raw_frame = self.fs.cap.read()  # Original BGR frame
+        self.fs.raw_frame = frame
 
         #
         arr_ts.append(time.time())
         self.fs.init_current_frame(frame_idx)
-        if not self.fs.ret:
-            return False
 
         #
         arr_ts.append(time.time())
@@ -56,7 +51,6 @@ class FeaturePipeline:
         # update stats
         arr_ts.append(time.time())
         self.stats.update("[success_process_frame]: ", arr_ts)
-        return True
 
 
 # class FrameSample:
