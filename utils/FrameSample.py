@@ -70,23 +70,34 @@ class FrameSample:
         if not lm:
             # No landmarks detected: fill with zeros
             self.raw_norm = [0.0] * 33 * 4  # 33 landmarks * 4 values each (x,y,z,visibility)
-            self.raw_px = [0.0] * 33 * 2  # 33 landmarks * 2 values each (x_px, y_px)
         else:
             # Extract normalized coordinates and visibility
             self.raw_norm = []
             for m in lm.landmark:
                 self.raw_norm.extend([m.x, m.y, m.z, m.visibility])
-            # Determine frame size for pixel conversion
-            self.raw_px = []
-            for m in lm.landmark:
-                # Convert normalized coords to pixel coords
-                self.raw_px.extend([m.x * self.w, m.y * self.h])
         # raw x,y,z,vis
         for i in range(33):
             self.rec[f'x_{i}'] = self.raw_norm[4 * i]
             self.rec[f'y_{i}'] = self.raw_norm[4 * i + 1]
             self.rec[f'z_{i}'] = self.raw_norm[4 * i + 2]
             self.rec[f'vis_{i}'] = self.raw_norm[4 * i + 3]
+
+    def compute_raw_px(self, lm):
+        """
+        Compute normalized and pixel coordinates of landmarks.
+
+        This method populates self.raw_norm and self.raw_px based on the current landmarks.
+        If landmarks are missing, fills features with zeros.
+        """
+        if not lm:
+            # No landmarks detected: fill with zeros
+            self.raw_px = [0.0] * 33 * 2  # 33 landmarks * 2 values each (x_px, y_px)
+        else:
+            # Determine frame size for pixel conversion
+            self.raw_px = []
+            for m in lm.landmark:
+                # Convert normalized coords to pixel coords
+                self.raw_px.extend([m.x * self.w, m.y * self.h])
         # 像素坐标特征
         for i in range(33):
             self.rec[f'x_px_{i}'] = self.raw_px[2 * i]

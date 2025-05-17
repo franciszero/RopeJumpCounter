@@ -164,7 +164,7 @@ def analyze_jump_stretch_distributions(df_labeled, output_dir, base):
     logger.info(f"  跳跃帧段长分布图已保存: {plot_path}")
 
 
-def extract_features(video_path, window_size, logger):
+def extract_features(video_path, window_size, mode, logger):
     """提取指定视频的帧级特征，返回 DataFrame 包含 frame, timestamp, 原始关键点、速度、加速度、距离、角度等列"""
 
     cap = cv2.VideoCapture(video_path)
@@ -184,9 +184,11 @@ def extract_features(video_path, window_size, logger):
     pbar = tqdm(total=total_frames, desc=f"Extracting [{video_path}]", unit="frame")
     while frame_idx < total_frames:
         try:
-            ok = pipe.process_frame(frame_idx)
-            if ok:
-                records.append(pipe.fs.rec)
+            ret, frame = cap.read()  # Original BGR frame (ignore latency)
+            if not ret:
+                break
+            pipe.process_frame(frame, frame_idx, mode=mode)  # raw xyz, diff()
+            records.append(pipe.fs.rec)
         except Exception as e:
             logger.warning(f"Frame {frame_idx} processing error: {e}, skipping")
         frame_idx += 1
@@ -211,33 +213,14 @@ def merge_labels(df_feat, labels_path):
     return df_feat
 
 
-# def build_windows(df_labeled, window_size, stride):
-#     """基于滑动窗口生成窗口级样本，返回 DataFrame 每行包含 window_start, window_end, flatten_features..., label"""
-#     feature_cols = [c for c in df_labeled.columns if c not in ('frame', 'timestamp', 'label')]
-#     windows = []
-#     num_frames = len(df_labeled)
-#     for start in range(0, num_frames - window_size + 1, stride):
-#         end = start + window_size
-#         window = df_labeled.iloc[start:end]
-#         feats = window[feature_cols].values.flatten()
-#         lbl = int(window['label'].any())
-#         windows.append({
-#             'window_start': window['frame'].iloc[0],
-#             'window_end': window['frame'].iloc[-1],
-#             **{f'feat_{i}': feats[i] for i in range(len(feats))},
-#             'label': lbl
-#         })
-#     return pd.DataFrame(windows)
-# Removed entire build_windows function as per instructions
-
-
 def main():
     parser = argparse.ArgumentParser(description='生成帧级和窗口级带标签训练数据')
     parser.add_argument('--videos_dir', default='raw_videos_3', help='输入视频目录，支持 *.avi, *.mp4')
     parser.add_argument('--labels_dir', default='raw_videos_3', help='标签目录，包含 *_labels.csv')
-    parser.add_argument('--output_dir', default='dataset_3', help='输出目录，保存数据集')
+    parser.add_argument('--output_dir', default='dataset_10100', help='输出目录，保存数据集')
     parser.add_argument('--window_size', default=8, type=int, help='窗口大小，=1 时仅帧级')
     parser.add_argument('--stride', default=1, type=int, help='滑动步长')
+    parser.add_argument('--mode', default=0b10100, type=int, help='pipeline 种允许生成哪些维度')
 
     # New stabilizer params
     parser.add_argument('--stabilizer_max_corners', default=VideoStabilizer.max_corners, type=int,
@@ -353,7 +336,7 @@ def main():
                 continue
 
             # 步骤1：特征提取
-            df_feat = extract_features(video_path, args.window_size, logger)
+            df_feat = extract_features(video_path, args.window_size, args.mode, logger)
 
             # 步骤2：合并标签，生成帧级带label
             df_labeled = merge_labels(df_feat, labels_path)
