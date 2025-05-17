@@ -8,22 +8,41 @@ import time
 import collections
 from collections import deque
 import cv2
+import av
+from capture.pyav_capture import PyAVCapture
 import base64
 import numpy as np
 import pandas as pd
-import tensorflow as tf
-from PoseDetection.models.ModelParams.TCNBlock import TCNBlock
-import imutils
-
-from utils.Perf import PerfStats
-
-from tqdm import tqdm
-
 from PoseDetection.features import FeaturePipeline
+from utils.Perf import PerfStats
+from tqdm import tqdm
+import imutils
+from PoseDetection.models.ModelParams.ThresholdHolder import ThresholdHolder
+from PoseDetection.models.ModelParams.TCNBlock import TCNBlock
+
+# 强制使用 MPS/GPU
+import tensorflow as tf
+
+policy = tf.keras.mixed_precision.Policy('mixed_float16')
+tf.keras.mixed_precision.set_global_policy(policy)
+gpus = tf.config.list_physical_devices('GPU')
+tf.config.set_visible_devices(gpus, 'GPU')
+for gpu in gpus:
+    tf.config.experimental.set_memory_growth(gpu, True)
+# interpreter = tf.lite.Interpreter(
+#     model_path="model.tflite",
+#     experimental_delegates=[tf.lite.experimental.load_delegate('libtensorflowlite_gpu_delegate.dylib')]
+# )
+# interpreter.allocate_tensors()
+# print("=== physical devices ===")
+# for d in tf.config.list_physical_devices():
+#     print(d)
+# print("=== GPUs ===", tf.config.list_physical_devices('GPU'))
+# tf.debugging.set_log_device_placement(True)
+# # print("Built with MPS support:", tf.test.is_built_with_mps())
+# print("MPS GPU available:", len(tf.config.list_physical_devices('GPU')) > 0)
 
 import logging
-
-from PoseDetection.models.ModelParams.ThresholdHolder import ThresholdHolder
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -55,6 +74,7 @@ class VideoPredictor:
             return 0.0  # still warming‑up
 
         window = np.stack(self.buffer, axis=0)  # (win, feat_dim)
+        self.model.run_eagerly = True
         prob = float(self.model(np.expand_dims(window, axis=0), training=False)[0])
         return prob
 
@@ -65,17 +85,13 @@ class PlayerGUI:
     """
 
     def __init__(self, predictor: VideoPredictor, width, height, fps, save_path: str | None = None):
-        self.cap = cv2.VideoCapture(0, cv2.CAP_AVFOUNDATION)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-        # self.cap.set(cv2.CAP_PROP_FPS, fps)
-        w, h = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH), self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        self.cap = PyAVCapture(device_index=0, width=width, height=height, fps=fps)
         self.zoom_height = 920  # 原始 cv2 图像，高度变成 zoom_height，放大一点
 
         self.stats = PerfStats(window_size=10)
 
         self.predictor = predictor
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
+        self.fps = fps
 
         # ---- simple FPS meter ----
         self.proc_times = deque(maxlen=30)  # ms of recent frames
@@ -84,7 +100,7 @@ class PlayerGUI:
             self.writer = cv2.VideoWriter(save_path,
                                           cv2.VideoWriter_fourcc(*"mp4v"),
                                           fps,
-                                          (int(self.cap.get(3)), int(self.cap.get(4)))
+                                          (int(width), int(height))
                                           )
         else:
             self.writer = None
@@ -118,14 +134,14 @@ class PlayerGUI:
     def run(self):
         pipe = FeaturePipeline(self.cap, self.predictor.window_size)
         frame_idx = 0
-        prev_time = time.time()
         jump_cnt = 0
         jump_cnt_binary_mark = 0  # start with 000 然后
 
         while True:
             arr_ts = list()
 
-            ret, frame = self.cap.read()  # Original BGR frame
+            arr_ts.append(time.time())
+            ret, frame, _ = self.cap.read()  # Original BGR frame (ignore latency)
             if not ret:
                 break
 
@@ -152,7 +168,7 @@ class PlayerGUI:
 
             arr_ts.append(time.time())
             # 5) 更新性能统计
-            self.stats.update("[Main Process]: ", arr_ts)
+            self.stats.update("[Main Process]: ", arr_ts, 0)
 
             # 6) 唯一键：按 'q' 退出
             if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -164,16 +180,15 @@ class PlayerGUI:
 
     def jump_event_detect(self, jump_cnt, jump_cnt_binary_mark, prob):
         y_pred = int((prob > self.predictor.threshold))
-        jump_cnt_binary_mark = ((jump_cnt_binary_mark << 1) | y_pred) & 0b111  # 保留最后3位
-        mark1 = jump_cnt_binary_mark << 1
+        mark1 = (jump_cnt_binary_mark << 1) & 0b111  # 保留最后3位
         jump_cnt_binary_mark = (mark1 | y_pred) & 0b111
-        # print(f"[DEBUG] jump mask: {mark1:03b}+{y_pred:03b}={jump_cnt_binary_mark:03b}")
         if jump_cnt_binary_mark in [3, 7]:  # 3:011 -> 7:111
             is_on_rising = True
             if jump_cnt_binary_mark == 3:  # 只有事件 3 检测为起跳事件，进行跳绳计数
                 jump_cnt += 1  # 判断为一次起跳，由 0 变为 1 表明模型判断起跳，2个以上连续 1 表明模型认为目标一直在上升
         else:  # 0:000, 1:001, 2:010, 4:100, 5:101, 不是稳定的检测结果, 6:110 表明跳绳刚结束
             is_on_rising = False
+        print(f"[DEBUG][{jump_cnt:04d}][{prob*100:.2f}%][{self.predictor.threshold*100:.2f}%] jump mask: {mark1:03b}+{y_pred:03b}={jump_cnt_binary_mark:03b}")
         return is_on_rising, jump_cnt
 
 
