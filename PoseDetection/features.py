@@ -5,6 +5,7 @@ from collections import deque
 import numpy as np
 import cv2
 
+from PoseDetection.feature_mode import Feature, get_feature_mode
 from utils.Perf import PerfStats
 from utils.vision import PoseEstimator
 from utils.VideoStabilizer import VideoStabilizer
@@ -25,20 +26,22 @@ class FeaturePipeline:
 
         self.stats = PerfStats(window_size=10)
 
-    def process_frame(self, frame, frame_idx, mode=0b00000):
+    def process_frame(self, frame, frame_idx):
         self.fs.raw_frame = frame
         self.fs.init_current_frame(frame_idx)
         stable = self.stabilizer.stabilize(self.fs.raw_frame)
         lm = self.pose_est.get_pose_landmarks(stable)
-        if mode & 0b10000:
+
+        mode = get_feature_mode()
+        if Feature.RAW in mode:
             self.fs.compute_raw(lm)
-        if mode & 0b1000:
+        if Feature.RAW_PX in mode:
             self.fs.compute_raw_px(lm)
-        if mode & 0b100:
+        if Feature.DIFF in mode:
             self.fs.compute_diff(self.diff)
-        if mode & 0b10:
+        if Feature.SPATIAL in mode:
             self.fs.compute_spatial(lm, self.dist_calc, self.ang_calc)
-        if mode & 0b1:
+        if Feature.WINDOW in mode:
             self.fs.windowed_features()
 
 

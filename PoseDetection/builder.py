@@ -54,6 +54,7 @@ import yaml  # pip install pyyaml  (optional for --split_yaml)
 import random
 from pathlib import Path
 
+from PoseDetection.feature_mode import mode_to_str, get_feature_mode
 from features import FeaturePipeline
 from utils.VideoStabilizer import VideoStabilizer
 
@@ -164,7 +165,7 @@ def analyze_jump_stretch_distributions(df_labeled, output_dir, base):
     logger.info(f"  跳跃帧段长分布图已保存: {plot_path}")
 
 
-def extract_features(video_path, window_size, mode, logger):
+def extract_features(video_path, window_size, logger):
     """提取指定视频的帧级特征，返回 DataFrame 包含 frame, timestamp, 原始关键点、速度、加速度、距离、角度等列"""
 
     cap = cv2.VideoCapture(video_path)
@@ -187,7 +188,7 @@ def extract_features(video_path, window_size, mode, logger):
             ret, frame = cap.read()  # Original BGR frame (ignore latency)
             if not ret:
                 break
-            pipe.process_frame(frame, frame_idx, mode=mode)  # raw xyz, diff()
+            pipe.process_frame(frame, frame_idx)  # raw xyz, diff()
             records.append(pipe.fs.rec)
         except Exception as e:
             logger.warning(f"Frame {frame_idx} processing error: {e}, skipping")
@@ -213,15 +214,24 @@ def merge_labels(df_feat, labels_path):
     return df_feat
 
 
+from enum import Flag, auto
+
+
+class Feature(Flag):
+    RAW = auto()
+    RAW_PX = auto()
+    DIFF = auto()
+    SPATIAL = auto()
+    WINDOW = auto()
+
+
 def main():
     parser = argparse.ArgumentParser(description='生成帧级和窗口级带标签训练数据')
     parser.add_argument('--videos_dir', default='raw_videos_3', help='输入视频目录，支持 *.avi, *.mp4')
     parser.add_argument('--labels_dir', default='raw_videos_3', help='标签目录，包含 *_labels.csv')
-    parser.add_argument('--output_dir', default='dataset_10100', help='输出目录，保存数据集')
+    parser.add_argument('--output_dir', default='dataset', help='输出目录，保存数据集')
     parser.add_argument('--window_size', default=8, type=int, help='窗口大小，=1 时仅帧级')
     parser.add_argument('--stride', default=1, type=int, help='滑动步长')
-    parser.add_argument('--mode', default=0b10100, type=int, help='pipeline 种允许生成哪些维度')
-
     # New stabilizer params
     parser.add_argument('--stabilizer_max_corners', default=VideoStabilizer.max_corners, type=int,
                         help='VideoStabilizer max corners')
@@ -239,7 +249,10 @@ def main():
 
     args = parser.parse_args()
 
-    os.makedirs(args.output_dir, exist_ok=True)
+    mode = get_feature_mode()
+    suffix = mode_to_str(mode)
+    output_dir = f"{args.output_dir}_{suffix}"
+    os.makedirs(output_dir, exist_ok=True)
 
     # -------- 统计每个候选视频的正例数量并做贪心平衡划分 ---------
     video_stats = []
@@ -276,8 +289,8 @@ def main():
                                  args.test_ratio], dtype=float)
         target_ratio /= target_ratio.sum()  # 归一化
         tot_pos = sum(v['pos'] for v in video_stats)
-        deficits = target_ratio * tot_pos      # 初始还需多少正例
-        splits = [set(), set(), set()]         # train, val, test
+        deficits = target_ratio * tot_pos  # 初始还需多少正例
+        splits = [set(), set(), set()]  # train, val, test
 
         for v in video_stats:
             idx = int(np.argmax(deficits))
@@ -313,8 +326,8 @@ def main():
 
         preview = {
             "train": _detail(train_vids),
-            "val":   _detail(val_vids),
-            "test":  _detail(test_vids)
+            "val": _detail(val_vids),
+            "test": _detail(test_vids)
         }
         import pprint
         pprint.pprint(preview, sort_dicts=False)
@@ -336,7 +349,7 @@ def main():
                 continue
 
             # 步骤1：特征提取
-            df_feat = extract_features(video_path, args.window_size, args.mode, logger)
+            df_feat = extract_features(video_path, args.window_size, logger)
 
             # 步骤2：合并标签，生成帧级带label
             df_labeled = merge_labels(df_feat, labels_path)
@@ -349,11 +362,11 @@ def main():
                 logger.warning(f"Extreme class imbalance detected: positive ratio={pos_ratio:.4f}")
 
             # 跳跃帧间隔与跳跃段长分布分析
-            analyze_jump_stretch_distributions(df_labeled, args.output_dir, base)
+            analyze_jump_stretch_distributions(df_labeled, output_dir, base)
             # Save frame-level numpy data and report shapes
             X_frame = df_labeled.drop(columns=['frame', 'timestamp', 'label']).values
             y_frame = df_labeled['label'].values
-            npz_frame = os.path.join(args.output_dir, f"{base}_labeled.npz")
+            npz_frame = os.path.join(output_dir, f"{base}_labeled.npz")
             np.savez_compressed(npz_frame, X=X_frame, y=y_frame)
             logger.info(f'  Saved frame-level npz: {npz_frame}')
             print(f"Frame-level data shape: X={X_frame.shape}, y={y_frame.shape}")
@@ -384,7 +397,7 @@ def main():
                     X_win = np.empty((0, win_size, len(feature_cols)))
                     y_win = np.empty((0,))
                 # ---------- 保存 .npz ----------
-                size_dir = os.path.join(args.output_dir, f"size{win_size}", split)
+                size_dir = os.path.join(output_dir, f"size{win_size}", split)
                 os.makedirs(size_dir, exist_ok=True)
                 npz_win = os.path.join(size_dir, f"{base}.npz")
                 np.savez_compressed(npz_win, X=X_win, y=y_win,
@@ -409,24 +422,9 @@ def main():
                 logger.info(
                     f"[{base}] size={win_size} ({split}) 标签分布：负类={cnt[0]}，正类={cnt[1]}，正例比例={(cnt[1] / (cnt[0] + cnt[1]) * 100):.2f}%")
                 analyze_window_label_distribution(df_labeled, win_size,
-                                                  os.path.join(args.output_dir, f"size{win_size}"),
+                                                  os.path.join(output_dir, f"size{win_size}"),
                                                   f"{base}_size{win_size}")
 
 
 if __name__ == '__main__':
     main()
-
-# In features.py (not shown here), update PoseFrame class as instructed:
-
-# class PoseFrame:
-#     def __init__(self, frame_idx: int, timestamp: float, landmarks, frame_size=None):
-#         self.frame_idx = frame_idx
-#         self.timestamp = timestamp
-#         self.raw = []
-#         for lm in landmarks:
-#             self.raw.extend([lm.x, lm.y, lm.z, lm.visibility])
-#         if frame_size is not None:
-#             h, w = frame_size
-#             self.raw_px = []
-#             for lm in landmarks:
-#                 self.raw_px.extend([lm.x * w, lm.y * h])

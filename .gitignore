@@ -13,3 +13,4 @@ logs.log
 /PoseDetection/model_files/
 capture/__pycache__
 PoseDetection/dataset_11111
+PoseDetection/dataset_10100
