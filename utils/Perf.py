@@ -12,13 +12,13 @@ class PerfStats:
         self.proc_fps: float = 0.0
         self.cnt = 0
 
-    def update(self, msg, arr_ts):
+    def update(self, msg, arr_ts, limit=10):
         time_elapses = np.diff(np.array(arr_ts)) * 1000
         total_time = sum(time_elapses)
 
         self.times.append(total_time)
         if self.times:
-            if self.cnt >= 10:
+            if self.cnt >= limit:
                 s = "+".join(f"{x:.1f}" for x in time_elapses)
                 print(f"{msg} : {s} = {total_time:.1f}")
                 self.last_latency_ms = total_time
