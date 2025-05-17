@@ -45,11 +45,15 @@ class FrameSample:
     def init_current_frame(self, frame_idx):
         self.h, self.w = self.raw_frame.shape[:2]
 
-        timestamp_ms = self.cap.get(cv2.CAP_PROP_POS_MSEC)
-        if timestamp_ms == 0.0:
+        try:
+            timestamp_ms = self.cap.get(cv2.CAP_PROP_POS_MSEC)
+            if timestamp_ms and timestamp_ms > 0.0:
+                self.timestamp = timestamp_ms / 1000.0
+            else:
+                self.timestamp = time.time()
+        except AttributeError:
+            # cap has no get(), e.g. PyAVCapture
             self.timestamp = time.time()
-        else:
-            self.timestamp = timestamp_ms / 1000.0
 
         self.rec = {
             'frame': frame_idx,
