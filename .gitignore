@@ -11,3 +11,4 @@ PoseDetection/raw_videos_3
 /PoseDetection/mlruns/
 logs.log
 /PoseDetection/model_files/
+capture/__pycache__
