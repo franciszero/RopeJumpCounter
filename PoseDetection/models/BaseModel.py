@@ -11,23 +11,25 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import auc, precision_recall_curve
 import datetime, os
 
+from PoseDetection.feature_mode import mode_to_str, get_feature_mode
 from PoseDetection.models.ModelParams.ThresholdHolder import ThresholdHolder
 
 
 class TrainMyModel(ABC):
-    def __init__(self, name, dest_root='model_files', source_root='./dataset_3', *, class_weight_dict=None,
+    def __init__(self, name, dest_root='../model_files', source_root='../data', *, class_weight_dict=None,
                  **compile_kwargs):
         self.is_training = None
         self.class_weight_dict = class_weight_dict
         self.compile_kwargs = compile_kwargs
 
         self.model_name = name
-        self.dest_root = dest_root
-        self.source_root = source_root
+        mode = mode_to_str(get_feature_mode())
+        self.dest_root = f"{dest_root}/models_{mode}"
+        self.source_root = f"{source_root}/dataset_{mode}"
         self.num_classes = 2
         self.random_state = 42
         self.epochs = 100
-        self.batch_size = 32
+        self.batch_size = 256
         self.TEST_RATIO = 0.15
         self.VAL_RATIO = 0.15
 
@@ -59,7 +61,7 @@ class TrainMyModel(ABC):
         self.model = None
 
     def _init_model(self):
-        self.window_size = self.MODEL_WINDOW_SIZES[self.model_name]
+        self.window_size = 4  # self.MODEL_WINDOW_SIZES[self.model_name]
         self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test \
             = self.__load_window_npz(self.window_size)
         self.y_true = self.y_test

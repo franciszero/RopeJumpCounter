@@ -19,6 +19,27 @@ import matplotlib.pyplot as plt
 from PoseDetection.models.WaveNet import WaveNetModel
 
 
+import tensorflow as tf
+# 打印一下可见设备
+print("Physical devices:", tf.config.list_physical_devices())
+# # 打开 placement 日志
+# tf.debugging.set_log_device_placement(True)
+
+# Enable Metal GPU (MPS) if available and allow memory growth
+try:
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        tf.config.set_visible_devices(gpus, 'GPU')
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+except Exception as e:
+    print(f"Could not configure GPU devices: {e}")
+
+# Mixed precision on GPU
+from tensorflow.keras.mixed_precision import set_global_policy
+set_global_policy('mixed_float16')
+
+
 class Trainer:
     def __init__(self):
         # Set up models with their respective window sizes
@@ -39,10 +60,10 @@ class Trainer:
         ]
 
     def train(self):
-        for m in self.models:
-            m.train()
-            m.evaluate()
-            m.save_model()
+        for mo in self.models:
+            mo.train()
+            mo.evaluate()
+            mo.save_model()
         return
 
 

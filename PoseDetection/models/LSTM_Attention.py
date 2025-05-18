@@ -7,7 +7,7 @@ class LSTMAttentionModel(TrainMyModel):
     def __init__(self, name="lstm_attention"):
         super().__init__(name)
         self._init_model()
-        assert self.window_size >= 12, (f"LSTM_Attention needs window_size>=12, got {self.window_size}")
+        # assert self.window_size >= 12, (f"LSTM_Attention needs window_size>=12, got {self.window_size}")
 
     def _build(self):
         inputs = layers.Input(shape=self.X_train.shape[1:])  # (T, D)

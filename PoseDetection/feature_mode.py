@@ -22,6 +22,18 @@ def get_feature_mode() -> Feature:
     return _default_mode
 
 
+def get_feature_mode_all():
+    return Feature.RAW | Feature.RAW_PX | Feature.DIFF | Feature.SPATIAL | Feature.DIFF
+
+
+def set_feature_mode(mode: Feature) -> None:
+    """
+    如果需要的话，可以在程序启动时动态修改默认掩码
+    """
+    global _default_mode
+    _default_mode = mode
+
+
 def mode_to_str(mode: Feature) -> str:
     # 把每一位按 RAW,RAW_PX,DIFF,SPATIAL,WINDOW 的顺序拼成 '10100'
     bits = []

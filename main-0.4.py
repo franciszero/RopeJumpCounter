@@ -246,8 +246,10 @@ class MainApp:
     def run(self, HIGH_FREQ_MODE=True):
         frame_idx = 0
         while True:
-            if not self.pipe.process_frame(frame_idx):
+            ret, frame = self.cap.read()  # Original BGR frame (ignore latency)
+            if not ret:
                 break
+            self.pipe.process_frame(frame, frame_idx)
 
             # 1) 全量可见性 mask
             vis = np.array([self.pipe.fs.rec[f'vis_{i}'] for i in range(33)])

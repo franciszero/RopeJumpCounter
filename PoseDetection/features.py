@@ -26,13 +26,13 @@ class FeaturePipeline:
 
         self.stats = PerfStats(window_size=10)
 
-    def process_frame(self, frame, frame_idx):
+    def process_frame(self, frame, frame_idx, mode=None):
         self.fs.raw_frame = frame
         self.fs.init_current_frame(frame_idx)
         stable = self.stabilizer.stabilize(self.fs.raw_frame)
         lm = self.pose_est.get_pose_landmarks(stable)
 
-        mode = get_feature_mode()
+        mode = mode if mode is not None else get_feature_mode()
         if Feature.RAW in mode:
             self.fs.compute_raw(lm)
         if Feature.RAW_PX in mode:

@@ -36,6 +36,8 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 import PySimpleGUIQt as sg
+
+from PoseDetection.feature_mode import get_feature_mode, get_feature_mode_all
 from PoseDetection.features import FeaturePipeline
 import sys
 import base64
@@ -187,7 +189,7 @@ class PlayerGUI:
     #         self.last_latency_ms = elapsed * 1000.0
     #         self.proc_fps = sum(self.proc_times) / len(self.proc_times)
 
-    def run(self):
+    def run(self, mode):
         """
         Main event‑loop.
         * Space – play / pause
@@ -219,15 +221,18 @@ class PlayerGUI:
                 continue  # wait for next loop
 
             # ---------- decode & infer next frame ----------
-
             if not self.playing:
                 continue
 
             arr_ts = list()
+
             arr_ts.append(time.time())
-            ok = pipe.process_frame(frame_idx)
-            if not ok:
-                break  # EOF
+            ret, frame = self.cap.read()  # Original BGR frame (ignore latency)
+            if not ret:
+                break
+
+            arr_ts.append(time.time())
+            pipe.process_frame(frame, frame_idx, mode=mode)
             frame_idx += 1
 
             arr_ts.append(time.time())
@@ -288,16 +293,18 @@ def main():
 
     # ========= videos ==========
     # parser.add_argument("--video", default="raw_videos_3/jump_2025.05.14.08.34.44.avi")
-    parser.add_argument("--video", default="raw_videos_3/jump_2025.05.15.08.35.38.avi")
+    parser.add_argument("--video", default="../data/raw_videos_3/jump_2025.05.15.08.35.38__155.avi")
     # parser.add_argument("--video", default="raw_videos_3/jump_2025.05.15.08.37.31.avi")
 
     # ===========================
     parser.add_argument("--threshold", type=float, default=0.5)
     args = parser.parse_args()
 
-    predictor = VideoPredictor("model_files/" + args.model, args.threshold)
+    predictor = VideoPredictor(f"../models/{args.model}", args.threshold)
     gui = PlayerGUI(args.video, predictor)
-    gui.run()
+
+    mode = get_feature_mode_all()
+    gui.run(mode)
 
 
 if __name__ == "__main__":
