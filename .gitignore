@@ -14,3 +14,4 @@ logs.log
 capture/__pycache__
 data/dataset_11111
 data/dataset_10100
+model_files/models_10100
