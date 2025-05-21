@@ -37,13 +37,9 @@ import pandas as pd
 import tensorflow as tf
 import PySimpleGUIQt as sg
 
-from PoseDetection.feature_mode import get_feature_mode, get_feature_mode_all
+from PoseDetection.data_builder_utils.feature_mode import get_feature_mode_all
 from PoseDetection.features import FeaturePipeline
-import sys
-import base64
-from PoseDetection.models.ModelParams.ThresholdHolder import ThresholdHolder
 
-from PoseDetection.models.ModelParams.TCNBlock import TCNBlock
 import logging
 
 from utils.Perf import PerfStats

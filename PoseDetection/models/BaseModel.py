@@ -1,17 +1,15 @@
-import os
 import tensorflow as tf
-import joblib
 from abc import ABC, abstractmethod
 from sklearn.metrics import classification_report, roc_auc_score, average_precision_score
 from sklearn.utils import class_weight
-from sklearn.metrics import roc_curve, precision_recall_curve
+from sklearn.metrics import roc_curve
 import io
 import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.metrics import auc, precision_recall_curve
 import datetime, os
 
-from PoseDetection.feature_mode import mode_to_str, get_feature_mode
+from PoseDetection.data_builder_utils.feature_mode import mode_to_str, get_feature_mode
 from PoseDetection.models.ModelParams.ThresholdHolder import ThresholdHolder
 
 
@@ -29,13 +27,24 @@ class TrainMyModel(ABC):
         self.num_classes = 2
         self.random_state = 42
         self.epochs = 100
-        self.batch_size = 256
+        self.batch_size = 2048
         self.TEST_RATIO = 0.15
         self.VAL_RATIO = 0.15
 
         # 配置: 各模型对应的 window_size
         self.MODEL_WINDOW_SIZES = {
+            "xgb": 1,
             "cnn": 4,
+            "cnn1": 4,
+            "cnn2": 4,
+            "cnn3": 4,
+            "cnn4": 4,
+            "cnn5": 4,
+            "cnn6": 4,
+            "cnn7": 4,
+            "cnn8": 4,
+            "cnn9": 4,
+            "cnn_hybrid": 4,
             "crnn": 12,
             "efficientnet1d": 4,
             "inception": 4,
@@ -61,9 +70,14 @@ class TrainMyModel(ABC):
         self.model = None
 
     def _init_model(self):
-        self.window_size = 4  # self.MODEL_WINDOW_SIZES[self.model_name]
+        self.window_size = self.MODEL_WINDOW_SIZES[self.model_name]
         self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test \
             = self.__load_window_npz(self.window_size)
+
+        print("X_train NaNs:", np.isnan(self.X_train).sum())
+        print("X_val   NaNs:", np.isnan(self.X_val).sum())
+        print("X_test  NaNs:", np.isnan(self.X_test).sum())
+
         self.y_true = self.y_test
         weight = class_weight.compute_class_weight(
             class_weight='balanced',
@@ -252,7 +266,8 @@ class TrainMyModel(ABC):
         return X_train, y_train, X_val, y_val, X_test, y_test
 
     def save_model(self):
-        self.model.save(f"{self.dest_root}/best_{self.model_name}_ws{self.window_size}_withT.keras", include_optimizer=False)
+        self.model.save(f"{self.dest_root}/best_{self.model_name}_ws{self.window_size}_withT.keras",
+                        include_optimizer=False)
 
 
 class PRCurveCallback(tf.keras.callbacks.Callback):
@@ -280,6 +295,10 @@ class PRCurveCallback(tf.keras.callbacks.Callback):
             y_pred = self.model.predict(X_val, verbose=0)
 
         # 2. precision-recall
+        print("[DEBUG] y_true NaNs:", np.isnan(y_true).sum())
+        print("[DEBUG] y_pred NaNs:", np.isnan(y_pred).sum())
+        if np.isnan(y_true).sum() > 0 or np.isnan(y_pred).sum():
+            print("[DEBUG] contains zero.")
         precision, recall, _ = precision_recall_curve(y_true, y_pred)
         pr_auc = auc(recall, precision)
 

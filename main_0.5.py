@@ -1,30 +1,24 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import argparse
-import collections
-import pathlib
-import sys
 import time
-import collections
 from collections import deque
 import cv2
-import av
+from datetime import datetime
+from PoseDetection.data_builder_utils.feature_mode import mode_to_str, get_feature_mode
 from capture.pyav_capture import PyAVCapture
-import base64
 import numpy as np
 import pandas as pd
 from PoseDetection.features import FeaturePipeline
 from utils.Perf import PerfStats
-from tqdm import tqdm
-import imutils
 from PoseDetection.models.ModelParams.ThresholdHolder import ThresholdHolder
-from PoseDetection.models.ModelParams.TCNBlock import TCNBlock
 
 # 强制使用 MPS/GPU
 import tensorflow as tf
+from tensorflow.keras import mixed_precision, models
 
-policy = tf.keras.mixed_precision.Policy('mixed_float16')
-tf.keras.mixed_precision.set_global_policy(policy)
+policy = mixed_precision.Policy('mixed_float16')
+mixed_precision.set_global_policy(policy)
 gpus = tf.config.list_physical_devices('GPU')
 tf.config.set_visible_devices(gpus, 'GPU')
 for gpu in gpus:
@@ -52,8 +46,8 @@ class VideoPredictor:
     """封装模型 + 滑动窗口推理逻辑"""
 
     def __init__(self, model_path: str):
-        self.model = tf.keras.models.load_model(model_path, compile=False)
-        # (batch, timesteps, feature_dim)
+        self.model = models.load_model(model_path, compile=False)
+        # (batch, timestamps, feature_dim)
         _, self.window_size, feat_dim = self.model.input_shape
         print("window_size =", self.window_size)  # 4
         print("feature_dim =", feat_dim)  # 403 之类
@@ -97,11 +91,15 @@ class PlayerGUI:
         self.proc_times = deque(maxlen=30)  # ms of recent frames
 
         if save_path:
-            self.writer = cv2.VideoWriter(save_path,
-                                          cv2.VideoWriter_fourcc(*"mp4v"),
-                                          fps,
-                                          (int(width), int(height))
-                                          )
+            time_str = datetime.now().strftime("%Y.%m.%d.%H.%M.%S")
+            dest_file = f"{save_path}/jump_{time_str}.avi"
+            fourcc = cv2.VideoWriter_fourcc(*'XVID')
+            self.writer = cv2.VideoWriter(dest_file, fourcc, fps, (int(width), int(height)))
+            if not self.writer.isOpened():
+                logger.error(f"VideoWriter open failed: {dest_file}, fourcc=XVID")
+            else:
+                logger.info(f"VideoWriter OK → {dest_file}")
+            print(f"[DEBUG] 保存视频目标地址：{dest_file}")
         else:
             self.writer = None
 
@@ -143,7 +141,7 @@ class PlayerGUI:
             arr_ts.append(time.time())
             ret, frame, _ = self.cap.read()  # Original BGR frame (ignore latency)
             if not ret:
-                break
+                continue
 
             arr_ts.append(time.time())
             # 1) 拉帧 + 特征抽取
@@ -164,7 +162,8 @@ class PlayerGUI:
             # 4) 显示 & 可选录制
             cv2.imshow("JumpRope RealTime", frame_vis)
             if self.writer:
-                self.writer.write(pipe.fs.raw_frame)
+                self.writer.write(frame_vis)
+                print("[DEBUG] Write frame")
 
             arr_ts.append(time.time())
             # 5) 更新性能统计
@@ -188,13 +187,15 @@ class PlayerGUI:
                 jump_cnt += 1  # 判断为一次起跳，由 0 变为 1 表明模型判断起跳，2个以上连续 1 表明模型认为目标一直在上升
         else:  # 0:000, 1:001, 2:010, 4:100, 5:101, 不是稳定的检测结果, 6:110 表明跳绳刚结束
             is_on_rising = False
-        print(f"[DEBUG][{jump_cnt:04d}][{prob*100:.2f}%][{self.predictor.threshold*100:.2f}%] jump mask: {mark1:03b}+{y_pred:03b}={jump_cnt_binary_mark:03b}")
+        print(
+            f"[DEBUG][{jump_cnt:04d}][{prob * 100:.2f}%][{self.predictor.threshold * 100:.2f}%] jump mask: {mark1:03b}+{y_pred:03b}={jump_cnt_binary_mark:03b}")
         return is_on_rising, jump_cnt
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default="best_cnn_ws4_withT.keras")  # 38ms 25.6FPS
+    parser.add_argument("--model", default="best_cnn8_ws4_withT.keras")  # 17ms 25.6FPS
+    # parser.add_argument("--model", default="best_cnn_hybrid_ws4_withT.keras")  # 17ms 25.6FPS
     # parser.add_argument("--model", default="best_crnn_ws12_withT.keras")  # 68ms 14.2FPS
     # parser.add_argument("--model", default="best_efficientnet1d_ws4_withT.keras")  # 39ms 25.6FPS
     # parser.add_argument("--model", default="best_inception_ws4_withT.keras")  # 50ms 19.7FPS
@@ -202,7 +203,7 @@ def main():
     # parser.add_argument("--model", default="best_resnet1d_ws16_withT.keras")  # 44ms 22.7FPS
     # parser.add_argument("--model", default="best_resnet1d_tcn_ws16_withT.keras")  # 58ms 17FPS
     # parser.add_argument("--model", default="best_seresnet1d_ws16_withT.keras")  # 49ms 19.5FPS
-    # parser.add_argument("--model", default="best_tcn_ws24_withT.keras")  # 40ms 24FPS
+    # parser.add_argument("--model", default="best_tcn_ws4_withT.keras")  # 40ms 24FPS
     # parser.add_argument("--model", default="best_tcn_se_ws24_withT.keras")  # 60ms 16FPS
     # parser.add_argument("--model", default="best_tftlite_ws16_withT.keras")  # 127ms 8FPS
     # parser.add_argument("--model", default="best_transformerlite_ws16_withT.keras")  # 45ms 22.3FPS
@@ -211,10 +212,10 @@ def main():
     parser.add_argument("--width", type=int, default=640, help="Video frame width")
     parser.add_argument("--height", type=int, default=480, help="Video frame height")
     parser.add_argument("--fps", type=int, default=30)
-    parser.add_argument("--save_video", default="PoseDetection/raw_video_3/", help="Video save path")
+    parser.add_argument("--save_video", default="data/raw_videos_3", help="Video save path")
     args = parser.parse_args()
 
-    predictor = VideoPredictor("PoseDetection/model_files/" + args.model)
+    predictor = VideoPredictor(f"model_files/models_{mode_to_str(get_feature_mode())}/" + args.model)
     gui = PlayerGUI(predictor, args.width, args.height, args.fps, save_path=args.save_video)
     gui.run()
 

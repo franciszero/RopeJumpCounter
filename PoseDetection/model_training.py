@@ -1,5 +1,6 @@
 from PoseDetection.models.ModelReportGenerator import ModelReportGenerator
-from PoseDetection.models.CNN import CNNModel
+from PoseDetection.models.CNN import *
+from PoseDetection.models.XGBoost import XGBModel
 from PoseDetection.models.ResNET1D_TCNHybrid import ResNET1DTcnHybridModel
 from PoseDetection.models.SEResNET1D import SEResNET1DModel
 from PoseDetection.models.TCN import TCNModel
@@ -18,8 +19,13 @@ import matplotlib.pyplot as plt
 
 from PoseDetection.models.WaveNet import WaveNetModel
 
-
 import tensorflow as tf
+
+# Mixed precision on GPU
+from tensorflow.keras.mixed_precision import set_global_policy
+
+set_global_policy('mixed_float16')
+
 # 打印一下可见设备
 print("Physical devices:", tf.config.list_physical_devices())
 # # 打开 placement 日志
@@ -35,28 +41,35 @@ try:
 except Exception as e:
     print(f"Could not configure GPU devices: {e}")
 
-# Mixed precision on GPU
-from tensorflow.keras.mixed_precision import set_global_policy
-set_global_policy('mixed_float16')
-
 
 class Trainer:
     def __init__(self):
         # Set up models with their respective window sizes
         self.models = [
+            XGBModel(),
             CNNModel(),
-            CRNNModel(),
-            EfficientNet1DModel(),
-            InceptionTimeModel(),
-            LSTMAttentionModel(),
-            ResNET1DModel(),
-            ResNET1DTcnHybridModel(),
-            SEResNET1DModel(),
-            TCNModel(),
-            TCNSEModel(),
-            TFTLiteModel(),
-            TransformerLiteModel(),
-            WaveNetModel(),
+            CNN1(),
+            CNN2(),
+            CNN3(),
+            CNN4(),
+            CNN5(),
+            CNN6(),
+            CNN7(),
+            CNN8(),
+            CNN9(),
+            CNNHybridModel(),
+            # CRNNModel(),
+            # EfficientNet1DModel(),
+            # InceptionTimeModel(),
+            # LSTMAttentionModel(),
+            # ResNET1DModel(),
+            # ResNET1DTcnHybridModel(),
+            # SEResNET1DModel(),
+            # TCNModel(),
+            # TCNSEModel(),
+            # TFTLiteModel(),
+            # TransformerLiteModel(),
+            # WaveNetModel(),
         ]
 
     def train(self):
@@ -93,9 +106,13 @@ if __name__ == "__main__":
 
         # loss fig
         fig, ax = plt.subplots()
-        ax.plot(m.history.history["loss"], label="train_loss")
-        if "val_loss" in m.history.history:
-            ax.plot(m.history.history["val_loss"], label="val_loss")
+        if hasattr(m, "history") and hasattr(m.history, "history"):
+            ax.plot(m.history.history["loss"], label="train_loss")
+            if "val_loss" in m.history.history:
+                ax.plot(m.history.history["val_loss"], label="val_loss")
+        else:
+            ax.plot(m.evals_result["validation_0"]["logloss"], label="train_loss")
+            ax.plot(m.evals_result["validation_1"]["logloss"], label="val_loss")
         ax.set_title(f"{m.model_name} Loss")
         ax.legend()
         loss_figs.append(fig)

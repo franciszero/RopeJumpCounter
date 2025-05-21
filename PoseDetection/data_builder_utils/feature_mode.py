@@ -1,6 +1,6 @@
 # feature_mode.py
 
-from enum import IntFlag, auto
+from enum import IntFlag
 
 
 class Feature(IntFlag):
@@ -19,11 +19,12 @@ def get_feature_mode() -> Feature:
     """
     工厂方法：返回当前全局的 Feature 掩码
     """
+    # return Feature.RAW | Feature.RAW_PX | Feature.DIFF | Feature.SPATIAL | Feature.WINDOW
     return _default_mode
 
 
 def get_feature_mode_all():
-    return Feature.RAW | Feature.RAW_PX | Feature.DIFF | Feature.SPATIAL | Feature.DIFF
+    return Feature.RAW | Feature.RAW_PX | Feature.DIFF | Feature.SPATIAL | Feature.WINDOW
 
 
 def set_feature_mode(mode: Feature) -> None:

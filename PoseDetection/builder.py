@@ -1,41 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-dataset_builder.py
-
-用途：
-    从指定目录的视频和对应标签文件生成帧级和窗口级带标签训练数据。
-    - 自动扫描视频目录下的 *.avi 和 *.mp4 文件
-    - 对每个视频：提取关键点、计算差分与手工特征
-    - 合并标签文件 <base>_labels.csv，生成帧级 label 列
-    - 如果指定 window_size>1，则生成窗口级样本并保存
-
-依赖：
-    pip install opencv-python pandas numpy
-
-用法：
-    python builder.py \
-        --videos_dir ./raw_videos_3 \
-        --labels_dir ./raw_videos_3 \
-        --output_dir ./dataset_3 \
-        --window_size 32 \
-        --stride 1
-
-参数说明：
-    --videos_dir   输入视频目录，支持 *.avi, *.mp4
-    --labels_dir   标签文件目录，标签文件需命名为 <视频名>_labels.csv
-    --output_dir   输出目录，保存 *_labeled.csv 和 *_windows.csv
-    --window_size  窗口大小；=1 时仅生成帧级
-    --stride       窗口滑动步长
-
-示例：
-    # 仅帧级标签
-    python dataset_builder.py --videos_dir raw_videos --labels_dir raw_videos --output_dir dataset
-
-    # 窗口级标签
-    python dataset_builder.py --videos_dir raw_videos --labels_dir raw_videos --output_dir dataset --window_size 32 --stride 1
-"""
-
 import os
 import sys
 import glob
@@ -47,14 +11,12 @@ import logging
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-# from collections import Counter  # Removed as per instructions
 import json
 import datetime
-import yaml  # pip install pyyaml  (optional for --split_yaml)
 import random
 from pathlib import Path
 
-from PoseDetection.feature_mode import mode_to_str, get_feature_mode
+from PoseDetection.data_builder_utils.feature_mode import mode_to_str, get_feature_mode
 from features import FeaturePipeline
 from utils.VideoStabilizer import VideoStabilizer
 
@@ -72,10 +34,9 @@ logger = logging.getLogger(__name__)
 
 
 # 分析每个窗口中正例帧数量分布，并保存直方图
-def analyze_window_label_distribution(df_labeled, window_size, output_dir, base):
+def analyze_window_label_distribution(labels, window_size, output_dir, base):
     """分析每个窗口中包含多少个正例帧（label=1）"""
     label_counts = []
-    labels = df_labeled['label'].values
     for i in range(0, len(labels) - window_size + 1):
         window = labels[i:i + window_size]
         label_counts.append(int(np.sum(window)))
@@ -113,11 +74,10 @@ def has_continuous_ones(arr, min_len=3):
 
 
 # 统计跳跃之间连续0和连续1的段长分布
-def analyze_jump_stretch_distributions(df_labeled, output_dir, base):
+def analyze_jump_stretch_distributions(labels, dest_path, video_name):
     """
     统计跳跃之间连续0的段长分布和跳跃阶段连续1的段长分布
     """
-    labels = df_labeled['label'].values
     zero_stretches = []
     one_stretches = []
     count = 0
@@ -140,10 +100,10 @@ def analyze_jump_stretch_distributions(df_labeled, output_dir, base):
         one_stretches.append(count)
 
     from collections import Counter
-    logger.info(f"[{base}] 跳跃之间连续0的段长分布（帧）:")
+    logger.info(f"[{video_name}] 跳跃之间连续0的段长分布（帧）:")
     for val, cnt in Counter(zero_stretches).most_common(10):
         logger.info(f"  {val} 帧: {cnt} 次")
-    logger.info(f"[{base}] 跳跃阶段连续1的段长分布（帧）:")
+    logger.info(f"[{video_name}] 跳跃阶段连续1的段长分布（帧）:")
     for val, cnt in Counter(one_stretches).most_common(10):
         logger.info(f"  {val} 帧: {cnt} 次")
 
@@ -156,10 +116,10 @@ def analyze_jump_stretch_distributions(df_labeled, output_dir, base):
     plt.yscale("log")
     plt.xlabel("段长（帧）")
     plt.ylabel("出现频次（对数）")
-    plt.title(f"连续0与连续1的段长分布 [{base}]")
+    plt.title(f"连续0与连续1的段长分布 [{video_name}]")
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.legend()
-    plot_path = os.path.join(output_dir, f"{base}_jump_stretch_dist.png")
+    plot_path = os.path.join(dest_path, f"{video_name}_jump_stretch_dist.png")
     plt.savefig(plot_path)
     plt.close()
     logger.info(f"  跳跃帧段长分布图已保存: {plot_path}")
@@ -214,46 +174,21 @@ def merge_labels(df_feat, labels_path):
     return df_feat
 
 
-from enum import Flag, auto
+def build_labeled_dataset(df_labeled, dest_file):
+    pos_ratio = df_labeled['label'].mean()
+    if pos_ratio < 0.01 or pos_ratio > 0.99:
+        logger.warning(f"Extreme class imbalance detected: positive ratio={pos_ratio:.4f}")
+
+    # Save frame-level numpy data and report shapes
+    X = df_labeled.drop(columns=['frame', 'timestamp', 'label']).values
+    y = df_labeled['label'].values
+    np.savez_compressed(dest_file, X=X, y=y)
+    logger.info(f'  Saved frame-level npz: {dest_file}')
+    print(f"Frame-level data shape: X={X.shape}, y={y.shape}")
+    return X, y
 
 
-class Feature(Flag):
-    RAW = auto()
-    RAW_PX = auto()
-    DIFF = auto()
-    SPATIAL = auto()
-    WINDOW = auto()
-
-
-def main():
-    parser = argparse.ArgumentParser(description='生成帧级和窗口级带标签训练数据')
-    parser.add_argument('--videos_dir', default='raw_videos_3', help='输入视频目录，支持 *.avi, *.mp4')
-    parser.add_argument('--labels_dir', default='raw_videos_3', help='标签目录，包含 *_labels.csv')
-    parser.add_argument('--output_dir', default='dataset', help='输出目录，保存数据集')
-    parser.add_argument('--window_size', default=8, type=int, help='窗口大小，=1 时仅帧级')
-    parser.add_argument('--stride', default=1, type=int, help='滑动步长')
-    # New stabilizer params
-    parser.add_argument('--stabilizer_max_corners', default=VideoStabilizer.max_corners, type=int,
-                        help='VideoStabilizer max corners')
-    parser.add_argument('--stabilizer_quality_level', default=VideoStabilizer.quality_level, type=float,
-                        help='VideoStabilizer quality level')
-    parser.add_argument('--stabilizer_min_distance', default=VideoStabilizer.min_distance, type=int,
-                        help='VideoStabilizer min distance')
-    parser.add_argument('--val_ratio', type=float, default=0.15, help='验证集比例')
-    parser.add_argument('--test_ratio', type=float, default=0.15, help='测试集比例')
-    parser.add_argument('--seed', type=int, default=42, help='随机种子')
-    parser.add_argument('--split_yaml', default=None,
-                        help='预定义划分文件（yaml: train/val/test 列表），若提供则覆盖随机划分')
-    parser.add_argument('--preview_split', default=True, action='store_true',
-                        help='仅预览 train/val/test 划分与正例数量，然后退出（不做特征提取）')
-
-    args = parser.parse_args()
-
-    mode = get_feature_mode()
-    suffix = mode_to_str(mode)
-    output_dir = f"{args.output_dir}_{suffix}"
-    os.makedirs(output_dir, exist_ok=True)
-
+def gradient_split(args):
     # -------- 统计每个候选视频的正例数量并做贪心平衡划分 ---------
     video_stats = []
     mp4s = glob.glob(os.path.join(args.videos_dir, '*.mp4'))
@@ -274,143 +209,134 @@ def main():
         video_stats.append({'path': vp,
                             'pos': pos_frames,
                             'total': total_frames})
-
     if len(video_stats) < 3:
         logger.warning("可用视频少于3个，将全部划入 train；val/test 为空。")
         train_vids = {v['path'] for v in video_stats}
         val_vids, test_vids = set(), set()
-    else:
-        rng = random.Random(args.seed)
-        rng.shuffle(video_stats)  # 打散顺序再按正例降序
-        video_stats.sort(key=lambda x: x['pos'], reverse=True)
 
-        target_ratio = np.array([1 - args.val_ratio - args.test_ratio,
-                                 args.val_ratio,
-                                 args.test_ratio], dtype=float)
-        target_ratio /= target_ratio.sum()  # 归一化
-        tot_pos = sum(v['pos'] for v in video_stats)
-        deficits = target_ratio * tot_pos  # 初始还需多少正例
-        splits = [set(), set(), set()]  # train, val, test
+    rng = random.Random(args.seed)
+    rng.shuffle(video_stats)  # 打散顺序再按正例降序
+    video_stats.sort(key=lambda x: x['pos'], reverse=True)
 
-        for v in video_stats:
-            idx = int(np.argmax(deficits))
-            splits[idx].add(v['path'])
-            deficits[idx] -= v['pos']
+    target_ratio = np.array([1 - args.val_ratio - args.test_ratio, args.val_ratio, args.test_ratio], dtype=float)
+    target_ratio /= target_ratio.sum()  # 归一化
+    tot_pos = sum(v['pos'] for v in video_stats)
+    deficits = target_ratio * tot_pos  # 初始还需多少正例
+    splits = {"train": list(),
+              "val": list(),
+              "test": list()
+              }  # train, val, test
 
-        train_vids, val_vids, test_vids = splits
+    for v in video_stats:
+        idx = int(np.argmax(deficits))
+        key = list(splits.keys())[idx]
+        splits[key].append(v)
+        deficits[idx] -= v['pos']
 
     # ---- 统计日志 ----
-    def sum_pos(s):
-        return sum(v['pos'] for v in video_stats if v['path'] in s)
+    def sum_pos(vs):
+        return sum([v['pos'] for v in splits['train']])
 
-    logger.info(f"Train videos: {len(train_vids)} (pos={sum_pos(train_vids)}) | "
-                f"Val: {len(val_vids)} (pos={sum_pos(val_vids)}) | "
-                f"Test: {len(test_vids)} (pos={sum_pos(test_vids)})")
-
-    # optional detailed debug
-    for tag, group in zip(['TRAIN', 'VAL', 'TEST'], [train_vids, val_vids, test_vids]):
-        for p in group:
-            st = next(v for v in video_stats if v['path'] == p)
-            logger.debug(f"[{tag}] {Path(p).name}: pos={st['pos']}, total={st['total']}")
+    logger.info(f"Train videos: {len(splits['train'])} (pos={sum_pos(splits['train'])}) | "
+                f"Val: {len(splits['val'])} (pos={sum_pos(splits['val'])}) | "
+                f"Test: {len(splits['test'])} (pos={sum_pos(splits['test'])})")
 
     # ---------- 如果只预览划分，则输出详细信息后退出 ----------
     if args.preview_split:
-        def _detail(group):
+        def _detail(vid_dicts):
             return [
-                {
-                    "video": Path(p).name,
-                    "pos_frames": next(v['pos'] for v in video_stats if v['path'] == p),
-                    "total_frames": next(v['total'] for v in video_stats if v['path'] == p)
-                } for p in group
+                {"video": Path(vid_dic['path']).name,
+                 "pos_frames": next(vid_dic['pos']),
+                 "total_frames": next(vid_dic['total'])}
+                for vid_dic in vid_dicts
             ]
 
         preview = {
-            "train": _detail(train_vids),
-            "val": _detail(val_vids),
-            "test": _detail(test_vids)
+            "train": _detail(splits['train']),
+            "val": _detail(splits['val']),
+            "test": _detail(splits['test']),
         }
         import pprint
         pprint.pprint(preview, sort_dicts=False)
         logger.info("预览完成 (--preview_split). 未进行特征提取/文件写入。")
+
+    return splits
+
+
+def building_win_dataset(X, y, win_size, stride):
+    X_win, y_win = [], []
+    num_frames = X.shape[0]
+    for start in range(0, num_frames - win_size + 1, stride):
+        X1 = X[start: start + win_size]
+        y1 = y[start: start + win_size]
+        X_win.append(X1)
+        y_win.append(int(has_continuous_ones(y1)))
+    X_win = np.stack(X_win)
+    y_win = np.array(y_win)
+    # X_win = np.empty((0, win_size, len(feature_cols)))
+    # y_win = np.empty((0,))
+    return X_win, y_win
+
+
+def main():
+    args, output_dir = get_command_line_params()
+
+    # -------- 统计每个候选视频的正例数量并做贪心平衡划分 ---------
+    splits = gradient_split(args)
+    if args.preview_split:
         return
 
-    video_patterns = [os.path.join(args.videos_dir, ext) for ext in ('*.avi', '*.mp4')]
+    for split_dest_set, videos in splits.items():
+        for video in videos:
+            video_file = video['path']
+            video_name = os.path.splitext(os.path.basename(video_file))[0]
 
-    for pattern in video_patterns:
-        for video_path in glob.glob(pattern):
-            base = os.path.splitext(os.path.basename(video_path))[0]
-            split = ('train' if video_path in train_vids else
-                     'val' if video_path in val_vids else
-                     'test')
-            logger.info(f'Processing {base}...')
-            labels_path = os.path.join(args.labels_dir, f'{base}_labels.csv')
+            labels_path = os.path.join(args.labels_dir, f'{video_name}_labels.csv')
             if not os.path.exists(labels_path):
-                logger.warning(f"  Skipping {base}: label file not found ({labels_path})")
+                logger.warning(f"Skipping {video_name}: label file not found ({labels_path})")
                 continue
+            else:
+                logger.info(f'Processing {video_name}...')
 
-            # 步骤1：特征提取
-            df_feat = extract_features(video_path, args.window_size, logger)
-
-            # 步骤2：合并标签，生成帧级带label
-            df_labeled = merge_labels(df_feat, labels_path)
-
-            # --- 数据完整性检查 ---
-            assert len(df_labeled) == len(df_feat), "Label merge length mismatch"
-            assert df_labeled['frame'].is_monotonic_increasing, "Frame index not monotonic"
-            pos_ratio = df_labeled['label'].mean()
-            if pos_ratio < 0.01 or pos_ratio > 0.99:
-                logger.warning(f"Extreme class imbalance detected: positive ratio={pos_ratio:.4f}")
-
-            # 跳跃帧间隔与跳跃段长分布分析
-            analyze_jump_stretch_distributions(df_labeled, output_dir, base)
-            # Save frame-level numpy data and report shapes
-            X_frame = df_labeled.drop(columns=['frame', 'timestamp', 'label']).values
-            y_frame = df_labeled['label'].values
-            npz_frame = os.path.join(output_dir, f"{base}_labeled.npz")
-            np.savez_compressed(npz_frame, X=X_frame, y=y_frame)
-            logger.info(f'  Saved frame-level npz: {npz_frame}')
-            print(f"Frame-level data shape: X={X_frame.shape}, y={y_frame.shape}")
+            # ------------- Build labeled dataset -------------
+            dest_path = f"{output_dir}/size1/{split_dest_set}"
+            os.makedirs(dest_path, exist_ok=True)
+            dest_file = f"{dest_path}/{video_name}_labeled.npz"
+            if not os.path.exists(dest_file):
+                # 步骤1：特征提取
+                df_feat = extract_features(video_file, args.window_size, logger)
+                # 步骤2：合并标签，生成帧级带label
+                df_labeled = merge_labels(df_feat, labels_path)
+                # --- 数据完整性检查 ---
+                assert len(df_labeled) == len(df_feat), "Label merge length mismatch"
+                assert df_labeled['frame'].is_monotonic_increasing, "Frame index not monotonic"
+                # build_labeled_dataset
+                X, y = build_labeled_dataset(df_labeled, dest_file)
+                # 跳跃帧间隔与跳跃段长分布分析
+                analyze_jump_stretch_distributions(y, dest_path, video_name)
+            else:
+                npz_dic = np.load(dest_file)
+                X, y = npz_dic["X"], npz_dic["y"]
 
             # 步骤3：窗口级数据（多窗口大小）
-            window_sizes = [4, 6, 8, 12, 16, 24, 32]
-
-            # --- 新增 is_jump_window 函数 ---
-            def is_jump_window(window):
-                # 统一：窗口内出现 >=3 连续正例则记为正
-                return has_continuous_ones(window['label'].values, min_len=3)
+            window_sizes = [4]  # [4, 5, 6, 8, 12, 16, 24, 32]
 
             for win_size in window_sizes:
-                # Build and save window-level numpy data without flattening
-                feature_cols = [c for c in df_labeled.columns if c not in ('frame', 'timestamp', 'label')]
-                X_win, y_win = [], []
-                num_frames = len(df_labeled)
-                for start in range(0, num_frames - win_size + 1, args.stride):
-                    window = df_labeled.iloc[start:start + win_size]
-                    arr = window[feature_cols].values  # shape: (win_size, feature_dim)
-                    X_win.append(arr)
-                    lbl = is_jump_window(window)
-                    y_win.append(int(lbl))
-                if X_win:
-                    X_win = np.stack(X_win)
-                    y_win = np.array(y_win)
-                else:
-                    X_win = np.empty((0, win_size, len(feature_cols)))
-                    y_win = np.empty((0,))
+                X_win, y_win = building_win_dataset(X, y, win_size, args.stride)
                 # ---------- 保存 .npz ----------
-                size_dir = os.path.join(output_dir, f"size{win_size}", split)
-                os.makedirs(size_dir, exist_ok=True)
-                npz_win = os.path.join(size_dir, f"{base}.npz")
-                np.savez_compressed(npz_win, X=X_win, y=y_win,
-                                    pos_ratio=float(y_win.mean()))
-                logger.info(f'  Saved window-level npz: {npz_win}')
+                dest_path = f"{output_dir}/size{win_size}/{split_dest_set}"
+                os.makedirs(dest_path, exist_ok=True)
+                dest_file = f"{dest_path}/{video_name}.npz"
+                np.savez_compressed(dest_file, X=X_win, y=y_win, pos_ratio=float(y_win.mean()))
+                logger.info(f'  Saved window-level npz: {dest_file}')
                 print(f"Window-level data shape (size={win_size}): X={X_win.shape}, y={y_win.shape}")
 
                 # meta.json (仅首次创建)
-                meta_path = os.path.join(size_dir, 'meta.json')
+                meta_path = os.path.join(dest_path, 'meta.json')
                 if not os.path.exists(meta_path):
                     meta = {
                         "window_size": win_size,
-                        "feature_dim": int(len(feature_cols)),
+                        "feature_dim": int(len(y_win)),
                         "generated_at": datetime.datetime.utcnow().isoformat(),
                         "creator": "dataset_builder.py"
                     }
@@ -419,11 +345,41 @@ def main():
 
                 from collections import Counter
                 cnt = Counter(y_win)
-                logger.info(
-                    f"[{base}] size={win_size} ({split}) 标签分布：负类={cnt[0]}，正类={cnt[1]}，正例比例={(cnt[1] / (cnt[0] + cnt[1]) * 100):.2f}%")
-                analyze_window_label_distribution(df_labeled, win_size,
+                logger.info(f"[{video_name}] size={win_size} ({split_dest_set})" +
+                            f" 标签分布：负类={cnt[0]}，正类={cnt[1]}，" +
+                            f"正例比例={(cnt[1] / (cnt[0] + cnt[1]) * 100):.2f}%")
+                analyze_window_label_distribution(y_win, win_size,
                                                   os.path.join(output_dir, f"size{win_size}"),
-                                                  f"{base}_size{win_size}")
+                                                  f"{video_name}_size{win_size}")
+
+
+def get_command_line_params():
+    parser = argparse.ArgumentParser(description='生成帧级和窗口级带标签训练数据')
+    parser.add_argument('--videos_dir', default='../data/raw_videos_3', help='输入视频目录，支持 *.avi, *.mp4')
+    parser.add_argument('--labels_dir', default='../data/raw_videos_3', help='标签目录，包含 *_labels.csv')
+    parser.add_argument('--output_dir', default='../data/dataset', help='输出目录，保存数据集')
+    parser.add_argument('--window_size', default=8, type=int, help='窗口大小，=1 时仅帧级')
+    parser.add_argument('--stride', default=1, type=int, help='滑动步长')
+    # New stabilizer params
+    parser.add_argument('--stabilizer_max_corners', default=VideoStabilizer.max_corners, type=int,
+                        help='VideoStabilizer max corners')
+    parser.add_argument('--stabilizer_quality_level', default=VideoStabilizer.quality_level, type=float,
+                        help='VideoStabilizer quality level')
+    parser.add_argument('--stabilizer_min_distance', default=VideoStabilizer.min_distance, type=int,
+                        help='VideoStabilizer min distance')
+    parser.add_argument('--val_ratio', type=float, default=0.15, help='验证集比例')
+    parser.add_argument('--test_ratio', type=float, default=0.15, help='测试集比例')
+    parser.add_argument('--seed', type=int, default=42, help='随机种子')
+    parser.add_argument('--split_yaml', default=None,
+                        help='预定义划分文件（yaml: train/val/test 列表），若提供则覆盖随机划分')
+    parser.add_argument('--preview_split', default=False, action='store_true',
+                        help='仅预览 train/val/test 划分与正例数量，然后退出（不做特征提取）')
+    args = parser.parse_args()
+
+    suffix = mode_to_str(get_feature_mode())
+    output_dir = f"{args.output_dir}_{suffix}"
+    os.makedirs(output_dir, exist_ok=True)
+    return args, output_dir
 
 
 if __name__ == '__main__':

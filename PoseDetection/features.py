@@ -1,11 +1,7 @@
 # features.py
-import time
 import math
-from collections import deque
-import numpy as np
-import cv2
 
-from PoseDetection.feature_mode import Feature, get_feature_mode
+from PoseDetection.data_builder_utils.feature_mode import Feature, get_feature_mode
 from utils.Perf import PerfStats
 from utils.vision import PoseEstimator
 from utils.VideoStabilizer import VideoStabilizer
