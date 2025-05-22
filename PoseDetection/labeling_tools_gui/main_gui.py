@@ -17,7 +17,7 @@ import PySimpleGUIQt as sg
 
 def main():
     parser = argparse.ArgumentParser(description="RopeJumpCounter 主控界面")
-    parser.add_argument('--workdir', default='../raw_videos_3', help='视频和标签所在目录')
+    parser.add_argument('--workdir', default='../../data/raw_videos_3', help='视频和标签所在目录')
     args = parser.parse_args()
     workdir = args.workdir
 

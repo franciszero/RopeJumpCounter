@@ -52,7 +52,7 @@ class VideoPredictor:
         _, self.window_size, feat_dim = self.model.input_shape
         print("window_size =", self.window_size)  # 4
         print("feature_dim =", feat_dim)  # 403 之类
-        self.threshold = float(self.model.get_layer("f1_threshold").t.numpy())
+        self.threshold = 0.5  # float(self.model.get_layer("f1_threshold").t.numpy())
 
         # 用 deque 维护最近 window_size 帧特征
         self.buffer = deque(maxlen=self.window_size)
@@ -156,7 +156,7 @@ class PlayerGUI:
 
             arr_ts.append(time.time())
             # 3) 叠加性能统计 & 跳绳计数/高亮等
-            is_on_rising, jump_cnt = self.jump_event_detect(jump_cnt, jump_cnt_binary_mark, prob)
+            jump_cnt_binary_mark, is_on_rising, jump_cnt = self.jump_event_detect(jump_cnt, jump_cnt_binary_mark, prob)
             frame_vis = self._overlay(pipe.fs.raw_frame.copy(), jump_cnt, prob, is_on_rising, arr_ts[0])
             # frame_vis = imutils.resize(frame_vis, height=self.zoom_height)
 
@@ -190,7 +190,7 @@ class PlayerGUI:
             is_on_rising = False
         print(
             f"[DEBUG][{jump_cnt:04d}][{prob * 100:.2f}%][{self.predictor.threshold * 100:.2f}%] jump mask: {mark1:03b}+{y_pred:03b}={jump_cnt_binary_mark:03b}")
-        return is_on_rising, jump_cnt
+        return jump_cnt_binary_mark, is_on_rising, jump_cnt
 
 
 def main():
