@@ -37,11 +37,13 @@ import pandas as pd
 import tensorflow as tf
 import PySimpleGUIQt as sg
 
-from PoseDetection.data_builder_utils.feature_mode import get_feature_mode_all
+from PoseDetection.data_builder_utils.feature_mode import get_feature_mode_all, get_feature_mode, mode_to_str
 from PoseDetection.features import FeaturePipeline
 
 import logging
 
+from PoseDetection.models.ModelParams.ThresholdHolder import ThresholdHolder
+from utils.FrameSample import SELECTED_LM
 from utils.Perf import PerfStats
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -273,34 +275,22 @@ class PlayerGUI:
 def main():
     parser = argparse.ArgumentParser()
     # ========= models ==========
-    parser.add_argument("--model", default="best_cnn_ws4_withT.keras")  # 38ms 25.6FPS
-    # parser.add_argument("--model", default="best_crnn_ws12_withT.keras")  # 68ms 14.2FPS
-    # parser.add_argument("--model", default="best_efficientnet1d_ws4_withT.keras")  # 39ms 25.6FPS
-    # parser.add_argument("--model", default="best_inception_ws4_withT.keras")  # 50ms 19.7FPS
-    # parser.add_argument("--model", default="best_lstm_attention_ws16_withT.keras")  # 124ms 8FPS
-    # parser.add_argument("--model", default="best_resnet1d_ws16_withT.keras")  # 44ms 22.7FPS
-    # parser.add_argument("--model", default="best_resnet1d_tcn_ws16_withT.keras")  # 58ms 17FPS
-    # parser.add_argument("--model", default="best_seresnet1d_ws16_withT.keras")  # 49ms 19.5FPS
-    # parser.add_argument("--model", default="best_tcn_ws24_withT.keras")  # 40ms 24FPS
-    # parser.add_argument("--model", default="best_tcn_se_ws24_withT.keras")  # 60ms 16FPS
-    # parser.add_argument("--model", default="best_tftlite_ws16_withT.keras")  # 127ms 8FPS
-    # parser.add_argument("--model", default="best_transformerlite_ws16_withT.keras")  # 45ms 22.3FPS
-    # parser.add_argument("--model", default="best_wavenet_ws8_withT.keras")  # 57ms 17.7FPS
+    parser.add_argument("--model", default="best_cnn8_ws4_withT.keras")
 
     # ========= videos ==========
     # parser.add_argument("--video", default="raw_videos_3/jump_2025.05.14.08.34.44.avi")
-    parser.add_argument("--video", default="../data/raw_videos_3/jump_2025.05.15.08.35.38__155.avi")
+    parser.add_argument("--video", default="../data/raw_videos_3/jump_2025.05.22.08.33.08__100.avi")
     # parser.add_argument("--video", default="raw_videos_3/jump_2025.05.15.08.37.31.avi")
 
     # ===========================
     parser.add_argument("--threshold", type=float, default=0.5)
     args = parser.parse_args()
 
-    predictor = VideoPredictor(f"../models/{args.model}", args.threshold)
+    model_path = f"../model_files/models_{len(SELECTED_LM)}_{mode_to_str(get_feature_mode())}/{args.model}"
+    predictor = VideoPredictor(model_path, args.threshold)
     gui = PlayerGUI(args.video, predictor)
 
-    mode = get_feature_mode_all()
-    gui.run(mode)
+    gui.run(get_feature_mode())
 
 
 if __name__ == "__main__":
