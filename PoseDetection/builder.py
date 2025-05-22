@@ -375,7 +375,7 @@ def get_command_line_params():
     parser.add_argument('--seed', type=int, default=42, help='随机种子')
     parser.add_argument('--split_yaml', default=None,
                         help='预定义划分文件（yaml: train/val/test 列表），若提供则覆盖随机划分')
-    parser.add_argument('--preview_split', default=False, action='store_true',
+    parser.add_argument('--preview_split', default=True, action='store_true',
                         help='仅预览 train/val/test 划分与正例数量，然后退出（不做特征提取）')
     args = parser.parse_args()
 
