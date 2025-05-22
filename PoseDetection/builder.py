@@ -236,7 +236,7 @@ def gradient_split(args):
 
     # ---- 统计日志 ----
     def sum_pos(vs):
-        return sum([v['pos'] for v in splits['train']])
+        return sum([v['pos'] for v in vs])
 
     logger.info(f"Train videos: {len(splits['train'])} (pos={sum_pos(splits['train'])}) | "
                 f"Val: {len(splits['val'])} (pos={sum_pos(splits['val'])}) | "
