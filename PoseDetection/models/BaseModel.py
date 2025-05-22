@@ -44,6 +44,7 @@ class TrainMyModel(ABC):
             "cnn6": 4,
             "cnn7": 4,
             "cnn8": 4,
+            "cnn8_1": 4,
             "cnn9": 4,
             "cnn_hybrid": 4,
             "crnn": 12,
@@ -269,6 +270,30 @@ class TrainMyModel(ABC):
     def save_model(self):
         self.model.save(f"{self.dest_root}/best_{self.model_name}_ws{self.window_size}_withT.keras",
                         include_optimizer=False)
+
+    def export_tflite(self, representative_data_gen, tflite_path="model_int8.tflite"):
+        """
+        Export the trained Keras model as an INT8‑quantised TFLite model.
+
+        Parameters
+        ----------
+        representative_data_gen : callable
+            A generator that yields batches of representative input tensors
+            for post‑training quantisation calibration.
+        tflite_path : str
+            Destination path for the .tflite file.
+        """
+        converter = tf.lite.TFLiteConverter.from_keras_model(self.model)
+        converter.optimizations = [tf.lite.Optimize.DEFAULT]
+        converter.representative_dataset = representative_data_gen
+        converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS_INT8]
+        converter.inference_input_type = tf.uint8
+        converter.inference_output_type = tf.uint8
+
+        tflite_model = converter.convert()
+        with open(tflite_path, "wb") as f:
+            f.write(tflite_model)
+        print(f"✅ INT8 TFLite model written to: {tflite_path}")
 
 
 class PRCurveCallback(tf.keras.callbacks.Callback):

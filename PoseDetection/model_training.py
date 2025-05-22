@@ -46,6 +46,7 @@ class Trainer:
     def __init__(self):
         # Set up models with their respective window sizes
         self.models = [
+            CNN8_1(),
             # XGBModel(),
             CNNModel(),
             # CNN1(),
