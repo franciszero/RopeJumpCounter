@@ -55,12 +55,13 @@ class Differentiator:
         self.prev_vel = None
         self.prev_ts = None
 
-    def diff_compute(self, raw, ts):
+    def diff_compute(self, raw, cnt, ts):
         """
         Compute velocity and acceleration for the given raw feature vector at time ts.
 
         Args:
             raw (list[float]): Flattened feature vector of current frame.
+            cnt: len(SELECTED_LM)
             ts (float): Timestamp of current frame in seconds.
 
         Returns:
@@ -69,7 +70,7 @@ class Differentiator:
         """
         raw_remove_vis = [
             raw[4 * i + j]  # remove visibility
-            for i in range(33)
+            for i in range(cnt)
             for j in (0, 1, 2)
         ]
         if self.mode == 'ma':

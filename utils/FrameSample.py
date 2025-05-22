@@ -2,6 +2,29 @@ import time
 from collections import deque
 import numpy as np
 import cv2
+import mediapipe as mp
+
+PoseLandmark = mp.solutions.pose.PoseLandmark
+
+# Landmarks relevant for rope‑jump counting (16 points)
+SELECTED_LM = [
+    PoseLandmark.LEFT_EYE,
+    PoseLandmark.RIGHT_EYE,
+    PoseLandmark.LEFT_SHOULDER,
+    PoseLandmark.RIGHT_SHOULDER,
+    PoseLandmark.LEFT_ELBOW,
+    PoseLandmark.RIGHT_ELBOW,
+    PoseLandmark.LEFT_WRIST,
+    PoseLandmark.RIGHT_WRIST,
+    PoseLandmark.LEFT_HIP,
+    PoseLandmark.RIGHT_HIP,
+    PoseLandmark.LEFT_KNEE,
+    PoseLandmark.RIGHT_KNEE,
+    PoseLandmark.LEFT_HEEL,
+    PoseLandmark.RIGHT_HEEL,
+    PoseLandmark.LEFT_FOOT_INDEX,
+    PoseLandmark.RIGHT_FOOT_INDEX,
+]
 
 
 class FrameSample:
@@ -42,6 +65,8 @@ class FrameSample:
 
         self.rec = None
 
+        self.len = len(SELECTED_LM)
+
     def init_current_frame(self, frame_idx):
         self.h, self.w = self.raw_frame.shape[:2]
 
@@ -69,18 +94,20 @@ class FrameSample:
         """
         if not lm:
             # No landmarks detected: fill with zeros
-            self.raw_norm = [0.0] * 33 * 4  # 33 landmarks * 4 values each (x,y,z,visibility)
+            self.raw_norm = [0.0] * self.len * 4  # 33 landmarks * 4 values each (x,y,z,visibility)
+            self.raw_norm = [0.0] * self.len * 4
         else:
             # Extract normalized coordinates and visibility
             self.raw_norm = []
-            for m in lm.landmark:
+            for enum_lm in SELECTED_LM:
+                m = lm.landmark[enum_lm.value]
                 self.raw_norm.extend([m.x, m.y, m.z, m.visibility])
         # raw x,y,z,vis
-        for i in range(33):
-            self.rec[f'x_{i}'] = self.raw_norm[4 * i]
-            self.rec[f'y_{i}'] = self.raw_norm[4 * i + 1]
-            self.rec[f'z_{i}'] = self.raw_norm[4 * i + 2]
-            self.rec[f'vis_{i}'] = self.raw_norm[4 * i + 3]
+        for i, enum_lm in enumerate(SELECTED_LM):
+            self.rec[f'x_{enum_lm.value}'] = self.raw_norm[4 * i]
+            self.rec[f'y_{enum_lm.value}'] = self.raw_norm[4 * i + 1]
+            self.rec[f'z_{enum_lm.value}'] = self.raw_norm[4 * i + 2]
+            self.rec[f'vis_{enum_lm.value}'] = self.raw_norm[4 * i + 3]
 
     def compute_raw_px(self, lm):
         """
@@ -91,7 +118,7 @@ class FrameSample:
         """
         if not lm:
             # No landmarks detected: fill with zeros
-            self.raw_px = [0.0] * 33 * 2  # 33 landmarks * 2 values each (x_px, y_px)
+            self.raw_px = [0.0] * self.len * 2  # 33 landmarks * 2 values each (x_px, y_px)
         else:
             # Determine frame size for pixel conversion
             self.raw_px = []
@@ -99,9 +126,9 @@ class FrameSample:
                 # Convert normalized coords to pixel coords
                 self.raw_px.extend([m.x * self.w, m.y * self.h])
         # 像素坐标特征
-        for i in range(33):
-            self.rec[f'x_px_{i}'] = self.raw_px[2 * i]
-            self.rec[f'y_px_{i}'] = self.raw_px[2 * i + 1]
+        for i, enum_lm in enumerate(SELECTED_LM):
+            self.rec[f'x_px_{enum_lm.value}'] = self.raw_px[2 * i]
+            self.rec[f'y_px_{enum_lm.value}'] = self.raw_px[2 * i + 1]
 
     def compute_diff(self, diff):
         """
@@ -111,17 +138,17 @@ class FrameSample:
             diff (Differentiator): Instance to compute velocity and acceleration.
         """
         # Compute velocity and acceleration given current and previous raw_norm and timestamps
-        self.vel, self.acc = diff.diff_compute(self.raw_norm, self.timestamp)
+        self.vel, self.acc = diff.diff_compute(self.raw_norm, self.len, self.timestamp)
         # velocity features
-        for i in range(33):
-            self.rec[f'vx_{i}'] = self.vel[3 * i]
-            self.rec[f'vy_{i}'] = self.vel[3 * i + 1]
-            self.rec[f'vz_{i}'] = self.vel[3 * i + 2]
+        for i, enum_lm in enumerate(SELECTED_LM):
+            self.rec[f'vx_{enum_lm.value}'] = self.vel[3 * i]
+            self.rec[f'vy_{enum_lm.value}'] = self.vel[3 * i + 1]
+            self.rec[f'vz_{enum_lm.value}'] = self.vel[3 * i + 2]
         # acceleration features
-        for i in range(33):
-            self.rec[f'ax_{i}'] = self.acc[3 * i]
-            self.rec[f'ay_{i}'] = self.acc[3 * i + 1]
-            self.rec[f'az_{i}'] = self.acc[3 * i + 2]
+        for i, enum_lm in enumerate(SELECTED_LM):
+            self.rec[f'ax_{enum_lm.value}'] = self.acc[3 * i]
+            self.rec[f'ay_{enum_lm.value}'] = self.acc[3 * i + 1]
+            self.rec[f'az_{enum_lm.value}'] = self.acc[3 * i + 2]
 
     def compute_spatial(self, lm, dist_calc, ang_calc):
         """

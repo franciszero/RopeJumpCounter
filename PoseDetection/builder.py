@@ -18,6 +18,7 @@ from pathlib import Path
 
 from PoseDetection.data_builder_utils.feature_mode import mode_to_str, get_feature_mode
 from features import FeaturePipeline
+from utils.FrameSample import SELECTED_LM
 from utils.VideoStabilizer import VideoStabilizer
 
 import matplotlib
@@ -245,10 +246,12 @@ def gradient_split(args):
     if args.preview_split:
         def _detail(vid_dicts):
             return [
-                {"video": Path(vid_dic['path']).name,
-                 "pos_frames": next(vid_dic['pos']),
-                 "total_frames": next(vid_dic['total'])}
-                for vid_dic in vid_dicts
+                {
+                    "video": Path(v['path']).name,
+                    "pos_frames": v['pos'],
+                    "total_frames": v['total']
+                }
+                for v in vid_dicts
             ]
 
         preview = {
@@ -319,7 +322,7 @@ def main():
                 X, y = npz_dic["X"], npz_dic["y"]
 
             # 步骤3：窗口级数据（多窗口大小）
-            window_sizes = [4]  # [4, 5, 6, 8, 12, 16, 24, 32]
+            window_sizes = [4, 5, 6]  # [4, 5, 6, 8, 12, 16, 24, 32]
 
             for win_size in window_sizes:
                 X_win, y_win = building_win_dataset(X, y, win_size, args.stride)
@@ -377,7 +380,7 @@ def get_command_line_params():
     args = parser.parse_args()
 
     suffix = mode_to_str(get_feature_mode())
-    output_dir = f"{args.output_dir}_{suffix}"
+    output_dir = f"{args.output_dir}_{len(SELECTED_LM)}_{suffix}"
     os.makedirs(output_dir, exist_ok=True)
     return args, output_dir
 

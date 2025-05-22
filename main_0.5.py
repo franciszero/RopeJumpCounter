@@ -10,6 +10,7 @@ from capture.pyav_capture import PyAVCapture
 import numpy as np
 import pandas as pd
 from PoseDetection.features import FeaturePipeline
+from utils.FrameSample import SELECTED_LM
 from utils.Perf import PerfStats
 from PoseDetection.models.ModelParams.ThresholdHolder import ThresholdHolder
 
@@ -194,8 +195,9 @@ class PlayerGUI:
 
 def main():
     parser = argparse.ArgumentParser()
+    # parser.add_argument("--model", default="best_cnn_ws4_withT.keras")  # 17ms 25.6FPS
     parser.add_argument("--model", default="best_cnn8_ws4_withT.keras")  # 17ms 25.6FPS
-    # parser.add_argument("--model", default="best_cnn_hybrid_ws4_withT.keras")  # 17ms 25.6FPS
+    # parser.add_argument("--model", default="best_cnn_hybrid_ws4_withT.keras")  # 117ms
     # parser.add_argument("--model", default="best_crnn_ws12_withT.keras")  # 68ms 14.2FPS
     # parser.add_argument("--model", default="best_efficientnet1d_ws4_withT.keras")  # 39ms 25.6FPS
     # parser.add_argument("--model", default="best_inception_ws4_withT.keras")  # 50ms 19.7FPS
@@ -215,7 +217,7 @@ def main():
     parser.add_argument("--save_video", default="data/raw_videos_3", help="Video save path")
     args = parser.parse_args()
 
-    predictor = VideoPredictor(f"model_files/models_{mode_to_str(get_feature_mode())}/" + args.model)
+    predictor = VideoPredictor(f"model_files/models_{len(SELECTED_LM)}_{mode_to_str(get_feature_mode())}/" + args.model)
     gui = PlayerGUI(predictor, args.width, args.height, args.fps, save_path=args.save_video)
     gui.run()
 

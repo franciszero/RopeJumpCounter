@@ -11,6 +11,7 @@ import datetime, os
 
 from PoseDetection.data_builder_utils.feature_mode import mode_to_str, get_feature_mode
 from PoseDetection.models.ModelParams.ThresholdHolder import ThresholdHolder
+from utils.FrameSample import SELECTED_LM
 
 
 class TrainMyModel(ABC):
@@ -22,8 +23,8 @@ class TrainMyModel(ABC):
 
         self.model_name = name
         mode = mode_to_str(get_feature_mode())
-        self.dest_root = f"{dest_root}/models_{mode}"
-        self.source_root = f"{source_root}/dataset_{mode}"
+        self.dest_root = f"{dest_root}/models_{len(SELECTED_LM)}_{mode}"
+        self.source_root = f"{source_root}/dataset_{len(SELECTED_LM)}_{mode}"
         self.num_classes = 2
         self.random_state = 42
         self.epochs = 100
