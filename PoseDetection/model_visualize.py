@@ -275,7 +275,7 @@ class PlayerGUI:
 def main():
     parser = argparse.ArgumentParser()
     # ========= models ==========
-    parser.add_argument("--model", default="best_cnn8_ws4_withT.keras")
+    parser.add_argument("--model", default="best_cnn8_1_ws4_withT.keras")
 
     # ========= videos ==========
     # parser.add_argument("--video", default="raw_videos_3/jump_2025.05.14.08.34.44.avi")

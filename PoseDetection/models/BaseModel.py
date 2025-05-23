@@ -1,5 +1,7 @@
 import tensorflow as tf
 from abc import ABC, abstractmethod
+
+from keras.src.optimizers.schedules import CosineDecayRestarts
 from sklearn.metrics import classification_report, roc_auc_score, average_precision_score
 from sklearn.utils import class_weight
 from sklearn.metrics import roc_curve
@@ -71,6 +73,15 @@ class TrainMyModel(ABC):
         self.report = None  # self.report = classification_report(self.y_test, self.y_pred, output_dict=True)
         self.model = None
 
+        # --- Warm‑up + cosine‑restart learning‑rate schedule ---
+        self.steps_per_epoch = 1000  # fallback; you can overwrite this attribute later
+        self.lr_schedule = CosineDecayRestarts(
+            initial_learning_rate=3e-4,
+            first_decay_steps=3 * self.steps_per_epoch,
+            t_mul=2.0,
+            m_mul=0.8
+        )
+
     def _init_model(self):
         self.window_size = self.MODEL_WINDOW_SIZES[self.model_name]
         self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test \
@@ -110,12 +121,12 @@ class TrainMyModel(ABC):
                 monitor="val_loss",
                 patience=8,
                 restore_best_weights=True),
-            tf.keras.callbacks.ReduceLROnPlateau(
-                monitor="val_loss",
-                factor=0.5,
-                patience=4,
-                min_lr=1e-6,
-                verbose=1),
+            # tf.keras.callbacks.ReduceLROnPlateau(
+            #     monitor="val_loss",
+            #     factor=0.5,
+            #     patience=4,
+            #     min_lr=1e-6,
+            #     verbose=1),
             tf.keras.callbacks.ModelCheckpoint(
                 filepath=ckpt_path,
                 monitor="val_pr_auc" if "pr_auc" in self.model.metrics_names else "val_accuracy",

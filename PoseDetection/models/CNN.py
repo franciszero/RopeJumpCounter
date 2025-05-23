@@ -1,12 +1,9 @@
 import tensorflow as tf
-from tensorflow.keras import Input
-from tensorflow.keras.layers import Conv1D, BatchNormalization, MaxPooling1D, GlobalAveragePooling1D, Dense, Activation, \
-    Dropout, SeparableConv1D, SpatialDropout1D, Reshape, Concatenate, Add, Multiply
-from tensorflow.keras.metrics import AUC
-from tensorflow.keras import Model
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.optimizers.schedules import CosineDecayRestarts
 from PoseDetection.models.BaseModel import TrainMyModel
+from tensorflow.keras.layers import *
+from tensorflow.keras.metrics import AUC
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
 
 
 class CNNModel(TrainMyModel):
@@ -40,7 +37,7 @@ class CNNModel(TrainMyModel):
         model = Model(inputs, outputs)
 
         model.compile(
-            optimizer=Adam(learning_rate=3e-4),
+            optimizer=Adam(learning_rate=self.lr_schedule),
             loss='binary_crossentropy',
             metrics=[
                 'accuracy',
@@ -82,7 +79,7 @@ class CNN1(TrainMyModel):
 
         model = Model(inputs, outputs)
         model.compile(
-            optimizer=Adam(learning_rate=3e-4),
+            optimizer=Adam(learning_rate=self.lr_schedule),
             loss='binary_crossentropy',
             metrics=[
                 'accuracy',
@@ -134,7 +131,7 @@ class CNN2(TrainMyModel):
 
         model = Model(inputs, outputs)
         model.compile(
-            optimizer=Adam(learning_rate=3e-4),
+            optimizer=Adam(learning_rate=self.lr_schedule),
             loss='binary_crossentropy',
             metrics=[
                 'accuracy', AUC(name='auc'),
@@ -173,7 +170,7 @@ class CNN3(TrainMyModel):
 
         model = Model(inputs, outputs)
         model.compile(
-            optimizer=Adam(learning_rate=3e-4),
+            optimizer=Adam(learning_rate=self.lr_schedule),
             loss='binary_crossentropy',
             metrics=[
                 'accuracy', AUC(name='auc'),
@@ -230,7 +227,7 @@ class CNN4(TrainMyModel):
 
         model = Model(inputs, outputs)
         model.compile(
-            optimizer=Adam(learning_rate=3e-4),
+            optimizer=Adam(learning_rate=self.lr_schedule),
             loss='binary_crossentropy',
             metrics=[
                 'accuracy',
@@ -277,7 +274,7 @@ class CNN5(TrainMyModel):
 
         model = Model(inputs, outputs)
         model.compile(
-            optimizer=Adam(learning_rate=3e-4),
+            optimizer=Adam(learning_rate=self.lr_schedule),
             loss='binary_crossentropy',
             metrics=[
                 'accuracy',
@@ -323,7 +320,7 @@ class CNN6(TrainMyModel):
 
         model = Model(inputs, outputs)
         model.compile(
-            optimizer=Adam(learning_rate=3e-4),
+            optimizer=Adam(learning_rate=self.lr_schedule),
             loss='binary_crossentropy',
             metrics=[
                 'accuracy',
@@ -365,7 +362,7 @@ class CNN7(TrainMyModel):
 
         model = Model(inputs, outputs)
         model.compile(
-            optimizer=Adam(learning_rate=3e-4),
+            optimizer=Adam(learning_rate=self.lr_schedule),
             loss='binary_crossentropy',
             metrics=['accuracy', AUC(name='auc'), AUC(curve='PR', name='pr_auc')]
         )
@@ -401,7 +398,7 @@ class CNN8(TrainMyModel):
 
         model = Model(inputs, outputs)
         model.compile(
-            optimizer=Adam(learning_rate=3e-4),
+            optimizer=Adam(learning_rate=self.lr_schedule),
             loss='binary_crossentropy',
             metrics=['accuracy', AUC(name='auc'), AUC(curve='PR', name='pr_auc')]
         )
@@ -437,17 +434,9 @@ class CNN8_1(TrainMyModel):
         outputs = Dense(1, activation='sigmoid')(x)
 
         model = Model(inputs, outputs)
-        # --- Warm‑up + cosine‑restart learning‑rate schedule ---
-        steps_per_epoch = 1000  # fallback; you can overwrite this attribute later
-        lr_schedule = CosineDecayRestarts(
-            initial_learning_rate=3e-4,
-            first_decay_steps=3 * steps_per_epoch,
-            t_mul=2.0,
-            m_mul=0.8
-        )
 
         model.compile(
-            optimizer=Adam(learning_rate=lr_schedule),
+            optimizer=Adam(learning_rate=self.lr_schedule),
             loss='binary_crossentropy',
             metrics=[
                 'accuracy',
@@ -495,7 +484,7 @@ class CNN9(TrainMyModel):
 
         model = Model(inputs, outputs)
         model.compile(
-            optimizer=Adam(learning_rate=3e-4),
+            optimizer=Adam(learning_rate=self.lr_schedule),
             loss='binary_crossentropy',
             metrics=['accuracy', AUC(name='auc'), AUC(curve='PR', name='pr_auc')]
         )

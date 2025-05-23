@@ -46,19 +46,6 @@ class Trainer:
     def __init__(self):
         # Set up models with their respective window sizes
         self.models = [
-            CNN8_1(),
-            # XGBModel(),
-            CNNModel(),
-            # CNN1(),
-            # CNN2(),
-            # CNN3(),
-            # CNN4(),
-            CNN5(),
-            # CNN6(),
-            # CNN7(),
-            CNN8(),
-            # CNN9(),
-            CNNHybridModel(),
             # CRNNModel(),
             # EfficientNet1DModel(),
             # InceptionTimeModel(),
@@ -71,6 +58,19 @@ class Trainer:
             # TFTLiteModel(),
             # TransformerLiteModel(),
             # WaveNetModel(),
+            CNN8_1(),
+            # # XGBModel(),
+            # CNNModel(),
+            # CNNHybridModel(),
+            # CNN1(),
+            # CNN2(),
+            # CNN3(),
+            # CNN4(),
+            # CNN5(),
+            # CNN6(),
+            # CNN7(),
+            # CNN8(),
+            # CNN9(),
         ]
 
     def train(self):

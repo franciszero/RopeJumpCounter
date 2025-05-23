@@ -1,10 +1,13 @@
 # models/TransformerLite.py
-import tensorflow as tf
-from tensorflow.keras import layers, models, callbacks
 from PoseDetection.models.BaseModel import TrainMyModel
+import tensorflow as tf
+from tensorflow.keras.layers import *
+from tensorflow.keras.metrics import AUC
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
 
 
-class PositionalEncoding(layers.Layer):
+class PositionalEncoding(Layer):
     """简化版正余弦位置编码"""
 
     def call(self, x):
@@ -29,37 +32,37 @@ class TransformerLiteModel(TrainMyModel):
 
     def _build(self):
         d_model = 64
-        inputs = layers.Input(shape=self.X_train.shape[1:])  # (T, D)
+        inputs = Input(shape=self.X_train.shape[1:])  # (T, D)
 
         # --- Positional Encoding via Conv1D ---
-        x = layers.Conv1D(d_model, 1, padding='same')(inputs)
+        x = Conv1D(d_model, 1, padding='same')(inputs)
 
         # --- Transformer Encoder blocks (lite) ---
         for _ in range(2):
             # Multi-head attention
-            attn_out = layers.MultiHeadAttention(num_heads=4, key_dim=d_model // 4,
+            attn_out = MultiHeadAttention(num_heads=4, key_dim=d_model // 4,
                                                  dropout=0.1)(x, x)
-            x = layers.LayerNormalization(epsilon=1e-6)(x + attn_out)
+            x = LayerNormalization(epsilon=1e-6)(x + attn_out)
 
             # Feed-forward
-            ff = layers.Dense(d_model * 2, activation='relu')(x)
-            ff = layers.Dense(d_model)(ff)
-            x = layers.LayerNormalization(epsilon=1e-6)(x + ff)
+            ff = Dense(d_model * 2, activation='relu')(x)
+            ff = Dense(d_model)(ff)
+            x = LayerNormalization(epsilon=1e-6)(x + ff)
 
         # --- Classification head ---
-        x = layers.GlobalAveragePooling1D()(x)
-        x = layers.Dense(64, activation='relu')(x)
-        x = layers.Dropout(0.3)(x)
-        outputs = layers.Dense(1, activation='sigmoid')(x)
+        x = GlobalAveragePooling1D()(x)
+        x = Dense(64, activation='relu')(x)
+        x = Dropout(0.3)(x)
+        outputs = Dense(1, activation='sigmoid')(x)
 
-        model = models.Model(inputs, outputs)
+        model = Model(inputs, outputs)
         model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=3e-4, clipnorm=1.0),
+            optimizer=Adam(learning_rate=self.lr_schedule, clipnorm=1.0),
             loss='binary_crossentropy',
             metrics=[
                 'accuracy',
-                tf.keras.metrics.AUC(name='auc'),  # ROC‑AUC
-                tf.keras.metrics.AUC(curve='PR', name='pr_auc'),  # PR‑AUC
+                AUC(name='auc'),  # ROC‑AUC
+                AUC(curve='PR', name='pr_auc'),  # PR‑AUC
             ],
             **self.compile_kwargs
         )

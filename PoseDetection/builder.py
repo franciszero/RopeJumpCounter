@@ -322,7 +322,7 @@ def main():
                 X, y = npz_dic["X"], npz_dic["y"]
 
             # 步骤3：窗口级数据（多窗口大小）
-            window_sizes = [4, 5, 6]  # [4, 5, 6, 8, 12, 16, 24, 32]
+            window_sizes = [4, 5, 6, 8, 12, 16, 24, 32]
 
             for win_size in window_sizes:
                 X_win, y_win = building_win_dataset(X, y, win_size, args.stride)
@@ -375,7 +375,7 @@ def get_command_line_params():
     parser.add_argument('--seed', type=int, default=42, help='随机种子')
     parser.add_argument('--split_yaml', default=None,
                         help='预定义划分文件（yaml: train/val/test 列表），若提供则覆盖随机划分')
-    parser.add_argument('--preview_split', default=True, action='store_true',
+    parser.add_argument('--preview_split', default=False, action='store_true',
                         help='仅预览 train/val/test 划分与正例数量，然后退出（不做特征提取）')
     args = parser.parse_args()
 

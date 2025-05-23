@@ -1,7 +1,9 @@
 # models/EfficientNet1D.py
-import tensorflow as tf
-from tensorflow.keras import layers, models
 from PoseDetection.models.BaseModel import TrainMyModel
+from tensorflow.keras.layers import *
+from tensorflow.keras.metrics import AUC
+from tensorflow.keras.models import Model
+from tensorflow.keras.optimizers import Adam
 
 
 def depthwise_conv1d(x, point_filters: int, kernel_size: int, stride: int):
@@ -21,15 +23,15 @@ def depthwise_conv1d(x, point_filters: int, kernel_size: int, stride: int):
     Returns:
         Tensor of shape (B, new_W, point_filters)
     """
-    x = layers.SeparableConv1D(
+    x = SeparableConv1D(
         filters=point_filters,
         kernel_size=kernel_size,
         strides=stride,
         padding="same",
         use_bias=False
     )(x)
-    x = layers.BatchNormalization(momentum=0.9, epsilon=1e-3)(x)
-    x = layers.Activation("swish")(x)
+    x = BatchNormalization(momentum=0.9, epsilon=1e-3)(x)
+    x = Activation("swish")(x)
     return x
 
 
@@ -41,26 +43,26 @@ class EfficientNet1DModel(TrainMyModel):
         self._init_model()
 
     def _build(self):
-        inputs = layers.Input(shape=self.X_train.shape[1:])  # (W, D)
+        inputs = Input(shape=self.X_train.shape[1:])  # (W, D)
         x = depthwise_conv1d(inputs, 32, 3, 1)
         x = depthwise_conv1d(x, 64, 3, 1)
         x = depthwise_conv1d(x, 128, 3, 2)
         x = depthwise_conv1d(x, 256, 3, 1)
 
         # --- head ---
-        x = layers.GlobalAveragePooling1D()(x)
-        x = layers.Dense(64, activation='swish')(x)
-        x = layers.Dropout(0.4)(x)
-        outputs = layers.Dense(1, activation='sigmoid')(x)
+        x = GlobalAveragePooling1D()(x)
+        x = Dense(64, activation='swish')(x)
+        x = Dropout(0.4)(x)
+        outputs = Dense(1, activation='sigmoid')(x)
 
-        model = models.Model(inputs, outputs)
+        model = Model(inputs, outputs)
         model.compile(
-            optimizer=tf.keras.optimizers.Adam(learning_rate=3e-4),
+            optimizer=Adam(learning_rate=self.lr_schedule),
             loss='binary_crossentropy',
             metrics=[
                 'accuracy',
-                tf.keras.metrics.AUC(name='auc'),
-                tf.keras.metrics.AUC(curve='PR', name='pr_auc')
+                AUC(name='auc'),
+                AUC(curve='PR', name='pr_auc')
             ],
             **self.compile_kwargs  # 透传额外参数
         )
