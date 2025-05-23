@@ -100,8 +100,8 @@ class CNN2(TrainMyModel):
         se = GlobalAveragePooling1D()(inputs)
         se = Dense(filters // ratio, activation='relu')(se)
         se = Dense(filters, activation='sigmoid')(se)
-        se = Reshape([1, filters])(se)
-        return Multiply([inputs, se])
+        se = Reshape((1, filters))(se)
+        return Multiply()([inputs, se])
 
     def _build(self):
         inputs = Input(shape=self.X_train.shape[1:])
@@ -198,16 +198,16 @@ class CNN4(TrainMyModel):
         x = Activation('relu')(x)
 
         # Residual block
-        def res_block(x, filters):
-            shortcut = x
-            x = Conv1D(filters, 3, padding='same', use_bias=False)(x)
-            x = BatchNormalization()(x)
-            x = Activation('relu')(x)
-            x = Conv1D(filters, 3, padding='same', use_bias=False)(x)
-            x = BatchNormalization()(x)
-            x = Add([shortcut, x])
-            x = Activation('relu')(x)
-            return x
+        def res_block(x1, filters):
+            shortcut = x1
+            x1 = Conv1D(filters, 3, padding='same', use_bias=False)(x1)
+            x1 = BatchNormalization()(x1)
+            x1 = Activation('relu')(x1)
+            x1 = Conv1D(filters, 3, padding='same', use_bias=False)(x1)
+            x1 = BatchNormalization()(x1)
+            x1 = Add()([shortcut, x1])
+            x1 = Activation('relu')(x1)
+            return x1
 
         x = res_block(x, 64)
         x = MaxPooling1D(2)(x)
@@ -299,14 +299,14 @@ class CNN6(TrainMyModel):
         inputs = Input(shape=self.X_train.shape[1:])
 
         # Multi-scale conv block
-        def ms_block(x, filters):
-            conv3 = Conv1D(filters, 3, padding='same', use_bias=False)(x)
-            conv5 = Conv1D(filters, 5, padding='same', use_bias=False)(x)
-            conv7 = Conv1D(filters, 7, padding='same', use_bias=False)(x)
-            x = Concatenate([conv3, conv5, conv7], axis=-1)
-            x = BatchNormalization()(x)
-            x = Activation('relu')(x)
-            return x
+        def ms_block(x1, filters):
+            conv3 = Conv1D(filters, 3, padding='same', use_bias=False)(x1)
+            conv5 = Conv1D(filters, 5, padding='same', use_bias=False)(x1)
+            conv7 = Conv1D(filters, 7, padding='same', use_bias=False)(x1)
+            x1 = Concatenate(axis=-1)([conv3, conv5, conv7])
+            x1 = BatchNormalization()(x1)
+            x1 = Activation('relu')(x1)
+            return x1
 
         x = ms_block(inputs, 64)
         x = MaxPooling1D(2)(x)
