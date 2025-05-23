@@ -39,6 +39,7 @@ import PySimpleGUIQt as sg
 
 from PoseDetection.data_builder_utils.feature_mode import get_feature_mode_all, get_feature_mode, mode_to_str
 from PoseDetection.features import FeaturePipeline
+from PoseDetection.models.ModelParams.TCNBlock import TCNBlock
 
 import logging
 
@@ -275,7 +276,8 @@ class PlayerGUI:
 def main():
     parser = argparse.ArgumentParser()
     # ========= models ==========
-    parser.add_argument("--model", default="best_cnn8_1_ws4_withT.keras")
+    # parser.add_argument("--model", default="best_cnn8_ws4_withT.keras")
+    parser.add_argument("--model", default="best_tcn_ws24_withT.keras")
 
     # ========= videos ==========
     # parser.add_argument("--video", default="raw_videos_3/jump_2025.05.14.08.34.44.avi")
