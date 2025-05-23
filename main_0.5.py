@@ -13,6 +13,7 @@ from PoseDetection.features import FeaturePipeline
 from utils.FrameSample import SELECTED_LM
 from utils.Perf import PerfStats
 from PoseDetection.models.ModelParams.ThresholdHolder import ThresholdHolder
+from PoseDetection.models.ModelParams.TCNBlock import TCNBlock
 
 # 强制使用 MPS/GPU
 import tensorflow as tf
@@ -195,7 +196,6 @@ class PlayerGUI:
 
 def main():
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--model", default="best_cnn_ws4_withT.keras")  # 17ms 25.6FPS
     parser.add_argument("--model", default="best_cnn8_ws4_withT.keras")  # 17ms 25.6FPS
     # parser.add_argument("--model", default="best_cnn_hybrid_ws4_withT.keras")  # 117ms
     # parser.add_argument("--model", default="best_crnn_ws12_withT.keras")  # 68ms 14.2FPS
@@ -205,7 +205,7 @@ def main():
     # parser.add_argument("--model", default="best_resnet1d_ws16_withT.keras")  # 44ms 22.7FPS
     # parser.add_argument("--model", default="best_resnet1d_tcn_ws16_withT.keras")  # 58ms 17FPS
     # parser.add_argument("--model", default="best_seresnet1d_ws16_withT.keras")  # 49ms 19.5FPS
-    # parser.add_argument("--model", default="best_tcn_ws4_withT.keras")  # 40ms 24FPS
+    # parser.add_argument("--model", default="best_tcn_ws24_withT.keras")  # 40ms 24FPS
     # parser.add_argument("--model", default="best_tcn_se_ws24_withT.keras")  # 60ms 16FPS
     # parser.add_argument("--model", default="best_tftlite_ws16_withT.keras")  # 127ms 8FPS
     # parser.add_argument("--model", default="best_transformerlite_ws16_withT.keras")  # 45ms 22.3FPS
