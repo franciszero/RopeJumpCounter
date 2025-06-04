@@ -1,3 +1,11 @@
+"""
+Frame sampling and feature extraction module
+
+Provides comprehensive frame-level feature extraction for jump rope counting.
+Handles pose landmark processing, temporal features, spatial relationships,
+and windowed feature aggregation for machine learning models.
+"""
+
 import time
 from collections import deque
 import numpy as np
@@ -6,45 +14,58 @@ import mediapipe as mp
 
 PoseLandmark = mp.solutions.pose.PoseLandmark
 
-# Landmarks relevant for rope‑jump counting (16 points)
+# Selected landmarks relevant for rope jump counting (16 key points)
+# These landmarks capture the essential body parts needed for jump detection
 SELECTED_LM = [
-    PoseLandmark.LEFT_EYE,
-    PoseLandmark.RIGHT_EYE,
-    PoseLandmark.LEFT_SHOULDER,
-    PoseLandmark.RIGHT_SHOULDER,
-    PoseLandmark.LEFT_ELBOW,
-    PoseLandmark.RIGHT_ELBOW,
-    PoseLandmark.LEFT_WRIST,
-    PoseLandmark.RIGHT_WRIST,
-    PoseLandmark.LEFT_HIP,
-    PoseLandmark.RIGHT_HIP,
-    PoseLandmark.LEFT_KNEE,
-    PoseLandmark.RIGHT_KNEE,
-    PoseLandmark.LEFT_HEEL,
-    PoseLandmark.RIGHT_HEEL,
-    PoseLandmark.LEFT_FOOT_INDEX,
-    PoseLandmark.RIGHT_FOOT_INDEX,
+    PoseLandmark.LEFT_EYE,          # Head tracking
+    PoseLandmark.RIGHT_EYE,         # Head tracking
+    PoseLandmark.LEFT_SHOULDER,     # Upper body structure
+    PoseLandmark.RIGHT_SHOULDER,    # Upper body structure
+    PoseLandmark.LEFT_ELBOW,        # Arm movement
+    PoseLandmark.RIGHT_ELBOW,       # Arm movement
+    PoseLandmark.LEFT_WRIST,        # Hand/rope position
+    PoseLandmark.RIGHT_WRIST,       # Hand/rope position
+    PoseLandmark.LEFT_HIP,          # Core body tracking
+    PoseLandmark.RIGHT_HIP,         # Core body tracking
+    PoseLandmark.LEFT_KNEE,         # Leg movement
+    PoseLandmark.RIGHT_KNEE,        # Leg movement
+    PoseLandmark.LEFT_HEEL,         # Foot position
+    PoseLandmark.RIGHT_HEEL,        # Foot position
+    PoseLandmark.LEFT_FOOT_INDEX,   # Foot landing detection
+    PoseLandmark.RIGHT_FOOT_INDEX,  # Foot landing detection
 ]
 
 
 class FrameSample:
-    """
-    Encapsulates all per-frame data and feature computations for a single video frame.
+    """Comprehensive frame-level feature extraction for jump rope analysis
 
-    This class stores raw image data, pose landmarks, and computes various features such as
-    normalized and pixel coordinates, velocity, acceleration, distances between key joints,
-    and joint angles. It also supports maintaining a sliding window buffer of features for
-    temporal models.
+    This class encapsulates all per-frame data processing and feature computation
+    for video frames in jump rope counting applications. It handles multiple types
+    of features including pose landmarks, temporal derivatives, spatial relationships,
+    and windowed aggregations.
+
+    Features computed:
+    - Raw normalized coordinates (x, y, z, visibility)
+    - Pixel coordinates for selected landmarks
+    - Velocity features (first-order temporal differences)
+    - Acceleration features (second-order temporal differences)
+    - Distance features between joint pairs
+    - Angle features between joint triplets
+    - Windowed feature sequences for temporal models
+
+    The class maintains a sliding window buffer for temporal models that require
+    sequences of feature vectors as input.
     """
 
     def __init__(self, cap, window_size: int = 1):
-        """
-        Initialize a FrameSample instance.
+        """Initialize frame sample processor
+
+        Sets up feature extraction components and sliding window buffer
+        for temporal feature aggregation.
 
         Args:
-            cap
-            window_size (int, optional): Size of the sliding window for temporal features.
-                                         Defaults to 1 (no windowing).
+            cap: Video capture object for frame dimension extraction
+            window_size: Size of sliding window for temporal features (default: 1)
         """
         self.cap = cap
         self.window_size = window_size  # Window size for temporal feature buffering

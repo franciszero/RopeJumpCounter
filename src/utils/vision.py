@@ -1,10 +1,27 @@
+"""
+Computer vision utility module
+
+Provides pose estimation capabilities using MediaPipe for human pose detection
+and landmark extraction in video frames. Supports region-based analysis and
+height calculations for jump rope counting applications.
+"""
+
 import cv2
 import mediapipe as mp
 
 
 class PoseEstimator:
-    """
-    Wrapper around MediaPipe Pose to extract landmarks and region heights.
+    """MediaPipe-based human pose estimation wrapper
+
+    Encapsulates MediaPipe Pose functionality to extract human pose landmarks
+    from video frames. Provides methods for landmark detection, region analysis,
+    and height calculations for different body parts.
+
+    Features:
+    - Real-time pose landmark detection
+    - Region-based body part analysis (head, torso, legs)
+    - Normalized coordinate extraction
+    - Configurable detection and tracking confidence
     """
 
     def __init__(self):
@@ -41,15 +58,32 @@ class PoseEstimator:
         }
 
     def get_pose_landmarks(self, stable_frame):
+        """Extract pose landmarks from video frame
+
+        Processes a BGR video frame to detect human pose landmarks using MediaPipe.
+
+        Args:
+            stable_frame: Input video frame in BGR format
+
+        Returns:
+            MediaPipe pose landmarks object or None if no pose detected
+        """
         img_rgb = cv2.cvtColor(stable_frame, cv2.COLOR_BGR2RGB)
         results = self.pose.process(img_rgb)
         return results.pose_landmarks
 
     def estimate1(self, stable_frame):
-        """
-        Run pose estimation on `frame` (BGR).
-        Returns: (landmark_results, heights_dict)
-        `heights_dict` maps region names ('head','torso','legs') to normalized y-values.
+        """Extract body region heights from pose landmarks
+
+        Analyzes pose landmarks to calculate normalized y-coordinates for
+        different body regions (head, torso, legs). Used for jump analysis.
+
+        Args:
+            stable_frame: Input video frame in BGR format
+
+        Returns:
+            dict: Region heights mapping {'head': y, 'torso': y, 'legs': y}
+                  where y-values are normalized coordinates (0.0-1.0)
         """
         lm = self.get_pose_landmarks(stable_frame)
         heights = {}
