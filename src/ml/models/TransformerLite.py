@@ -27,7 +27,7 @@ class PositionalEncoding(Layer):
 
 class TransformerLiteModel(TrainMyModel):
     """
-    Encoder‑only Transformer，usefor short sequences
+    Encoder-only Transformer, used for short sequences
     """
 
     def __init__(self, name="transformerlite"):
@@ -65,8 +65,8 @@ class TransformerLiteModel(TrainMyModel):
             loss='binary_crossentropy',
             metrics=[
                 'accuracy',
-                AUC(name='auc'),  # ROC‑AUC
-                AUC(curve='PR', name='pr_auc'),  # PR‑AUC
+                AUC(name='auc'),  # ROC-AUC
+                AUC(curve='PR', name='pr_auc'),  # PR-AUC
             ],
             **self.compile_kwargs
         )

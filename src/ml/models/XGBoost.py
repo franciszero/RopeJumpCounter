@@ -12,12 +12,12 @@ class XGBModel(TrainMyModel):
         self._init_model()
 
     def _build(self):
-        # no need to build neural network，leave empty
+        # No need to build neural network, leave empty
         return None
 
     def train(self, **kwargs):
-        # 1. load frame-level data（size=1）
-        # loadwill get after self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test
+        # 1. Load frame-level data (size=1)
+        # After loading will get self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test
 
         # 2. Initialize XGBoost classifier
         self.model = xgb.XGBClassifier(
@@ -26,8 +26,8 @@ class XGBModel(TrainMyModel):
             **kwargs  # such as n_estimators, max_depth, learning_rate
         )
 
-        # 3. training
-        # self.X_train shape (N_train, 403)，self.y_train shape (N_train,)
+        # 3. Training
+        # self.X_train shape (N_train, 403), self.y_train shape (N_train,)
         self.history = self.model.fit(
             self.X_train, self.y_train,
             eval_set=[(self.X_train, self.y_train), (self.X_val, self.y_val)],

@@ -34,7 +34,7 @@ class PoseEstimator:
             min_tracking_confidence=0.5
         )
         self.mp_draw = mp.solutions.drawing_utils
-        # define eachunits“region”correspondinglandmarksindices
+        # Define each region's corresponding landmark indices
         self.REGION_LANDMARKS = {
             "head": [
                 self.mp_pose.PoseLandmark.NOSE,

@@ -1,5 +1,5 @@
 """
-应用程序入口模块
+Application entry module
 
-包含各种应用程序的主入口文件
+Package contains each type of application process sequence for main entry opening file
 """

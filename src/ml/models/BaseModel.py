@@ -1,7 +1,7 @@
 import tensorflow as tf
 from abc import ABC, abstractmethod
 
-from keras.src.optimizers.schedules import CosineDecayRestarts
+from tensorflow.keras.optimizers.schedules import CosineDecayRestarts
 from sklearn.metrics import classification_report, roc_auc_score, average_precision_score
 from sklearn.utils import class_weight
 from sklearn.metrics import roc_curve
@@ -11,13 +11,13 @@ from matplotlib import pyplot as plt
 from sklearn.metrics import auc, precision_recall_curve
 import datetime, os
 
-from PoseDetection.data_builder_utils.feature_mode import mode_to_str, get_feature_mode
-from PoseDetection.models.ModelParams.ThresholdHolder import ThresholdHolder
-from utils.FrameSample import SELECTED_LM
+from src.ml.data.builders.feature_mode import mode_to_str, get_feature_mode
+from src.ml.models.ModelParams.ThresholdHolder import ThresholdHolder
+from src.utils.FrameSample import SELECTED_LM
 
 
 class TrainMyModel(ABC):
-    def __init__(self, name, dest_root='../model_files', source_root='../data', *, class_weight_dict=None,
+    def __init__(self, name, dest_root='model_files', source_root='data', *, class_weight_dict=None,
                  **compile_kwargs):
         self.is_training = None
         self.class_weight_dict = class_weight_dict
@@ -34,7 +34,7 @@ class TrainMyModel(ABC):
         self.TEST_RATIO = 0.15
         self.VAL_RATIO = 0.15
 
-        # 配置: 各模型对应的 window_size
+        # Configuration: each model's corresponding window_size
         self.MODEL_WINDOW_SIZES = {
             "xgb": 1,
             "cnn": 4,
@@ -73,7 +73,7 @@ class TrainMyModel(ABC):
         self.report = None  # self.report = classification_report(self.y_test, self.y_pred, output_dict=True)
         self.model = None
 
-        # --- Warm‑up + cosine‑restart learning‑rate schedule ---
+        # --- Warm-up + cosine-restart learning-rate schedule ---
         self.steps_per_epoch = 1000  # fallback; you can overwrite this attribute later
         self.lr_schedule = CosineDecayRestarts(
             initial_learning_rate=3e-4,
@@ -107,15 +107,19 @@ class TrainMyModel(ABC):
 
     @abstractmethod
     def _build(self):
-        """子类必须实现：构建模型结构"""
+        """
+        subclass must implement: build model structure
+        """
         pass
 
-    # ------- 新增 / 替换 -------
+    # ------- add/replace -------
     def _get_callbacks(self):
-        """通用回调：EarlyStopping + ReduceLROnPlateau + ModelCheckpoint + PRCurve + TensorBoard"""
+        """
+        Common callbacks: EarlyStopping + ReduceLROnPlateau + ModelCheckpoint + PRCurve + TensorBoard
+        """
         ckpt_path = os.path.join(self.dest_root, f"best_{self.model_name}_ws{self.window_size}.keras")
 
-        # --- 核心回调 ---
+        # --- core callbacks ---
         callbacks = [
             tf.keras.callbacks.EarlyStopping(
                 monitor="val_loss",
@@ -134,7 +138,7 @@ class TrainMyModel(ABC):
                 verbose=1)
         ]
 
-        # --- PR‑AUC 曲线监控 & TensorBoard ---
+        # --- PR-AUC curve monitoring & TensorBoard ---
         log_dir = os.path.join(
             self.dest_root,
             "logs",
@@ -142,7 +146,7 @@ class TrainMyModel(ABC):
             datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
         )
 
-        # 自定义 PR 曲线回调
+        # Custom PR curve callback
         callbacks.append(
             PRCurveCallback(
                 val_data=(self.X_val, self.y_val),
@@ -151,7 +155,7 @@ class TrainMyModel(ABC):
             )
         )
 
-        # TensorBoard 可视化
+        # TensorBoard visualization
         callbacks.append(
             tf.keras.callbacks.TensorBoard(
                 log_dir=log_dir,
@@ -167,7 +171,7 @@ class TrainMyModel(ABC):
         print("\n======================================================")
         print(f"\n============ Training {self.model_name} ============")
         print("\n======================================================")
-        print(f"Class‑weight: {self.class_weight_dict}")
+        print(f"Class-weight: {self.class_weight_dict}")
         self.history = self.model.fit(
             self.X_train, self.y_train,
             validation_data=(self.X_val, self.y_val),
@@ -177,7 +181,7 @@ class TrainMyModel(ABC):
             class_weight=self.class_weight_dict,
             verbose=2
         )
-        print(f"Class‑weight: {self.class_weight_dict}")
+        print(f"Class-weight: {self.class_weight_dict}")
         pass
 
     def evaluate(self):
@@ -186,13 +190,13 @@ class TrainMyModel(ABC):
         f1 = 2 * precision * recall / (precision + recall + 1e-9)
         best_t = float(thresholds[np.argmax(f1)])
         print("best F1 threshold =", best_t)
-        # 动态加属性
+        # Add threshold attribute to model
         best_t = float(thresholds[np.argmax(f1)])
 
         holder = ThresholdHolder(best_t, name="f1_threshold")
         new_output = holder(self.model.output)
         self.model = tf.keras.Model(self.model.input, new_output, name=f"{self.model.name}_with_t")
-        # 再附一个 Python 属性，双保险（可选）
+        # Add Python attribute as backup (can be selected)
         self.model.best_threshold = best_t
 
         self.y_pred = (self.y_prob > best_t).astype(int)
@@ -209,21 +213,21 @@ class TrainMyModel(ABC):
     def _augment_window(self, window):
         if not (self.is_training and self._need_aug):
             return window
-        if self.is_training:  # 只在训练集增强
+        if self.is_training:  # Only apply augmentation to training set
             if tf.random.uniform([]) < 0.5:  # jitter
                 window += tf.random.normal(tf.shape(window), stddev=0.01)
             if tf.random.uniform([]) < 0.5:  # scaling
                 scale = tf.random.uniform([], 0.8, 1.2)
                 window *= scale
             if tf.random.uniform([]) < 0.3:  # flip
-                window = tf.concat([window[..., :1],  # 时间
+                window = tf.concat([window[..., :1],  # time dimension
                                     -window[..., 1:]], axis=-1)
-            # time-warp 省略，可用 random time stretch + interpolation
+            # time-warp omitted, can use random time stretch + interpolation
         return window
 
     def __load_window_npz(self, window_size):
         """
-        Load window‑level datasets for a given window size.
+        Load window-level datasets for a given window size.
 
         Preferred layout (produced by the updated builder):
 
@@ -239,7 +243,7 @@ class TrainMyModel(ABC):
         for a single video.
 
         If the new directory structure is not found, we fall back to the
-        legacy flat layout and create the train/val/test splits on‑the‑fly
+        legacy flat layout and create the train/val/test splits on-the-fly
         (previous behaviour).
         """
         import glob
@@ -284,13 +288,13 @@ class TrainMyModel(ABC):
 
     def export_tflite(self, representative_data_gen, tflite_path="model_int8.tflite"):
         """
-        Export the trained Keras model as an INT8‑quantised TFLite model.
+        Export the trained Keras model as an INT8-quantised TFLite model.
 
         Parameters
         ----------
         representative_data_gen : callable
             A generator that yields batches of representative input tensors
-            for post‑training quantisation calibration.
+            for post-training quantisation calibration.
         tflite_path : str
             Destination path for the .tflite file.
         """
@@ -309,21 +313,21 @@ class TrainMyModel(ABC):
 
 class PRCurveCallback(tf.keras.callbacks.Callback):
     """
-    每个 epoch 结束后：
-    1. 在验证集上跑一次预测
-    2. 计算 PR-AUC
-    3. 使用 matplotlib 画 PR 曲线
-    4. 写到 TensorBoard（Scalars + Images）
+    After each epoch:
+    1. Run prediction on validation set
+    2. Compute PR-AUC
+    3. Use matplotlib to plot PR curve
+    4. Write to TensorBoard (Scalars + Images)
     """
 
     def __init__(self, val_data, log_dir, prefix="val"):
         super().__init__()
-        self.val_data = val_data  # tf.data 或 (X_val, y_val)
+        self.val_data = val_data  # tf.data or (X_val, y_val)
         self.file_writer = tf.summary.create_file_writer(log_dir)
         self.prefix = prefix
 
     def on_epoch_end(self, epoch, logs=None):
-        # 1. 收集预测结果
+        # 1. Collect prediction results
         if isinstance(self.val_data, tf.data.Dataset):
             y_true = np.concatenate([y.numpy() for _, y in self.val_data], axis=0)
             y_pred = np.concatenate([self.model.predict(X) for X, _ in self.val_data], axis=0)
@@ -331,7 +335,7 @@ class PRCurveCallback(tf.keras.callbacks.Callback):
             X_val, y_true = self.val_data
             y_pred = self.model.predict(X_val, verbose=0)
 
-        # 2. precision-recall
+        # 2. Calculate precision-recall
         print("[DEBUG] y_true NaNs:", np.isnan(y_true).sum())
         print("[DEBUG] y_pred NaNs:", np.isnan(y_pred).sum())
         if np.isnan(y_true).sum() > 0 or np.isnan(y_pred).sum():
@@ -339,7 +343,7 @@ class PRCurveCallback(tf.keras.callbacks.Callback):
         precision, recall, _ = precision_recall_curve(y_true, y_pred)
         pr_auc = auc(recall, precision)
 
-        # 3. 画图
+        # 3. Plot image
         fig, ax = plt.subplots()
         ax.plot(recall, precision, label=f"PR curve (AUC={pr_auc:.4f})")
         ax.set_xlabel("Recall")
@@ -347,7 +351,7 @@ class PRCurveCallback(tf.keras.callbacks.Callback):
         ax.legend()
         ax.grid(True)
 
-        # 4. 写入 TensorBoard
+        # 4. Write to TensorBoard
         buf = io.BytesIO()
         plt.savefig(buf, format='png')
         plt.close(fig)
