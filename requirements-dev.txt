@@ -1,0 +1,36 @@
+# Development dependencies
+# Install with: pip install -r requirements-dev.txt
+
+# Testing
+pytest>=6.0.0
+pytest-cov>=3.0.0
+pytest-mock>=3.6.0
+pytest-xdist>=2.5.0
+
+# Code formatting and linting
+black>=22.1.0
+isort>=5.10.0
+flake8>=4.0.0
+mypy>=0.910
+
+# Pre-commit hooks (optional)
+# pre-commit>=2.15.0
+
+# Documentation
+sphinx>=4.0.0
+sphinx-rtd-theme>=1.0.0
+
+# Jupyter notebooks (for experimentation)
+jupyter>=1.0.0
+ipykernel>=6.0.0
+
+# Profiling and debugging (optional)
+# line-profiler>=3.3.0
+# memory-profiler>=0.60.0
+
+# Build tools (optional)
+# build>=0.7.0
+# twine>=3.4.0
+
+# Type checking (optional)
+# types-PyYAML>=6.0.0

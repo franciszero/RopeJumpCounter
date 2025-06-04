@@ -6,12 +6,12 @@ from collections import deque
 import cv2
 from datetime import datetime
 from src.ml.data.builders.feature_mode import mode_to_str, get_feature_mode
-from capture.pyav_capture import PyAVCapture
+from src.capture.pyav_capture import PyAVCapture
 import numpy as np
 import pandas as pd
 from src.ml.data.features.features import FeaturePipeline
-from utils.FrameSample import SELECTED_LM
-from utils.Perf import PerfStats
+from src.utils.FrameSample import SELECTED_LM
+from src.utils.Perf import PerfStats
 from src.ml.models.ModelParams.ThresholdHolder import ThresholdHolder
 from src.ml.models.ModelParams.TCNBlock import TCNBlock
 
