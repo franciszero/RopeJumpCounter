@@ -1,24 +1,24 @@
 # """
 # app.py
 #
-# 主控脚本：基于姿态估计和深度模型实时检测并计数跳绳动作。
+# main control script：based on pose estimation and deep model for real-time jump rope action detection.
 #
-# 功能:
-#   1. 打开摄像头，实时读取视频帧。
-#   2. 使用 MediaPipe Pose 提取人体关键点，并进行背景抖动补偿。
-#   3. 构建特征（关键点高度、趋势滤波等），送入深度学习模型进行跳跃检测。
-#   4. 实时统计上升沿跳跃次数，并写入 CSV 文件。
-#   5. 可通过命令行参数定制输出目录、倒计时、模型路径等。
+# functions:
+# 1. open camera, read video frames in real-time.
+# 2. use MediaPipe Pose to extract human landmarks and perform background shake compensation.
+# 3. build features (landmark heights, trend filtering, etc.) and feed to deep learning model for jump detection.
+# 4. real-time calculate rising edge jump count and write to CSV file.
+# 5. can define output directory, countdown time, model path etc. via command line parameters.
 #
-# 使用方法:
-#     python app.py --out <输出目录> [--countdown N] [--model 模型文件路径]
+# Usage:
+# python app.py --out <outputdirectory> [--countdown N] [--model modelfilepath]
 #     python app.py --out output_dir --countdown 3
 #     python app.py --out output_dir --countdown 3 --model models/lstm_jump_classifier.h5
 #
-# 参数说明:
-#   --out       摄像头数据及结果保存路径（默认: record_output）
-#   --countdown 录制前倒计时秒数（默认: 3）
-#   --model     跳跃检测模型文件，支持 .keras 或 .h5 格式（默认: models/best_crnn.keras）
+# Parameter description:
+# --out       camera data and result save path (default: record_output)
+# --countdown countdown seconds before recording (default: 3)
+# --model     jump detection model file, supports .keras or .h5 format (default: models/best_crnn.keras)
 # """
 #
 # import cv2
@@ -35,7 +35,7 @@
 # import numpy as np
 # from collections import deque
 #
-# from PoseDetection.features import PoseFrame, Differentiator, DistanceCalculator, AngleCalculator
+# from src.ml.data.features import PoseFrame, Differentiator, DistanceCalculator, AngleCalculator
 #
 # import logging
 # logging.basicConfig(
@@ -46,25 +46,25 @@
 # logger = logging.getLogger(__name__)
 #
 #
-# def record_session(output_dir, regions=None, countdown=3, model_path='PoseDetection/models/lstm_jump_classifier.h5'):
-#     # 创建输出目录
+# def record_session(output_dir, regions=None, countdown=3, model_path='src/ml/models/lstm_jump_classifier.h5'):
+# # Create output directory
 #     regions = regions or ["head", "torso"]
 #     os.makedirs(output_dir, exist_ok=True)
 #
-#     # 初始化视频捕获与模块
+# # Initialize video capture and model modules
 #     # cap = cv2.VideoCapture(0)
 #     pose = PoseEstimator()
 #     bg = BackgroundTracker()
 #     filters = {r: TrendFilter() for r in regions}
 #     prev_heights = {r: None for r in regions}
 #
-#     # 加载跳绳动作识别模型，并决定使用窗口模式还是单帧模式
+# # load jump rope action recognition model, and decide whether to use window mode or single frame mode
 #     if not model_path.endswith(('.keras', '.h5')):
 #         model_path += '.keras'
 #     model = tf.keras.models.load_model(model_path)
 #     logger.debug(f"Loaded model from: {model_path}")
 #
-#     # 根据 model.input_shape 决定使用窗口模式还是单帧模式
+# # Decide whether to use window mode or single frame mode based on model.input_shape
 #     input_shape = model.input_shape  # e.g. (None, W, F) or (None, F)
 #     if len(input_shape) == 3 and input_shape[1] is not None:
 #         window_size = int(input_shape[1])
@@ -74,7 +74,7 @@
 #         use_window = False
 #     logger.debug(f"Model input_shape: {input_shape}, window_size: {window_size}, use_window: {use_window}")
 #
-#     # === 特征提取初始化 ===
+# # === Feature extraction initialization ===
 #     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
 #     dt = 1.0 / fps
 #     diff = Differentiator()
@@ -83,7 +83,7 @@
 #     feature_buffer = deque(maxlen=window_size)
 #     prev_pred = 0
 #
-#     # 倒计时，提示用户准备
+# # Countdown, prompt user to prepare
 #     for i in range(countdown, 0, -1):
 #         ret, frame = cap.read()
 #         if not ret:
@@ -100,7 +100,7 @@
 #         cv2.imshow("Recorder", frame)
 #         cv2.waitKey(1000)
 #
-#     # 构建CSV文件及写入表头
+# # Create CSV file and write table header
 #     csv_path = os.path.join(output_dir, "data.csv")
 #     with open(csv_path, "w", newline="") as f:
 #         writer = csv.writer(f)
@@ -113,7 +113,7 @@
 #         frame_idx = 0
 #         prev_timestamp = None
 #         jump_count = 0  # total jumps so far
-#         # 主循环：读取视频帧，估计姿态，补偿背景抖动，构建特征，模型推理，跳跃计数，写入CSV，显示窗口
+# # Main loop: read video frame, estimate pose, compensate background shake motion, build features, model inference, detect jumps
 #         logger.debug("Starting recording loop")
 #         while True:
 #             ret, frame = cap.read()
@@ -132,25 +132,25 @@
 #
 #             logger.debug(f"Timestamp: {timestamp:.3f}, FPS display: {fps_display:.1f}")
 #
-#             # 姿态估计，获取关键点高度
+# # Pose estimation, get landmark heights
 #             lm, heights = pose.estimate(frame)
 #             logger.debug(f"Pose landmarks: {'detected' if lm else 'none'}, heights: {heights}")
 #             if not heights:
 #                 heights = {r: prev_heights[r] or 0.0 for r in regions}
 #
-#             # 背景抖动补偿，计算背景位移
+# # Background shake motion compensation, compute background displacement
 #             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 #             bg_dy = bg.compensate(gray)
 #             logger.debug(f"Background displacement dy: {bg_dy:.3f}")
 #
-#             # 构建数据行：帧号、时间戳
+# # Build data row: frame number, timestamp
 #             row = [frame_idx, timestamp]
 #
-#             # === 全量 469 维特征提取 ===
+# # === Full 469-dimensional feature extraction ===
 #             lm, heights = pose.estimate(frame)
-#             # 获取帧尺寸
+# # Get frame dimensions
 #             height, width = frame.shape[:2]
-#             # 如果未检测到人体，填充零向量
+# # If no person detected, fill with zero values
 #             if lm is None:
 #                 raw = [0.0] * (33 * 4)
 #                 raw_px = [0.0] * (33 * 2)
@@ -172,10 +172,10 @@
 #                 dists = dist_calc.compute(lm.landmark)
 #                 angs = ang_calc.compute(lm.landmark)
 #
-#                 # 拼接成特征向量，匹配模型期望
+# # Concatenate feature vectors to match model expectations
 #                 feat = raw + raw_px + vel + acc + dists + angs  # 132+66+132+132+4+3 = 469 dims
 #
-#                 # 模型推理与跳跃计数
+# # Model inference and jump counting
 #                 if use_window:
 #                     feature_buffer.append(feat)
 #                     if len(feature_buffer) == window_size:
@@ -192,7 +192,7 @@
 #
 #                 logger.debug(f"Model prediction: {pred:.3f}, label: {label}")
 #
-#                 # 检测上升沿，累加跳绳计数
+# # Detect rising edge, accumulate jump rope count
 #                 jump_flag = (prev_pred == 0 and label == 1)
 #
 #             if jump_flag:
@@ -203,7 +203,7 @@
 #             prev_pred = label
 #
 #             logger.debug(f"Writing CSV row: {row}")
-#             # 写入CSV文件
+# # Write to CSV file
 #             writer.writerow(row)
 #
 #             # Overlay debug info
@@ -216,12 +216,12 @@
 #             for i, txt in enumerate(debug_texts):
 #                 y = y0 + i * dy
 #                 cv2.putText(frame, txt, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 3, (0, 255, 0), 6)
-#             # 显示摄像头画面
+# # Display camera image
 #             cv2.imshow("Recorder", frame)
 #             if cv2.waitKey(1) & 0xFF == 27:
 #                 break
 #
-#     # 清理资源，关闭摄像头和窗口
+# # Cleaning up resources, close camera and windows
 #     cap.release()
 #     cv2.destroyAllWindows()
 #     print(f"Recording complete. Data saved to: {csv_path}")
@@ -233,8 +233,8 @@
 #     parser.add_argument("--countdown", type=int, default=3, help="Countdown seconds before recording starts")
 #     parser.add_argument(
 #         '--model',
-#         default='PoseDetection/models/best_crnn.keras',
-#         help='Path to .keras or .h5 model file (default: PoseDetection/models/best_crnn.keras)'
+#         default='src/ml/models/best_crnn.keras',
+#         help='Path to .keras or .h5 model file (default: src/ml/models/best_crnn.keras)'
 #     )
 #     args = parser.parse_args()
 #     record_session(args.out, countdown=args.countdown, model_path=args.model)

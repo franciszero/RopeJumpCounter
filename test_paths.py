@@ -1,65 +1,68 @@
 #!/usr/bin/env python3
 """
-测试脚本：验证所有模块的导入路径是否正确
+Test Script: Verify all module import paths are correct
+
+This script validates that all major modules can be imported correctly
+and that critical file paths exist in the project structure.
 """
 
 import sys
 import os
 from pathlib import Path
 
-# 添加 src 目录到 Python 路径
+# Add src directory to Python path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 def test_imports():
-    """测试所有主要模块的导入"""
-    print("🧪 测试模块导入...")
-    
+    """Test imports of all major modules"""
+    print("🧪 Testing module imports...")
+
     try:
-        # 测试核心模块
-        print("  ✓ 测试核心模块...")
+        # Test core modules
+        print("  ✓ Testing core modules...")
         from src.core.exceptions import AppError, ModelError, ConfigError
         from src.core.jump_counter import JumpCounter
-        print("    ✓ 核心模块导入成功")
-        
-        # 测试配置模块
-        print("  ✓ 测试配置模块...")
+        print("    ✓ Core modules imported successfully")
+
+        # Test configuration modules
+        print("  ✓ Testing configuration modules...")
         from src.config.settings import AppConfig
-        print("    ✓ 配置模块导入成功")
-        
-        # 测试工具模块
-        print("  ✓ 测试工具模块...")
+        print("    ✓ Configuration modules imported successfully")
+
+        # Test utility modules
+        print("  ✓ Testing utility modules...")
         from src.utils.Perf import PerfStats
         from src.utils.FrameSample import SELECTED_LM
-        print("    ✓ 工具模块导入成功")
-        
-        # 测试捕获模块
-        print("  ✓ 测试捕获模块...")
+        print("    ✓ Utility modules imported successfully")
+
+        # Test capture modules
+        print("  ✓ Testing capture modules...")
         from src.capture.pyav_capture import PyAVCapture
-        print("    ✓ 捕获模块导入成功")
-        
-        # 测试ML模块
-        print("  ✓ 测试ML模块...")
+        print("    ✓ Capture modules imported successfully")
+
+        # Test ML modules
+        print("  ✓ Testing ML modules...")
         from src.ml.data.builders.feature_mode import get_feature_mode
         from src.ml.data.features.features import FeaturePipeline
-        print("    ✓ ML模块导入成功")
-        
-        print("✅ 所有模块导入测试通过！")
+        print("    ✓ ML modules imported successfully")
+
+        print("✅ All module import tests passed!")
         return True
-        
+
     except ImportError as e:
-        print(f"❌ 导入错误: {e}")
+        print(f"❌ Import error: {e}")
         return False
     except Exception as e:
-        print(f"❌ 其他错误: {e}")
+        print(f"❌ Other error: {e}")
         return False
 
 def test_file_paths():
-    """测试关键文件路径是否存在"""
-    print("\n📁 测试文件路径...")
-    
+    """Test whether critical file paths exist"""
+    print("\n📁 Testing file paths...")
+
     files_to_check = [
         "src/ml/data/labeling/main_gui.py",
-        "src/ml/data/labeling/label_helper_gui.py", 
+        "src/ml/data/labeling/label_helper_gui.py",
         "src/ml/data/labeling/verify_labels.py",
         "src/ml/data/builders/builder.py",
         "src/ml/data/features/features.py",
@@ -70,78 +73,78 @@ def test_file_paths():
         "run.py",
         "main.py"
     ]
-    
+
     all_exist = True
     for file_path in files_to_check:
         if os.path.exists(file_path):
             print(f"  ✓ {file_path}")
         else:
-            print(f"  ❌ {file_path} - 文件不存在")
+            print(f"  ❌ {file_path} - File does not exist")
             all_exist = False
-    
+
     if all_exist:
-        print("✅ 所有关键文件都存在！")
+        print("✅ All critical files exist!")
     else:
-        print("❌ 部分文件缺失")
-    
+        print("❌ Some files are missing")
+
     return all_exist
 
 def test_labeling_paths():
-    """测试标注工具的路径解析"""
-    print("\n🏷️ 测试标注工具路径...")
-    
+    """Test labeling tool path resolution"""
+    print("\n🏷️ Testing labeling tool paths...")
+
     try:
-        # 模拟标注工具的路径解析
+        # Simulate labeling tool path resolution
         labeling_dir = Path("src/ml/data/labeling")
         main_gui_path = labeling_dir / "main_gui.py"
         label_helper_path = labeling_dir / "label_helper_gui.py"
         verify_labels_path = labeling_dir / "verify_labels.py"
-        
-        print(f"  标注目录: {labeling_dir}")
-        print(f"  主界面: {main_gui_path} {'✓' if main_gui_path.exists() else '❌'}")
-        print(f"  标注助手: {label_helper_path} {'✓' if label_helper_path.exists() else '❌'}")
-        print(f"  验证工具: {verify_labels_path} {'✓' if verify_labels_path.exists() else '❌'}")
-        
-        # 测试相对路径解析
+
+        print(f"  Labeling directory: {labeling_dir}")
+        print(f"  Main GUI: {main_gui_path} {'✓' if main_gui_path.exists() else '❌'}")
+        print(f"  Label helper: {label_helper_path} {'✓' if label_helper_path.exists() else '❌'}")
+        print(f"  Verification tool: {verify_labels_path} {'✓' if verify_labels_path.exists() else '❌'}")
+
+        # Test relative path resolution
         if main_gui_path.exists():
             script_dir = main_gui_path.parent
             verify_script = script_dir / "verify_labels.py"
             label_script = script_dir / "label_helper_gui.py"
-            
-            print(f"  相对路径解析:")
-            print(f"    验证脚本: {verify_script} {'✓' if verify_script.exists() else '❌'}")
-            print(f"    标注脚本: {label_script} {'✓' if label_script.exists() else '❌'}")
-            
+
+            print(f"  Relative path resolution:")
+            print(f"    Verification script: {verify_script} {'✓' if verify_script.exists() else '❌'}")
+            print(f"    Labeling script: {label_script} {'✓' if label_script.exists() else '❌'}")
+
             if verify_script.exists() and label_script.exists():
-                print("✅ 标注工具路径解析正确！")
+                print("✅ Labeling tool path resolution correct!")
                 return True
-        
-        print("❌ 标注工具路径解析失败")
+
+        print("❌ Labeling tool path resolution failed")
         return False
-        
+
     except Exception as e:
-        print(f"❌ 路径测试错误: {e}")
+        print(f"❌ Path test error: {e}")
         return False
 
 def main():
-    """主测试函数"""
-    print("🚀 开始路径修复验证测试...\n")
-    
-    # 运行所有测试
+    """Main test function"""
+    print("🚀 Starting path repair verification tests...\n")
+
+    # Run all tests
     import_ok = test_imports()
     files_ok = test_file_paths()
     labeling_ok = test_labeling_paths()
-    
-    print(f"\n📊 测试结果总结:")
-    print(f"  模块导入: {'✅ 通过' if import_ok else '❌ 失败'}")
-    print(f"  文件路径: {'✅ 通过' if files_ok else '❌ 失败'}")
-    print(f"  标注路径: {'✅ 通过' if labeling_ok else '❌ 失败'}")
-    
+
+    print(f"\n📊 Test results summary:")
+    print(f"  Module imports: {'✅ Passed' if import_ok else '❌ Failed'}")
+    print(f"  File paths: {'✅ Passed' if files_ok else '❌ Failed'}")
+    print(f"  Labeling paths: {'✅ Passed' if labeling_ok else '❌ Failed'}")
+
     if import_ok and files_ok and labeling_ok:
-        print("\n🎉 所有测试通过！路径修复成功！")
+        print("\n🎉 All tests passed! Path repair successful!")
         return True
     else:
-        print("\n⚠️ 部分测试失败，需要进一步修复")
+        print("\n⚠️ Some tests failed, further repair needed")
         return False
 
 if __name__ == "__main__":

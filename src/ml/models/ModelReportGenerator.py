@@ -33,12 +33,13 @@ from sklearn.metrics import f1_score
 
 class ModelReportGenerator:
     def __init__(self, summary_df, loss_figs, roc_pr_figs, models=None):
-        """
+        """Initialize ModelReportGenerator
+
         Args:
-            summary_df (pd.DataFrame): modelevaluation summary table
-            loss_figs (List[matplotlib.figure.Figure]): eachunitsmodeloftraining/validation loss curve plot
-            roc_pr_figs (List[matplotlib.figure.Figure]): eachunitsmodelof ROC and PR curve plot
-            models (List[object], optional): modelobject list（can be used for confusion matrix generation）
+            summary_df (pd.DataFrame): Model evaluation summary table
+            loss_figs (List[matplotlib.figure.Figure]): Training/validation loss curve plots for each model
+            roc_pr_figs (List[matplotlib.figure.Figure]): ROC and PR curve plots for each model
+            models (List[object], optional): Model object list (can be used for confusion matrix generation)
         """
         self.summary_df = summary_df
         self.loss_figs = loss_figs

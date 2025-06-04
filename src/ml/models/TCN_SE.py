@@ -45,12 +45,12 @@ class TCNSEModel(TrainMyModel):
         self._init_model()
 
     def _build(self):
-        # input：[B, 24, n_features]
+        # Input: [B, 24, n_features]
         input_shape = self.X_train.shape[1:]
         inputs = Input(shape=input_shape, name="inputs")
         x = inputs
 
-        # 3 level stacking，each level 2 units dilation(1,2)->(4,8)->(16,32)
+        # 3 level stacking, each level 2 blocks with dilation (1,2)->(4,8)->(16,32)
         filters = [64, 128, 256]
         for i, f in enumerate(filters):
             for j, d in enumerate([1 << (2 * i), 1 << (2 * i + 1)]):
@@ -68,9 +68,9 @@ class TCNSEModel(TrainMyModel):
             loss='binary_crossentropy',
             metrics=[
                 'accuracy',
-                AUC(name='auc'),          # ROC‑AUC
-                AUC(curve='PR', name='pr_auc'),  # PR‑AUC
+                AUC(name='auc'),          # ROC-AUC
+                AUC(curve='PR', name='pr_auc'),  # PR-AUC
             ],
-            **self.compile_kwargs  # pass through possibleparameter
+            **self.compile_kwargs  # Pass through possible parameters
         )
         return model

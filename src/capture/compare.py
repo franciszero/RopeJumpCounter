@@ -12,7 +12,7 @@ def measure(capture_cls, name, n_frames=100):
         latencies.append(lat)
     cap.release()
     avg = sum(latencies) / len(latencies) if latencies else float('nan')
-    print(f"{name} Average capture latency（{len(latencies)} frames）: {avg:.1f} ms")
+    print(f"{name} Average capture latency ({len(latencies)} frames): {avg:.1f} ms")
 
 if __name__ == "__main__":
     measure(GStreamerCapture, "GStreamerCapture")
