@@ -41,7 +41,7 @@ def main():
     parser.add_argument(
         'mode',
         nargs='?',
-        default='visualize',
+        default='realtime',
         choices=['realtime', 'legacy', 'train', 'label', 'visualize', 'build'],
         help='应用模式 (默认: realtime)'
     )

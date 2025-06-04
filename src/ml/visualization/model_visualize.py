@@ -42,6 +42,7 @@ from src.ml.data.features.features import FeaturePipeline
 from src.ml.models.ModelParams.TCNBlock import TCNBlock
 
 import logging
+import mediapipe as mp
 
 from src.ml.models.ModelParams.ThresholdHolder import ThresholdHolder
 from src.utils.FrameSample import SELECTED_LM
@@ -121,7 +122,7 @@ class PlayerGUI:
     简易播放器：空格暂停/继续；← → 单帧步进；Esc 退出
     """
 
-    def __init__(self, video_path: str, predictor: VideoPredictor):
+    def __init__(self, video_path: str, predictor: VideoPredictor, show_stick_figure: bool = True):
         self.cap = cv2.VideoCapture(video_path)
         if not self.cap.isOpened():
             raise RuntimeError(f"Cannot open video {video_path}")
@@ -130,6 +131,7 @@ class PlayerGUI:
         self.playing = True
         self.fps = self.cap.get(cv2.CAP_PROP_FPS) or 30.0
         self.zoom_height = 920  # 原始 cv2 图像，高度变成 zoom_height，放大一点
+        self.show_stick_figure = show_stick_figure
 
         self.stats = PerfStats(window_size=10)
 
@@ -141,11 +143,103 @@ class PlayerGUI:
                                 return_keyboard_events=True,
                                 finalize=True)
 
-    def _overlay(self, frame: np.ndarray, jump_cnt: int, prob: float, is_on_rising: bool, t0) -> np.ndarray:
+    def _draw_stick_figure(self, frame: np.ndarray, landmarks) -> np.ndarray:
+        """在帧上绘制火柴人姿态"""
+        if not landmarks:
+            return frame
+
+        h, w = frame.shape[:2]
+
+        # MediaPipe 姿态连接定义
+        pose_connections = [
+            # 头部和躯干
+            (mp.solutions.pose.PoseLandmark.LEFT_EYE, mp.solutions.pose.PoseLandmark.RIGHT_EYE),
+            (mp.solutions.pose.PoseLandmark.LEFT_SHOULDER, mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER),
+            (mp.solutions.pose.PoseLandmark.LEFT_SHOULDER, mp.solutions.pose.PoseLandmark.LEFT_HIP),
+            (mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER, mp.solutions.pose.PoseLandmark.RIGHT_HIP),
+            (mp.solutions.pose.PoseLandmark.LEFT_HIP, mp.solutions.pose.PoseLandmark.RIGHT_HIP),
+
+            # 左臂
+            (mp.solutions.pose.PoseLandmark.LEFT_SHOULDER, mp.solutions.pose.PoseLandmark.LEFT_ELBOW),
+            (mp.solutions.pose.PoseLandmark.LEFT_ELBOW, mp.solutions.pose.PoseLandmark.LEFT_WRIST),
+
+            # 右臂
+            (mp.solutions.pose.PoseLandmark.RIGHT_SHOULDER, mp.solutions.pose.PoseLandmark.RIGHT_ELBOW),
+            (mp.solutions.pose.PoseLandmark.RIGHT_ELBOW, mp.solutions.pose.PoseLandmark.RIGHT_WRIST),
+
+            # 左腿
+            (mp.solutions.pose.PoseLandmark.LEFT_HIP, mp.solutions.pose.PoseLandmark.LEFT_KNEE),
+            (mp.solutions.pose.PoseLandmark.LEFT_KNEE, mp.solutions.pose.PoseLandmark.LEFT_HEEL),
+            (mp.solutions.pose.PoseLandmark.LEFT_HEEL, mp.solutions.pose.PoseLandmark.LEFT_FOOT_INDEX),
+
+            # 右腿
+            (mp.solutions.pose.PoseLandmark.RIGHT_HIP, mp.solutions.pose.PoseLandmark.RIGHT_KNEE),
+            (mp.solutions.pose.PoseLandmark.RIGHT_KNEE, mp.solutions.pose.PoseLandmark.RIGHT_HEEL),
+            (mp.solutions.pose.PoseLandmark.RIGHT_HEEL, mp.solutions.pose.PoseLandmark.RIGHT_FOOT_INDEX),
+        ]
+
+        # 绘制连接线
+        for connection in pose_connections:
+            start_idx, end_idx = connection
+            start_landmark = landmarks.landmark[start_idx.value]
+            end_landmark = landmarks.landmark[end_idx.value]
+
+            # 检查关键点可见性
+            if (start_landmark.visibility > 0.5 and end_landmark.visibility > 0.5):
+                start_point = (int(start_landmark.x * w), int(start_landmark.y * h))
+                end_point = (int(end_landmark.x * w), int(end_landmark.y * h))
+
+                # 根据连接类型选择颜色和粗细
+                if 'EYE' in start_idx.name or 'EYE' in end_idx.name:
+                    color, thickness = (255, 255, 0), 2  # 黄色 - 头部
+                elif 'SHOULDER' in start_idx.name or 'SHOULDER' in end_idx.name:
+                    color, thickness = (255, 0, 0), 3    # 红色 - 躯干
+                elif 'HIP' in start_idx.name or 'HIP' in end_idx.name:
+                    color, thickness = (255, 0, 0), 3    # 红色 - 躯干
+                elif 'ARM' in start_idx.name or 'ELBOW' in start_idx.name or 'WRIST' in start_idx.name:
+                    color, thickness = (0, 255, 255), 2  # 青色 - 手臂
+                elif 'ARM' in end_idx.name or 'ELBOW' in end_idx.name or 'WRIST' in end_idx.name:
+                    color, thickness = (0, 255, 255), 2  # 青色 - 手臂
+                else:
+                    color, thickness = (0, 255, 0), 2    # 绿色 - 腿部
+
+                # 绘制连接线
+                cv2.line(frame, start_point, end_point, color, thickness)
+
+        # 绘制关键点
+        for landmark_idx in SELECTED_LM:
+            landmark = landmarks.landmark[landmark_idx.value]
+            if landmark.visibility > 0.5:
+                x = int(landmark.x * w)
+                y = int(landmark.y * h)
+
+                # 根据关键点类型选择颜色和大小
+                if 'EYE' in landmark_idx.name:
+                    color, radius = (255, 255, 0), 3  # 黄色 - 眼睛
+                elif 'SHOULDER' in landmark_idx.name or 'HIP' in landmark_idx.name:
+                    color, radius = (255, 0, 0), 5    # 红色 - 主要关节
+                elif 'ELBOW' in landmark_idx.name or 'KNEE' in landmark_idx.name:
+                    color, radius = (0, 255, 255), 4  # 青色 - 中间关节
+                elif 'WRIST' in landmark_idx.name or 'HEEL' in landmark_idx.name or 'FOOT' in landmark_idx.name:
+                    color, radius = (255, 0, 255), 4  # 紫色 - 末端关节
+                else:
+                    color, radius = (0, 255, 0), 3    # 绿色 - 其他
+
+                # 绘制关键点（带边框效果）
+                cv2.circle(frame, (x, y), radius + 1, (0, 0, 0), -1)  # 黑色边框
+                cv2.circle(frame, (x, y), radius, color, -1)           # 彩色填充
+
+        return frame
+
+    def _overlay(self, frame: np.ndarray, jump_cnt: int, prob: float, is_on_rising: bool, t0, landmarks=None) -> np.ndarray:
         """calculate FPS"""
         # proc_ms = (time.time() - t0) * 1000.0
         # self.proc_times.append(proc_ms)
         # fps_disp = 1000.0 / (sum(self.proc_times) / len(self.proc_times))
+
+        # 绘制火柴人姿态
+        if self.show_stick_figure and landmarks is not None:
+            frame = self._draw_stick_figure(frame, landmarks)
 
         """在 frame 上绘制概率/标签"""
         if jump_cnt is not None:
@@ -250,7 +344,7 @@ class PlayerGUI:
             else:  # 0:000, 1:001, 2:010, 4:100, 5:101, 不是稳定的检测结果, 6:110 表明跳绳刚结束
                 is_on_rising = False
 
-            frame_vis = self._overlay(pipe.fs.raw_frame.copy(), jump_cnt, prob, is_on_rising, arr_ts[0])
+            frame_vis = self._overlay(pipe.fs.raw_frame.copy(), jump_cnt, prob, is_on_rising, arr_ts[0], pipe.landmarks)
             # resize to fill the window height, maintain aspect ratio
             frame_vis = imutils.resize(frame_vis, height=self.zoom_height)
 
@@ -284,11 +378,13 @@ def main():
 
     # ===========================
     parser.add_argument("--threshold", type=float, default=0.5)
+    parser.add_argument("--stick-figure", action="store_true", default=True, help="显示火柴人姿态")
+    parser.add_argument("--no-stick-figure", action="store_false", dest="stick_figure", help="隐藏火柴人姿态")
     args = parser.parse_args()
 
     model_path = f"model_files/models_{len(SELECTED_LM)}_{mode_to_str(get_feature_mode())}/{args.model}"
     predictor = VideoPredictor(model_path, args.threshold)
-    gui = PlayerGUI(args.video, predictor)
+    gui = PlayerGUI(args.video, predictor, show_stick_figure=args.stick_figure)
 
     gui.run(get_feature_mode())
 
