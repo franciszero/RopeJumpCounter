@@ -1,5 +1,5 @@
 # models/EfficientNet1D.py
-from PoseDetection.models.BaseModel import TrainMyModel
+from src.ml.models.BaseModel import TrainMyModel
 from tensorflow.keras.layers import *
 from tensorflow.keras.metrics import AUC
 from tensorflow.keras.models import Model
@@ -64,6 +64,6 @@ class EfficientNet1DModel(TrainMyModel):
                 AUC(name='auc'),
                 AUC(curve='PR', name='pr_auc')
             ],
-            **self.compile_kwargs  # 透传额外参数
+            **self.compile_kwargs  # pass through additionalparameter
         )
         return model

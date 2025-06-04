@@ -2,7 +2,7 @@ import time
 
 
 # =========================
-# 4. MultiRegionJumpDetector：多区域同相位跳跃检测
+# 4. MultiRegionJumpDetector：Multi-region in-phase jump detection
 # =========================
 class MultiRegionJumpDetector:
     """
@@ -17,15 +17,17 @@ class MultiRegionJumpDetector:
         self.count = 0
 
     """
+
     f_dict: {region: f_value}
-    仅当所有 region 同时从负过零到正 且间隔足够时计数
+    Count only when all regions simultaneously cross from negative to positive with sufficient interval
+
     """
 
     def detect(self, f_dict):
         now = time.time()
         signs = {r: (1 if f_dict[r] > 0 else -1) for r in self.regions}
 
-        # 判断所有区域是否都负→正
+        # Check if all regions go from negative to positive
         if all(signs[r] > 0 > self.prev_signs[r] for r in self.regions):
             if (now - self.last_jump_time) > self.min_interval:
                 self.count += 1

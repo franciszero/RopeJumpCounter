@@ -4,16 +4,16 @@ import numpy as np
 
 class VideoStabilizer:
     """
-    基于 LK 光流 + 仿射估计的视频稳定器，每次调用 stabilize(frame) 都会把当前帧对齐到上一帧的参考坐标系中。
+    Video stabilizer based on LK optical flow + affine estimation，Each call to stabilize(frame) aligns current frame to previous frame reference coordinate system。
 
-    算法流程：
-      1. 首帧：在灰度图上检测一批角点，直接返回原图。
-      2. 后续帧：
-         a. 用 calcOpticalFlowPyrLK 跟踪上一帧角点到当前灰度图。
-         b. 筛选状态为成功的点对 (pts0->pts1)。
-         c. 点对数量足够时用 RANSAC 估计 2×3 仿射变换 M2x3，否则用单位矩阵。
-         d. 将 M2x3 转成 3×3 累积矩阵并 warpAffine 到上一帧坐标系。
-         e. 每隔 N 帧重新检测新角点，否则继续用跟踪得到的 pts1。
+    Algorithm workflow：
+      1. First frame：Detect corner points on grayscale image, directly return original image。
+      2. Subsequent frames：
+         a. Use calcOpticalFlowPyrLK to track previous frame corner points to current grayscale image。
+         b. filter successful point pairs (pts0->pts1)。
+         c. when enough point pairs, estimate affine transform, otherwise use identity matrix。
+         d. convert to cumulative matrix and warp to previous frame coordinate system。
+         e. every N frames re-detect new corners, otherwise continue trackingof pts1。
     """
 
     max_corners = 200
@@ -27,24 +27,24 @@ class VideoStabilizer:
         self.min_distance = type(self).min_distance
         self.reinit_interval = type(self).reinit_interval
 
-        self.prev_gray = None  # 上一帧灰度图
-        self.prev_pts = None  # 上一帧待跟踪角点
-        self.transforms = []  # 累积的 3×3 同质仿射矩阵列表
-        self.frame_count = 0  # 帧计数，用于控制何时重检测角点
+        self.prev_gray = None  # previous grayscale image
+        self.prev_pts = None  # uponeframe待followtrackcornerpoint
+        self.transforms = []  # accumulateproductof 3×3 same质imitateprojectmatrixarray列表
+        self.frame_count = 0  # framecount，useatcontrolmake何timeagaindetectioncornerpoint
 
     def stabilize(self, frame: np.ndarray) -> np.ndarray:
         """
-        对齐当前帧到上一帧坐标系中，输出补偿抖动之后的新帧。
+        pair齐currentframetouponeframesitscalarsystemmiddle，outputsupplementcompensateshakemotionofafterofnewframe。
 
         Args:
-            frame: BGR 彩色图
+            frame: BGR 彩colorimage
 
         Returns:
-            stabilized: BGR 彩色图，已做逆仿射对齐
+            stabilized: BGR 彩colorimage，alreadydo逆imitateprojectpair齐
         """
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-        # ----- 第 1 帧：初始化 -----
+        # ----- 第 1 frame：Initialize -----
         if self.prev_gray is None:
             self.prev_gray = gray
             self.prev_pts = cv2.goodFeaturesToTrack(
@@ -53,26 +53,26 @@ class VideoStabilizer:
                 qualityLevel=self.quality_level,
                 minDistance=self.min_distance
             )
-            # 第一帧无需对齐，累积一个单位矩阵
+            # 第oneframeno需pair齐，accumulateproductoneunitssingleunitmatrixarray
             I2x3 = np.array([[1, 0, 0],
                              [0, 1, 0]], dtype=np.float32)
             M3x3 = np.vstack([I2x3, [0, 0, 1]])
             self.transforms.append(M3x3)
             return frame
 
-        # ----- 后续帧：跟踪 + 估计仿射 -----
+        # ----- Subsequent frames：followtrack + estimatecalculateimitateproject -----
         curr_pts, status, _ = cv2.calcOpticalFlowPyrLK(
             self.prev_gray, gray,
             self.prev_pts, None,
             winSize=(15, 15), maxLevel=2,
             criteria=(cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 10, 0.03)
         )
-        # 只保留跟踪成功的点对
+        # 只保留followtracksuccessofpointpair
         mask = (status.flatten() == 1)
         pts0 = self.prev_pts[mask].reshape(-1, 2)
         pts1 = curr_pts[mask].reshape(-1, 2)
 
-        # 如果点对太少，直接用单位 2×3 矩阵
+        # ifresultpointpair太少，directlyusesingleunit 2×3 matrixarray
         if len(pts0) < 10:
             M2x3 = np.array([[1, 0, 0],
                              [0, 1, 0]], dtype=np.float32)
@@ -87,11 +87,11 @@ class VideoStabilizer:
                 M2x3 = np.array([[1, 0, 0],
                                  [0, 1, 0]], dtype=np.float32)
 
-        # 累积到 3×3 同质矩阵并保存
+        # accumulateproductto 3×3 same质matrixarrayandsave
         M3x3 = np.vstack([M2x3, [0, 0, 1]]).astype(np.float32)
         self.transforms.append(M3x3)
 
-        # 对当前帧做逆变换：将其对齐到上一帧坐标系
+        # paircurrentframedo逆changetransform：will其to previousframesitscalarsystem
         h, w = frame.shape[:2]
         stabilized = cv2.warpAffine(
             frame,
@@ -101,11 +101,11 @@ class VideoStabilizer:
             borderMode=cv2.BORDER_REFLECT
         )
 
-        # ----- 更新角点：每隔 reinit_interval 帧重检测，否则直接用刚跟踪到的 pts1 -----
+        # ----- updatecornerpoint：eachseparate reinit_interval frameagaindetection，noruledirectlyuse刚followtracktoof pts1 -----
         self.frame_count += 1
         next_gray = cv2.cvtColor(stabilized, cv2.COLOR_BGR2GRAY)
         if self.frame_count % self.reinit_interval == 0 or pts1.shape[0] < 10:
-            # 重检测新角点
+            # againdetectionnewcornerpoint
             self.prev_pts = cv2.goodFeaturesToTrack(
                 next_gray,
                 maxCorners=self.max_corners,
@@ -113,10 +113,10 @@ class VideoStabilizer:
                 minDistance=self.min_distance
             )
         else:
-            # 继续用刚跟踪得到的 pts1
+            # continuecontinueuse刚followtrackgettoof pts1
             self.prev_pts = pts1.reshape(-1, 1, 2)
 
-        # 更新上一帧灰度图
+        # updateprevious grayscale image
         self.prev_gray = next_gray
 
         return stabilized

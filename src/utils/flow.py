@@ -3,7 +3,7 @@ import numpy as np
 
 
 # =========================
-# 2. BackgroundTracker：LK 光流背景补偿
+# 2. BackgroundTracker：LK Optical flow background compensation
 # =========================
 class BackgroundTracker:
     def __init__(self, max_pts=200):
@@ -12,7 +12,9 @@ class BackgroundTracker:
         self.bg_pts = None
 
     """
-    返回当前帧背景垂直归一化速度 bg_dy_norm
+
+    returnCurrent frame background vertical normalized velocity bg_dy_norm
+
     """
 
     def compensate(self, gray):

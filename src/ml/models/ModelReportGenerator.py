@@ -35,10 +35,10 @@ class ModelReportGenerator:
     def __init__(self, summary_df, loss_figs, roc_pr_figs, models=None):
         """
         Args:
-            summary_df (pd.DataFrame): 模型评估摘要信息表格
-            loss_figs (List[matplotlib.figure.Figure]): 每个模型的训练/验证 loss 曲线图
-            roc_pr_figs (List[matplotlib.figure.Figure]): 每个模型的 ROC 和 PR 曲线图
-            models (List[object], optional): 模型对象列表（可用于混淆矩阵生成）
+            summary_df (pd.DataFrame): modelevaluation summary table
+            loss_figs (List[matplotlib.figure.Figure]): eachunitsmodeloftraining/validation loss curve plot
+            roc_pr_figs (List[matplotlib.figure.Figure]): eachunitsmodelof ROC and PR curve plot
+            models (List[object], optional): modelobject list（can be used for confusion matrix generation）
         """
         self.summary_df = summary_df
         self.loss_figs = loss_figs

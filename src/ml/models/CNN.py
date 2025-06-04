@@ -1,5 +1,5 @@
 import tensorflow as tf
-from PoseDetection.models.BaseModel import TrainMyModel
+from src.ml.models.BaseModel import TrainMyModel
 from tensorflow.keras.layers import *
 from tensorflow.keras.metrics import AUC
 from tensorflow.keras.models import Model
@@ -44,7 +44,7 @@ class CNNModel(TrainMyModel):
                 AUC(name='auc'),  # ROC‑AUC
                 AUC(curve='PR', name='pr_auc'),  # PR‑AUC
             ],
-            **self.compile_kwargs  # 透传可能的参数
+            **self.compile_kwargs  # Pass through additional compile arguments
         )
 
         return model
@@ -183,7 +183,7 @@ class CNN3(TrainMyModel):
 
 class CNN4(TrainMyModel):
     """
-    Residual CNN: 添加残差连接的卷积网络。
+    Residual CNN: Convolutional network with residual connections.
     """
 
     def __init__(self, name="cnn4"):
@@ -241,7 +241,7 @@ class CNN4(TrainMyModel):
 
 class CNN5(TrainMyModel):
     """
-    Depthwise-Separable CNN: 使用可分离卷积减少参数量。
+    Depthwise-Separable CNN: Uses separable convolutions to reduce parameter count.
     """
 
     def __init__(self, name="cnn5"):
@@ -288,7 +288,7 @@ class CNN5(TrainMyModel):
 
 class CNN6(TrainMyModel):
     """
-    Multi-Scale CNN: 并行多尺度卷积后拼接特征。
+    Multi-Scale CNN: Parallel multi-scale convolutions with feature concatenation.
     """
 
     def __init__(self, name="cnn6"):

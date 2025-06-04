@@ -3,7 +3,7 @@ import cv2
 
 
 # =========================
-# 5. DebugRenderer：画三条波动曲线 + 跳数
+# 5. DebugRenderer：Draw three fluctuation curves + jump count
 # =========================
 class DebugRenderer:
     def __init__(self, frame_h, buffer_len, regions):
@@ -33,14 +33,14 @@ class DebugRenderer:
             cv2.putText(canvas, r, (5, y0 + 20),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
-        # 绘制跳绳计数，自动调整位置以确保完整显示
+        # Draw jump rope count, auto-adjust position for complete display
         text = f"Jumps: {jump_count}"
         font = cv2.FONT_HERSHEY_SIMPLEX
         font_scale = 4
         thickness = 15
-        # 获取文本尺寸，避免超出画面
+        # Get text size, avoid exceeding frame
         (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, thickness)
         x = 10
-        y = text_height + 10  # 将文本基线设置在高度 text_height + 10 处，确保完整显示
+        y = text_height + 10  # Set text baseline at specified height for complete display
         cv2.putText(frame, text, (x, y), font, font_scale, (0, 255, 255), thickness)
         return cv2.hconcat([frame, canvas])

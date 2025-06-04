@@ -13,7 +13,7 @@ from src.ml.models.TCN_SE import TCNSEModel
 from src.ml.models.TFTLite import TFTLiteModel
 from src.ml.models.TransformerLite import TransformerLiteModel
 
-# 汇总各模型的评估数据
+# summarize evaluation of each modeldata
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -26,9 +26,9 @@ from tensorflow.keras.mixed_precision import set_global_policy
 
 set_global_policy('mixed_float16')
 
-# 打印一下可见设备
+# print visibledevice
 print("Physical devices:", tf.config.list_physical_devices())
-# # 打开 placement 日志
+# # enable logging
 # tf.debugging.set_log_device_placement(True)
 
 # Enable Metal GPU (MPS) if available and allow memory growth
@@ -82,7 +82,7 @@ class Trainer:
 
 
 def main():
-    """主训练函数"""
+    """Main training function for all models"""
     tr = Trainer()
     tr.train()
 
@@ -119,7 +119,7 @@ def main():
         ax.legend()
         loss_figs.append(fig)
 
-        # roc/pr fig（如果有）
+        # ROC/PR figure (if available)
         if "roc_curve" in rep:
             fig, ax = plt.subplots()
             ax.plot(rep["roc_curve"]["fpr"], rep["roc_curve"]["tpr"], label="ROC")
@@ -129,7 +129,7 @@ def main():
 
     summary_df = pd.DataFrame(summary_rows)
 
-    # 构造报告生成器
+    # Create report generator
     dest_root = tr.models[0].dest_root
     reporter = ModelReportGenerator(
         summary_df=summary_df,

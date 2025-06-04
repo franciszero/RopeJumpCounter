@@ -2,7 +2,7 @@ import xgboost as xgb
 from sklearn.metrics import precision_recall_curve, classification_report, roc_auc_score, average_precision_score, \
     roc_curve
 
-from PoseDetection.models.BaseModel import TrainMyModel
+from src.ml.models.BaseModel import TrainMyModel
 
 
 class XGBModel(TrainMyModel):
@@ -12,29 +12,29 @@ class XGBModel(TrainMyModel):
         self._init_model()
 
     def _build(self):
-        # 不需要构建神经网络，留空即可
+        # no need to build neural network，leave empty
         return None
 
     def train(self, **kwargs):
-        # 1. 加载 frame-level 数据（size=1）
-        #    加载后会得到 self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test
+        # 1. load frame-level data（size=1）
+        # loadwill get after self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test
 
-        # 2. 初始化 XGBoost 分类器
+        # 2. Initialize XGBoost classifier
         self.model = xgb.XGBClassifier(
             use_label_encoder=False,
             eval_metric=["logloss", "auc"],
-            **kwargs  # 比如 n_estimators, max_depth, learning_rate
+            **kwargs  # such as n_estimators, max_depth, learning_rate
         )
 
-        # 3. 训练
-        #    self.X_train 形状 (N_train, 403)，self.y_train 形状 (N_train,)
+        # 3. training
+        # self.X_train shape (N_train, 403)，self.y_train shape (N_train,)
         self.history = self.model.fit(
             self.X_train, self.y_train,
             eval_set=[(self.X_train, self.y_train), (self.X_val, self.y_val)],
             verbose=True
         )
 
-        # 获取训练过程指标
+        # get training process metrics
         self.evals_result = self.model.evals_result()
 
     def evaluate(self):

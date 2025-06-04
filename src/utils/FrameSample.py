@@ -146,7 +146,7 @@ class FrameSample:
             for m in lm.landmark:
                 # Convert normalized coords to pixel coords
                 self.raw_px.extend([m.x * self.w, m.y * self.h])
-        # 像素坐标特征
+        # Pixel coordinate features
         for i, enum_lm in enumerate(SELECTED_LM):
             self.rec[f'x_px_{enum_lm.value}'] = self.raw_px[2 * i]
             self.rec[f'y_px_{enum_lm.value}'] = self.raw_px[2 * i + 1]

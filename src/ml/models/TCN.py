@@ -1,9 +1,9 @@
-from PoseDetection.models.BaseModel import TrainMyModel
+from src.ml.models.BaseModel import TrainMyModel
 from tensorflow.keras.layers import *
 from tensorflow.keras.metrics import AUC
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
-from PoseDetection.models.ModelParams.TCNBlock import TCNBlock
+from src.ml.models.ModelParams.TCNBlock import TCNBlock
 
 
 class TCNModel(TrainMyModel):

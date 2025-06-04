@@ -1,5 +1,5 @@
 # models/InceptionTime.py
-from PoseDetection.models.BaseModel import TrainMyModel
+from src.ml.models.BaseModel import TrainMyModel
 from tensorflow.keras.layers import *
 from tensorflow.keras.metrics import AUC
 from tensorflow.keras.models import Model

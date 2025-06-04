@@ -1,12 +1,12 @@
-# PoseDetection/models/TCN.py
-from PoseDetection.models.BaseModel import TrainMyModel
+# src/ml/models/TCN.py
+from src.ml.models.BaseModel import TrainMyModel
 from tensorflow.keras.layers import *
 from tensorflow.keras.metrics import AUC
 from tensorflow.keras.models import Model
 from tensorflow.keras.optimizers import Adam
 
 
-# ----------- 小组件 ----------- #
+# ----------- components ----------- #
 def squeeze_excite(inputs, reduction=16, name=None):
     """1D SE block."""
     channels = inputs.shape[-1]
@@ -31,26 +31,26 @@ def tcn_block(x, filters, dilation_rate, name):
     y = BatchNormalization(name=f"{name}_bn")(y)
     y = Activation("gelu", name=f"{name}_act")(y)
     y = squeeze_excite(y, name=f"{name}_se")
-    # 如果通道数不同，用 1×1 调整 residual
+    # if channel count differs, adjust with 1x1 residual
     if x.shape[-1] != filters:
         x = Conv1D(filters, 1, padding="same",
                           name=f"{name}_resize")(x)
     return Add(name=f"{name}_add")([x, y])
 
 
-# ----------- 模型 ----------- #
+# ----------- model ----------- #
 class TCNSEModel(TrainMyModel):
     def __init__(self, name="tcn_se"):
         super().__init__(name)
         self._init_model()
 
     def _build(self):
-        # 输入：[B, 24, n_features]
+        # input：[B, 24, n_features]
         input_shape = self.X_train.shape[1:]
         inputs = Input(shape=input_shape, name="inputs")
         x = inputs
 
-        # 3 级堆叠，每级 2 个 dilation(1,2)->(4,8)->(16,32)
+        # 3 level stacking，each level 2 units dilation(1,2)->(4,8)->(16,32)
         filters = [64, 128, 256]
         for i, f in enumerate(filters):
             for j, d in enumerate([1 << (2 * i), 1 << (2 * i + 1)]):
@@ -71,6 +71,6 @@ class TCNSEModel(TrainMyModel):
                 AUC(name='auc'),          # ROC‑AUC
                 AUC(curve='PR', name='pr_auc'),  # PR‑AUC
             ],
-            **self.compile_kwargs  # 透传可能的参数
+            **self.compile_kwargs  # pass through possibleparameter
         )
         return model

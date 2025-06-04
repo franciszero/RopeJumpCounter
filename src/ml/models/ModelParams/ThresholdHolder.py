@@ -1,15 +1,17 @@
-# PoseDetection/models/ModelParams/ThresholdHolder.py
+# src/ml/models/ModelParams/ThresholdHolder.py
 import tensorflow as tf
 from tensorflow import keras
 
 
 @keras.utils.register_keras_serializable(package="custom")
 class ThresholdHolder(keras.layers.Layer):
-    """在 SavedModel / .keras 里持久化一个标量阈值 t"""
+    """
+    in SavedModel / .keras persist a scalar inthreshold t
+    """
 
     def __init__(self, t=0.5, **kwargs):
-        super().__init__(**kwargs)  # ← 不再重复传 trainable
-        self.trainable = False  # 依然保持不可训练
+        super().__init__(**kwargs)  # ← no longer repeatedly pass trainable
+        self.trainable = False  # still remain non-training
         self.t_init = float(t)
 
     def build(self, input_shape):
@@ -21,7 +23,7 @@ class ThresholdHolder(keras.layers.Layer):
         )
 
     def call(self, inputs):
-        return inputs  # 透传 ── 只为保存 t
+        return inputs  # pass through ── only forsave t
 
     def get_config(self):
         cfg = super().get_config()

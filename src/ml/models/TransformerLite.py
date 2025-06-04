@@ -1,5 +1,5 @@
 # models/TransformerLite.py
-from PoseDetection.models.BaseModel import TrainMyModel
+from src.ml.models.BaseModel import TrainMyModel
 import tensorflow as tf
 from tensorflow.keras.layers import *
 from tensorflow.keras.metrics import AUC
@@ -8,7 +8,9 @@ from tensorflow.keras.optimizers import Adam
 
 
 class PositionalEncoding(Layer):
-    """简化版正余弦位置编码"""
+    """
+    simplified sinusoidal positional encoding
+    """
 
     def call(self, x):
         seq_len = tf.shape(x)[1]
@@ -24,7 +26,9 @@ class PositionalEncoding(Layer):
 
 
 class TransformerLiteModel(TrainMyModel):
-    """Encoder‑only Transformer，用于短时序"""
+    """
+    Encoder‑only Transformer，usefor short sequences
+    """
 
     def __init__(self, name="transformerlite"):
         super().__init__(name)

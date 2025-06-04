@@ -1,5 +1,5 @@
-# PoseDetection/models/ResNET1D.py
-from PoseDetection.models.BaseModel import TrainMyModel
+# src/ml/models/ResNET1D.py
+from src.ml.models.BaseModel import TrainMyModel
 from tensorflow.keras.layers import *
 from tensorflow.keras.metrics import AUC
 from tensorflow.keras.models import Model
@@ -62,6 +62,6 @@ class ResNET1DTcnHybridModel(TrainMyModel):
                 AUC(name='auc'),  # ROC‑AUC
                 AUC(curve='PR', name='pr_auc'),  # PR‑AUC
             ],
-            **self.compile_kwargs  # 透传可能的参数
+            **self.compile_kwargs  # pass through possibleparameter
         )
         return model

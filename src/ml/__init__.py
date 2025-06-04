@@ -1,5 +1,5 @@
 """
-机器学习模块
+Machine learning module
 
-包含数据处理、模型定义、训练和可视化功能
+Contains data processing, model definition, training and visualization functions
 """

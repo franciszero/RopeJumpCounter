@@ -3,7 +3,7 @@ import time
 
 class GStreamerCapture:
     """
-    通过 GStreamer 管道从 macOS 摄像头拉帧，drop=true 保证尽可能低延迟。
+    Capture frames from macOS camera via GStreamer pipeline, drop=true ensures minimal latency。
     """
     def __init__(self, device_index=0, width=640, height=480, fps=30):
         pipeline = (
@@ -20,11 +20,11 @@ class GStreamerCapture:
             print(f"Warning: Failed to open GStreamer pipeline: {pipeline}, falling back to standard VideoCapture")
             self.cap = cv2.VideoCapture(device_index)
             if not self.cap.isOpened():
-                raise RuntimeError(f"无法打开摄像头设备: {device_index}")
+                raise RuntimeError(f"Unable to open camera device: {device_index}")
 
     def read(self):
         """
-        返回 (ret, frame, latency_ms)
+        return (ret, frame, latency_ms)
         """
         t0 = time.time()
         ret, frame = self.cap.read()

@@ -2,7 +2,7 @@ from tensorflow import keras
 import tensorflow as tf
 
 
-@keras.utils.register_keras_serializable(package="PoseDetection")
+@keras.utils.register_keras_serializable(package="RopeJumpCounter")
 class TCNBlock(tf.keras.layers.Layer):
     def __init__(self, filters, kernel_size=3, dilation_rate=1, **kwargs):
         super().__init__(**kwargs)
