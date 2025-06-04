@@ -1,128 +1,128 @@
 # RopeJumpCounter
 
-基于深度学习的实时跳绳计数器，使用姿态估计和时序模型进行跳跃动作检测。
+A real-time jump rope counter based on deep learning, using pose estimation and temporal models for jump action detection.
 
-## 🏗️ 项目架构
+## 🏗️ Project Architecture
 
 ```
 RopeJumpCounter/
-├── src/                    # 源代码目录
-│   ├── apps/              # 应用程序入口
-│   │   ├── main.py               # 配置版主程序
-│   │   ├── main_0_5.py          # 旧版本主程序  
-│   │   └── app.py               # 备用入口
-│   ├── ml/                # 机器学习模块
-│   │   ├── data/          # 数据处理
-│   │   │   ├── labeling/         # 数据标注工具
-│   │   │   ├── builders/         # 数据构建工具
-│   │   │   └── features/         # 特征提取
-│   │   ├── models/        # 模型定义 (CNN、TCN、ResNet等)
-│   │   ├── training/      # 模型训练
-│   │   └── visualization/ # 可视化验证
-│   ├── core/              # 核心业务逻辑
-│   │   ├── video_predictor.py    # 视频预测器
-│   │   ├── jump_counter.py       # 跳绳计数器
-│   │   └── exceptions.py         # 异常定义
-│   ├── interface/         # 用户界面
-│   │   └── gui.py               # 图形用户界面
-│   ├── config/            # 配置管理
-│   │   └── settings.py          # 应用配置
-│   ├── utils/             # 工具类
-│   │   ├── vision.py            # 计算机视觉工具
-│   │   ├── Perf.py              # 性能统计
-│   │   └── VideoStabilizer.py   # 视频稳定
-│   └── capture/           # 视频捕获
-│       ├── pyav_capture.py      # PyAV视频捕获
-│       └── gst_capture.py       # GStreamer捕获
-├── data/                  # 数据目录
-├── model_files/           # 模型文件
-├── archive/               # 历史版本
-├── main.py               # 主程序 (配置版)
-└── run.py                # 统一入口
+├── src/                    # Source code directory
+│   ├── apps/              # Application entry points
+│   │   ├── main.py               # Main program (configured version)
+│   │   ├── main_0_5.py          # Legacy main program
+│   │   └── app.py               # Alternative entry point
+│   ├── ml/                # Machine learning modules
+│   │   ├── data/          # Data processing
+│   │   │   ├── labeling/         # Data annotation tools
+│   │   │   ├── builders/         # Data building tools
+│   │   │   └── features/         # Feature extraction
+│   │   ├── models/        # Model definitions (CNN, TCN, ResNet, etc.)
+│   │   ├── training/      # Model training
+│   │   └── visualization/ # Visualization validation
+│   ├── core/              # Core business logic
+│   │   ├── video_predictor.py    # Video predictor
+│   │   ├── jump_counter.py       # Jump rope counter
+│   │   └── exceptions.py         # Exception definitions
+│   ├── interface/         # User interface
+│   │   └── gui.py               # Graphical user interface
+│   ├── config/            # Configuration management
+│   │   └── settings.py          # Application configuration
+│   ├── utils/             # Utility classes
+│   │   ├── vision.py            # Computer vision tools
+│   │   ├── Perf.py              # Performance statistics
+│   │   └── VideoStabilizer.py   # Video stabilization
+│   └── capture/           # Video capture
+│       ├── pyav_capture.py      # PyAV video capture
+│       └── gst_capture.py       # GStreamer capture
+├── data/                  # Data directory
+├── model_files/           # Model files
+├── archive/               # Historical versions
+├── main.py               # Main program (configured version)
+└── run.py                # Unified entry point
 ```
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
-### 安装依赖
+### Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-### 运行应用
+### Run Application
 
-#### 1. 实时跳绳计数 (推荐)
+#### 1. Real-time Jump Counting (Recommended)
 ```bash
 python main.py
-# 或
+# or
 python run.py realtime
 ```
 
-#### 2. 旧版本实时计数
+#### 2. Legacy Real-time Counting
 ```bash
 python run.py legacy
 ```
 
-#### 3. 数据标注
+#### 3. Data Annotation
 ```bash
 python run.py label --workdir data/raw_videos
 ```
 
-#### 4. 模型训练
+#### 4. Model Training
 ```bash
 python run.py train
 ```
 
-#### 5. 模型可视化
+#### 5. Model Visualization
 ```bash
 python run.py visualize --model best_model.keras --video test.mp4
 ```
 
-#### 6. 构建数据集
+#### 6. Build Dataset
 ```bash
 python run.py build --videos_dir data/videos --labels_dir data/labels
 ```
 
-## 🎮 功能特性
+## 🎮 Features
 
-- ✅ **实时跳绳计数**: 基于深度学习的实时动作检测
-- ✅ **多模型支持**: CNN、TCN、ResNet、Transformer等
-- ✅ **数据标注工具**: 图形化标注界面
-- ✅ **模型训练**: 批量训练多种模型
-- ✅ **可视化验证**: 实时预测可视化
-- ✅ **配置管理**: 灵活的配置系统
-- ✅ **性能优化**: GPU加速、混合精度
+- ✅ **Real-time Jump Counting**: Deep learning-based real-time action detection
+- ✅ **Multi-model Support**: CNN, TCN, ResNet, Transformer, and more
+- ✅ **Data Annotation Tools**: Graphical annotation interface
+- ✅ **Model Training**: Batch training for multiple models
+- ✅ **Visualization Validation**: Real-time prediction visualization
+- ✅ **Configuration Management**: Flexible configuration system
+- ✅ **Performance Optimization**: GPU acceleration, mixed precision
 
-## 📊 模型性能
+## 📊 Model Performance
 
-支持多种深度学习模型：
-- CNN系列 (CNN8, CNNHybrid等)
+Supports multiple deep learning models:
+- CNN series (CNN8, CNNHybrid, etc.)
 - TCN (Temporal Convolutional Network)
 - ResNet1D
 - EfficientNet1D
 - Transformer
-- 等等...
+- And more...
 
-## 🔧 开发指南
+## 🔧 Development Guide
 
-### 添加新模型
-1. 在 `src/ml/models/` 中创建模型类
-2. 继承 `BaseModel` 类
-3. 在 `model_training.py` 中注册
+### Adding New Models
+1. Create model class in `src/ml/models/`
+2. Inherit from `BaseModel` class
+3. Register in `model_training.py`
 
-### 添加新功能
-1. 在相应模块中添加功能
-2. 更新配置文件
-3. 添加测试
+### Adding New Features
+1. Add functionality in appropriate module
+2. Update configuration files
+3. Add tests
 
-## 📝 更新日志
+## 📝 Changelog
 
-- **v2.0**: 完整架构重构，模块化设计
-- **v1.x**: 原始版本，功能原型
+- **v2.0**: Complete architecture refactoring, modular design
+- **v1.x**: Original version, functional prototype
 
-## 🤝 贡献
+## 🤝 Contributing
 
-欢迎提交 Issue 和 Pull Request！
+Issues and Pull Requests are welcome!
 
-## 📄 许可证
+## 📄 License
 
 MIT License

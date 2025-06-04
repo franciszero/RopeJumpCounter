@@ -1,40 +1,42 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-RopeJumpCounter 主入口文件
+RopeJumpCounter main entry point
 
-这是项目的主要入口点，提供统一的命令行界面来访问各种功能。
+This is the primary entry point for the project, providing a unified
+command-line interface to access various functionalities including
+real-time counting, training, annotation, and visualization.
 """
 
 import sys
 import argparse
 from pathlib import Path
 
-# 添加 src 目录到 Python 路径
+# Add src directory to Python path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="RopeJumpCounter - 跳绳计数器应用",
+        description="RopeJumpCounter - Jump rope counting application",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-        可用的应用模式:
-          realtime    - 实时跳绳计数 (默认)
-          legacy      - 旧版本实时计数
-          train       - 模型训练
-          label       - 数据标注
-          visualize   - 模型可视化
-          build       - 构建数据集
+        Available application modes:
+          realtime    - Real-time jump counting (default)
+          legacy      - Legacy real-time counting
+          train       - Model training
+          label       - Data annotation
+          visualize   - Model visualization
+          build       - Build dataset
 
-        示例:
-          python run.py                     # 运行实时跳绳计数
-          python run.py realtime            # 同上
-          python run.py legacy              # 运行旧版本
-          python run.py train               # 训练模型
-          python run.py label --workdir data/raw_videos  # 数据标注
-          python run.py visualize --model best_model.keras --video test.mp4  # 可视化
-          python run.py build --videos_dir data/videos --labels_dir data/labels  # 构建数据集
+        Examples:
+          python run.py                     # Run real-time jump counting
+          python run.py realtime            # Same as above
+          python run.py legacy              # Run legacy version
+          python run.py train               # Train models
+          python run.py label --workdir data/raw_videos  # Data annotation
+          python run.py visualize --model best_model.keras --video test.mp4  # Visualization
+          python run.py build --videos_dir data/videos --labels_dir data/labels  # Build dataset
         """
     )
 
@@ -43,21 +45,21 @@ def main():
         nargs='?',
         default='realtime',
         choices=['realtime', 'legacy', 'train', 'label', 'visualize', 'build'],
-        help='应用模式 (默认: realtime)'
+        help='Application mode (default: realtime)'
     )
 
     parser.add_argument(
         '--args',
         nargs=argparse.REMAINDER,
-        help='传递给子应用的参数'
+        help='Arguments to pass to the sub-application'
     )
 
     args = parser.parse_args()
 
-    # 根据模式运行相应的应用
+    # Run the appropriate application based on mode
     if args.mode == 'realtime':
         from src.apps.main import main as app_main
-        # 重新设置 sys.argv 以传递参数给子应用
+        # Reset sys.argv to pass arguments to sub-application
         sys.argv = ['main.py'] + (args.args or [])
         app_main()
 
@@ -73,10 +75,10 @@ def main():
 
     elif args.mode == 'label':
         from src.ml.data.labeling.main_gui import main as label_main
-        # 解析标注相关参数
+        # Parse annotation-related arguments
         import argparse as label_argparse
         label_parser = label_argparse.ArgumentParser()
-        label_parser.add_argument('--workdir', default='data/raw_videos_3', help='视频和标签所在目录')
+        label_parser.add_argument('--workdir', default='data/raw_videos_3', help='Directory containing videos and labels')
         label_args = label_parser.parse_args(args.args or [])
         label_main(label_args.workdir)
 

@@ -1,208 +1,208 @@
-# 用户指南
+# User Guide
 
-## 🎯 快速开始
+## 🎯 Quick Start
 
-### 第一次使用
+### First Time Use
 
-1. **安装应用** (参考 [INSTALL.md](../INSTALL.md))
-2. **连接摄像头**
-3. **运行应用**:
+1. **Install Application** (see [INSTALL.md](../INSTALL.md))
+2. **Connect Camera**
+3. **Run Application**:
    ```bash
    python main.py
    ```
 
-### 基本操作
+### Basic Operations
 
-- **开始计数**: 应用启动后自动开始
-- **暂停/继续**: 按空格键
-- **退出**: 按 'q' 键或关闭窗口
+- **Start Counting**: Automatically starts when application launches
+- **Pause/Resume**: Press spacebar
+- **Exit**: Press 'q' key or close window
 
-## 📱 界面说明
+## 📱 Interface Overview
 
-### 主界面元素
+### Main Interface Elements
 
-- **视频窗口**: 显示实时摄像头画面
-- **跳数显示**: 左上角显示当前跳绳次数
-- **概率显示**: 左下角显示检测概率
-- **性能信息**: 右上角显示 FPS 和延迟
-- **状态指示**: 检测到跳跃时红色高亮
+- **Video Window**: Displays real-time camera feed
+- **Jump Count**: Top-left corner shows current jump count
+- **Probability Display**: Bottom-left corner shows detection probability
+- **Performance Info**: Top-right corner shows FPS and latency
+- **Status Indicator**: Red highlight when jump is detected
 
-### 状态说明
+### Status Indicators
 
-- **RISING**: 检测到上升动作
-- **概率值**: 0.0-1.0，越高表示越可能是跳跃
-- **FPS**: 每秒处理帧数
-- **延迟**: 处理延迟（毫秒）
+- **RISING**: Upward motion detected
+- **Probability Value**: 0.0-1.0, higher values indicate more likely jump
+- **FPS**: Frames processed per second
+- **Latency**: Processing delay (milliseconds)
 
-## ⚙️ 配置选项
+## ⚙️ Configuration Options
 
-### 基本配置
+### Basic Configuration
 
-编辑 `config.yaml` 文件：
+Edit the `config.yaml` file:
 
 ```yaml
 camera:
-  width: 640      # 推荐: 640x480 或 1280x720
+  width: 640      # Recommended: 640x480 or 1280x720
   height: 480
-  fps: 30         # 推荐: 30fps
-  device_index: 0 # 如果有多个摄像头，尝试 1, 2...
+  fps: 30         # Recommended: 30fps
+  device_index: 0 # If multiple cameras, try 1, 2...
 
 model:
-  threshold: 0.5  # 调整检测敏感度 (0.3-0.7)
+  threshold: 0.5  # Adjust detection sensitivity (0.3-0.7)
 ```
 
-### 高级配置
+### Advanced Configuration
 
 ```yaml
 gpu:
-  enabled: true         # 启用 GPU 加速
-  mixed_precision: true # 提升性能
+  enabled: true         # Enable GPU acceleration
+  mixed_precision: true # Improve performance
 
 performance:
-  max_fps: 30          # 限制最大帧率
+  max_fps: 30          # Limit maximum frame rate
   
 ui:
-  show_debug_info: true # 显示详细信息
+  show_debug_info: true # Show detailed information
 ```
 
-## 🎮 使用技巧
+## 🎮 Usage Tips
 
-### 获得最佳效果
+### Getting Best Results
 
-1. **光线条件**:
-   - 确保充足的光线
-   - 避免背光和强烈阴影
-   - 均匀的背景光照
+1. **Lighting Conditions**:
+   - Ensure adequate lighting
+   - Avoid backlighting and strong shadows
+   - Use even background lighting
 
-2. **摄像头位置**:
-   - 距离 1.5-2 米
-   - 高度与胸部平齐
-   - 确保全身在画面内
+2. **Camera Position**:
+   - Distance: 1.5-2 meters
+   - Height: Chest level
+   - Ensure full body is in frame
 
-3. **跳绳姿势**:
-   - 保持标准跳绳姿势
-   - 避免过度摆动
-   - 保持在摄像头视野内
+3. **Jump Rope Posture**:
+   - Maintain standard jump rope posture
+   - Avoid excessive swinging
+   - Stay within camera field of view
 
-### 调整检测敏感度
+### Adjusting Detection Sensitivity
 
-如果计数不准确：
+If counting is inaccurate:
 
-- **漏计数**: 降低 threshold (如 0.3-0.4)
-- **误计数**: 提高 threshold (如 0.6-0.7)
+- **Missing counts**: Lower threshold (e.g., 0.3-0.4)
+- **False counts**: Raise threshold (e.g., 0.6-0.7)
 
-### 性能优化
+### Performance Optimization
 
-1. **降低分辨率**: 640x480 通常足够
-2. **启用 GPU**: 如果有 NVIDIA 显卡
-3. **关闭其他程序**: 释放 CPU/GPU 资源
+1. **Lower resolution**: 640x480 is usually sufficient
+2. **Enable GPU**: If you have NVIDIA graphics card
+3. **Close other programs**: Free up CPU/GPU resources
 
-## 🔧 故障排除
+## 🔧 Troubleshooting
 
-### 常见问题
+### Common Issues
 
-#### 摄像头无法打开
+#### Camera Cannot Open
 ```
-解决方案:
-1. 检查摄像头连接
-2. 尝试不同的 device_index (0, 1, 2...)
-3. 关闭其他使用摄像头的程序
-4. 检查摄像头权限
-```
-
-#### 检测不准确
-```
-解决方案:
-1. 调整 threshold 值
-2. 改善光线条件
-3. 调整摄像头位置
-4. 检查跳绳姿势
+Solutions:
+1. Check camera connection
+2. Try different device_index (0, 1, 2...)
+3. Close other programs using camera
+4. Check camera permissions
 ```
 
-#### 性能问题 (低 FPS)
+#### Inaccurate Detection
 ```
-解决方案:
-1. 降低视频分辨率
-2. 启用 GPU 加速
-3. 关闭不必要的程序
-4. 检查系统资源使用
-```
-
-#### 应用崩溃
-```
-解决方案:
-1. 检查错误日志 (logs/ 目录)
-2. 确认依赖安装正确
-3. 尝试重新安装
-4. 报告 bug (包含错误信息)
+Solutions:
+1. Adjust threshold value
+2. Improve lighting conditions
+3. Adjust camera position
+4. Check jump rope posture
 ```
 
-## 📊 数据管理
+#### Performance Issues (Low FPS)
+```
+Solutions:
+1. Lower video resolution
+2. Enable GPU acceleration
+3. Close unnecessary programs
+4. Check system resource usage
+```
 
-### 视频录制
+#### Application Crashes
+```
+Solutions:
+1. Check error logs (logs/ directory)
+2. Confirm dependencies are installed correctly
+3. Try reinstalling
+4. Report bug (include error information)
+```
 
-启用视频录制：
+## 📊 Data Management
+
+### Video Recording
+
+Enable video recording:
 ```yaml
 save_video_path: "data/recordings"
 ```
 
-录制的视频将保存为：
-- 格式: AVI (XVID 编码)
-- 命名: `jump_YYYY.MM.DD.HH.MM.SS.avi`
+Recorded videos are saved as:
+- Format: AVI (XVID encoding)
+- Naming: `jump_YYYY.MM.DD.HH.MM.SS.avi`
 
-### 日志文件
+### Log Files
 
-日志文件位置: `logs/`
-- 包含详细的运行信息
-- 用于问题诊断
-- 可配置日志级别
+Log file location: `logs/`
+- Contains detailed runtime information
+- Used for problem diagnosis
+- Configurable log levels
 
-## 🎯 高级功能
+## 🎯 Advanced Features
 
-### 多模式运行
+### Multi-mode Operation
 
 ```bash
-# 实时计数 (默认)
+# Real-time counting (default)
 python main.py
 
-# 旧版本模式
+# Legacy mode
 python run.py legacy
 
-# 可视化模式
+# Visualization mode
 python run.py visualize --model your_model.keras --video test.mp4
 ```
 
-### 自定义模型
+### Custom Models
 
-1. 将模型文件放入 `model_files/` 目录
-2. 更新配置文件中的 `model_name`
-3. 重启应用
+1. Place model files in `model_files/` directory
+2. Update `model_name` in configuration file
+3. Restart application
 
-### 批量处理
+### Batch Processing
 
 ```bash
-# 处理视频文件
+# Process video files
 python run.py visualize --video path/to/video.mp4
 ```
 
-## 📈 性能监控
+## 📈 Performance Monitoring
 
-### 实时指标
+### Real-time Metrics
 
-- **FPS**: 处理帧率，建议 >20
-- **延迟**: 处理延迟，建议 <50ms
-- **准确率**: 通过实际对比验证
+- **FPS**: Processing frame rate, recommended >20
+- **Latency**: Processing delay, recommended <50ms
+- **Accuracy**: Verify through actual comparison
 
-### 优化建议
+### Optimization Recommendations
 
-1. **硬件升级**: 更好的 CPU/GPU
-2. **参数调优**: 调整模型参数
-3. **环境优化**: 改善拍摄环境
+1. **Hardware Upgrade**: Better CPU/GPU
+2. **Parameter Tuning**: Adjust model parameters
+3. **Environment Optimization**: Improve recording environment
 
-## 🆘 获取帮助
+## 🆘 Getting Help
 
-- **文档**: 查看 `docs/` 目录
-- **示例**: 查看 `docs/examples/`
-- **API**: 查看 `docs/API.md`
-- **问题报告**: GitHub Issues
-- **功能请求**: GitHub Discussions
+- **Documentation**: Check `docs/` directory
+- **Examples**: Check `docs/examples/`
+- **API**: Check `docs/API.md`
+- **Bug Reports**: GitHub Issues
+- **Feature Requests**: GitHub Discussions
