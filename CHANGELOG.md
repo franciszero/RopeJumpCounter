@@ -1,137 +1,137 @@
-# 更新日志
+# Changelog
 
-所有重要的项目变更都会记录在这个文件中。
+All notable changes to this project will be documented in this file.
 
-格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
-版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [未发布]
+## [Unreleased]
 
-### 新增
-- 完整的项目架构重构
-- 模块化设计和清晰的职责分离
-- 统一的命令行入口 (`run.py`)
-- 配置驱动的应用架构
+### Added
+- Complete project architecture refactoring
+- Modular design with clear separation of responsibilities
+- Unified command-line entry point (`run.py`)
+- Configuration-driven application architecture
 
-### 变更
-- 将 `PoseDetection` 模块重构为 `src/ml/`
-- 更新所有导入路径
-- 重新组织目录结构
+### Changed
+- Refactored `PoseDetection` module to `src/ml/`
+- Updated all import paths
+- Reorganized directory structure
 
 ## [2.0.0] - 2024-05-23
 
-### 新增
-- 🏗️ **架构重构**: 完全重新设计的模块化架构
-- 📁 **新目录结构**: 按功能分层的清晰目录组织
-- 🎯 **统一入口**: `run.py` 提供统一的命令行界面
-- ⚙️ **配置管理**: 基于 YAML 的灵活配置系统
-- 🧠 **ML 模块**: 独立的机器学习模块，包含：
-  - 数据标注工具
-  - 数据集构建器
-  - 特征提取管道
-  - 多种深度学习模型
-  - 模型训练脚本
-  - 可视化验证工具
-- 🎮 **核心模块**: 
-  - `VideoPredictor`: 视频预测器
-  - `JumpCounter`: 跳绳计数器
-  - 异常处理系统
-- 🖥️ **界面模块**: 重构的 GUI 界面
-- 🛠️ **工具模块**: 
-  - 姿态估计
-  - 视频稳定
-  - 性能统计
-  - 等等...
-- 📹 **捕获模块**: 多种视频捕获方式支持
+### Added
+- 🏗️ **Architecture Refactoring**: Completely redesigned modular architecture
+- 📁 **New Directory Structure**: Clear directory organization by functional layers
+- 🎯 **Unified Entry Point**: `run.py` provides unified command-line interface
+- ⚙️ **Configuration Management**: Flexible YAML-based configuration system
+- 🧠 **ML Module**: Independent machine learning module containing:
+  - Data annotation tools
+  - Dataset builders
+  - Feature extraction pipeline
+  - Multiple deep learning models
+  - Model training scripts
+  - Visualization validation tools
+- 🎮 **Core Module**:
+  - `VideoPredictor`: Video predictor
+  - `JumpCounter`: Jump rope counter
+  - Exception handling system
+- 🖥️ **Interface Module**: Refactored GUI interface
+- 🛠️ **Utility Modules**:
+  - Pose estimation
+  - Video stabilization
+  - Performance statistics
+  - And more...
+- 📹 **Capture Module**: Support for multiple video capture methods
 
-### 变更
-- 🔄 **导入路径**: 所有导入路径更新为新的模块结构
-- 📝 **文档**: 完整的项目文档和 API 文档
-- 🧪 **测试**: 改进的测试结构
+### Changed
+- 🔄 **Import Paths**: All import paths updated to new module structure
+- 📝 **Documentation**: Complete project documentation and API documentation
+- 🧪 **Testing**: Improved test structure
 
-### 修复
-- 🐛 修复了多个模块间的依赖问题
-- 🔧 改进了错误处理和异常管理
+### Fixed
+- 🐛 Fixed multiple inter-module dependency issues
+- 🔧 Improved error handling and exception management
 
 ## [1.5.0] - 2024-05-22
 
-### 新增
-- 多种深度学习模型支持 (CNN, TCN, ResNet, etc.)
-- 模型性能对比和报告生成
-- 改进的数据标注工具
+### Added
+- Support for multiple deep learning models (CNN, TCN, ResNet, etc.)
+- Model performance comparison and report generation
+- Improved data annotation tools
 
-### 变更
-- 优化了特征提取管道
-- 改进了实时性能
+### Changed
+- Optimized feature extraction pipeline
+- Improved real-time performance
 
 ## [1.4.0] - 2024-05-21
 
-### 新增
-- GPU 加速支持
-- 混合精度训练
-- 视频稳定功能
+### Added
+- GPU acceleration support
+- Mixed precision training
+- Video stabilization functionality
 
-### 修复
-- 修复了摄像头兼容性问题
-- 改进了内存使用
+### Fixed
+- Fixed camera compatibility issues
+- Improved memory usage
 
 ## [1.3.0] - 2024-05-20
 
-### 新增
-- 数据标注 GUI 工具
-- 批量数据处理
-- 模型可视化工具
+### Added
+- Data annotation GUI tools
+- Batch data processing
+- Model visualization tools
 
 ## [1.2.0] - 2024-05-15
 
-### 新增
+### Added
 - TCN (Temporal Convolutional Network) 模型
-- 改进的跳跃检测算法
-- 性能监控工具
+- Improved jump detection algorithm
+- Performance monitoring tools
 
-### 变更
-- 优化了特征提取速度
-- 改进了 UI 响应性
+### Changed
+- Optimized feature extraction speed
+- Improved UI responsiveness
 
 ## [1.1.0] - 2024-05-10
 
-### 新增
-- 多种 CNN 模型架构
-- 模型训练脚本
-- 数据集构建工具
+### Added
+- Multiple CNN model architectures
+- Model training scripts
+- Dataset building tools
 
-### 修复
-- 修复了计数准确性问题
-- 改进了错误处理
+### Fixed
+- Fixed counting accuracy issues
+- Improved error handling
 
 ## [1.0.0] - 2024-05-01
 
-### 新增
-- 🎉 **首次发布**
-- 基于 MediaPipe 的姿态估计
-- 实时跳绳计数功能
-- 基础的深度学习模型
-- 简单的 GUI 界面
+### Added
+- 🎉 **Initial Release**
+- MediaPipe-based pose estimation
+- Real-time jump rope counting functionality
+- Basic deep learning models
+- Simple GUI interface
 
-### 功能
-- 实时视频处理
-- 跳跃动作检测
-- 计数显示
-- 基础配置选项
+### Features
+- Real-time video processing
+- Jump action detection
+- Count display
+- Basic configuration options
 
 ---
 
-## 版本说明
+## Version Notes
 
-### 版本号格式
-- **主版本号**: 不兼容的 API 修改
-- **次版本号**: 向下兼容的功能性新增
-- **修订号**: 向下兼容的问题修正
+### Version Number Format
+- **Major version**: Incompatible API changes
+- **Minor version**: Backward-compatible functional additions
+- **Patch version**: Backward-compatible bug fixes
 
-### 标签说明
-- `新增`: 新功能
-- `变更`: 对现有功能的变更
-- `弃用`: 即将移除的功能
-- `移除`: 已移除的功能
-- `修复`: 问题修复
-- `安全`: 安全相关修复
+### Tag Descriptions
+- `Added`: New features
+- `Changed`: Changes to existing functionality
+- `Deprecated`: Features that will be removed soon
+- `Removed`: Features that have been removed
+- `Fixed`: Bug fixes
+- `Security`: Security-related fixes

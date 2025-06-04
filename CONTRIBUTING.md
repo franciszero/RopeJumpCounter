@@ -1,34 +1,34 @@
-# 贡献指南
+# Contributing Guide
 
-感谢你对 RopeJumpCounter 项目的关注！我们欢迎各种形式的贡献。
+Thank you for your interest in contributing to RopeJumpCounter! We welcome all forms of contributions.
 
-## 🤝 如何贡献
+## 🤝 How to Contribute
 
-### 报告问题
-- 使用 GitHub Issues 报告 bug
-- 提供详细的复现步骤
-- 包含系统信息和错误日志
+### Reporting Issues
+- Use GitHub Issues to report bugs
+- Provide detailed reproduction steps
+- Include system information and error logs
 
-### 功能请求
-- 在 Issues 中描述新功能
-- 说明使用场景和预期效果
-- 讨论实现方案
+### Feature Requests
+- Describe new features in Issues
+- Explain use cases and expected outcomes
+- Discuss implementation approaches
 
-### 代码贡献
-1. Fork 项目
-2. 创建功能分支
-3. 提交代码
-4. 创建 Pull Request
+### Code Contributions
+1. Fork the project
+2. Create a feature branch
+3. Submit your code
+4. Create a Pull Request
 
-## 🛠️ 开发环境设置
+## 🛠️ Development Environment Setup
 
-### 1. 克隆项目
+### 1. Clone the Project
 ```bash
 git clone https://github.com/your-username/RopeJumpCounter.git
 cd RopeJumpCounter
 ```
 
-### 2. 设置开发环境
+### 2. Setup Development Environment
 ```bash
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
@@ -36,77 +36,77 @@ pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
 
-### 3. 安装开发工具
+### 3. Install Development Tools
 ```bash
-# 代码格式化
+# Code formatting
 pip install black isort flake8
 
-# 测试工具
+# Testing tools
 pip install pytest pytest-cov
 
-# 文档工具
+# Documentation tools
 pip install sphinx
 ```
 
-## 📝 代码规范
+## 📝 Code Standards
 
-### Python 代码风格
-- 使用 [Black](https://black.readthedocs.io/) 进行代码格式化
-- 遵循 [PEP 8](https://pep8.org/) 规范
-- 使用 [isort](https://pycqa.github.io/isort/) 整理导入
+### Python Code Style
+- Use [Black](https://black.readthedocs.io/) for code formatting
+- Follow [PEP 8](https://pep8.org/) standards
+- Use [isort](https://pycqa.github.io/isort/) to organize imports
 
-### 格式化代码
+### Code Formatting
 ```bash
-# 格式化所有代码
+# Format all code
 black src/
 isort src/
 
-# 检查代码风格
+# Check code style
 flake8 src/
 ```
 
-### 命名规范
-- **类名**: PascalCase (`VideoPredictor`)
-- **函数/变量**: snake_case (`process_frame`)
-- **常量**: UPPER_CASE (`SELECTED_LM`)
-- **私有成员**: 前缀下划线 (`_private_method`)
+### Naming Conventions
+- **Class names**: PascalCase (`VideoPredictor`)
+- **Functions/variables**: snake_case (`process_frame`)
+- **Constants**: UPPER_CASE (`SELECTED_LM`)
+- **Private members**: prefix underscore (`_private_method`)
 
-### 文档字符串
+### Documentation
 ```python
 def process_prediction(self, prob: float, threshold: float) -> tuple[bool, int]:
     """
-    处理预测结果，返回是否正在上升和当前跳数
-    
+    Process prediction results and return jump state information.
+
     Args:
-        prob: 预测概率 (0.0-1.0)
-        threshold: 判断阈值
-        
+        prob: Prediction probability (0.0-1.0)
+        threshold: Decision threshold for classification
+
     Returns:
-        tuple: (是否正在上升, 当前跳数)
-        
+        tuple: (is_rising, current_jump_count)
+
     Raises:
-        ValueError: 如果概率值无效
+        ValueError: If probability value is invalid
     """
 ```
 
-## 🧪 测试
+## 🧪 Testing
 
-### 运行测试
+### Running Tests
 ```bash
-# 运行所有测试
+# Run all tests
 pytest
 
-# 运行特定测试
+# Run specific test file
 pytest tests/test_core.py
 
-# 生成覆盖率报告
+# Generate coverage report
 pytest --cov=src tests/
 ```
 
-### 编写测试
-- 为新功能编写单元测试
-- 测试文件命名: `test_*.py`
-- 测试函数命名: `test_*`
+### Writing Tests
+- Write unit tests for new features
+- Test file naming: `test_*.py`
+- Test function naming: `test_*`
 
 ```python
 def test_jump_counter():
@@ -116,21 +116,21 @@ def test_jump_counter():
     assert isinstance(count, int)
 ```
 
-## 📁 项目结构
+## 📁 Project Structure
 
-### 添加新模块
-1. 在适当的目录下创建模块
-2. 添加 `__init__.py` 文件
-3. 更新相关文档
+### Adding New Modules
+1. Create module in appropriate directory
+2. Add `__init__.py` file
+3. Update relevant documentation
 
-### 模块组织原则
-- **单一职责**: 每个模块有明确的职责
-- **低耦合**: 减少模块间依赖
-- **高内聚**: 相关功能放在一起
+### Module Organization Principles
+- **Single Responsibility**: Each module has a clear purpose
+- **Loose Coupling**: Minimize inter-module dependencies
+- **High Cohesion**: Group related functionality together
 
-## 🔄 提交规范
+## 🔄 Commit Standards
 
-### Commit 消息格式
+### Commit Message Format
 ```
 <type>(<scope>): <description>
 
@@ -139,80 +139,80 @@ def test_jump_counter():
 [optional footer]
 ```
 
-### 类型 (type)
-- `feat`: 新功能
-- `fix`: 修复 bug
-- `docs`: 文档更新
-- `style`: 代码格式化
-- `refactor`: 重构
-- `test`: 测试相关
-- `chore`: 构建/工具相关
+### Types
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation updates
+- `style`: Code formatting
+- `refactor`: Code refactoring
+- `test`: Test-related changes
+- `chore`: Build/tooling changes
 
-### 示例
+### Example
 ```
-feat(core): 添加跳绳计数器类
+feat(core): add jump rope counter class
 
-- 实现基于状态机的计数逻辑
-- 支持可配置的阈值
-- 添加单元测试
+- Implement state machine-based counting logic
+- Support configurable thresholds
+- Add comprehensive unit tests
 
 Closes #123
 ```
 
-## 🚀 Pull Request 流程
+## 🚀 Pull Request Process
 
-### 1. 创建分支
+### 1. Create Branch
 ```bash
 git checkout -b feature/your-feature-name
 ```
 
-### 2. 开发和测试
-- 编写代码
-- 添加测试
-- 更新文档
+### 2. Development and Testing
+- Write code
+- Add tests
+- Update documentation
 
-### 3. 提交代码
+### 3. Submit Code
 ```bash
 git add .
 git commit -m "feat: your feature description"
 git push origin feature/your-feature-name
 ```
 
-### 4. 创建 PR
-- 填写 PR 模板
-- 描述变更内容
-- 关联相关 Issues
+### 4. Create PR
+- Fill out PR template
+- Describe changes clearly
+- Link related issues
 
-### 5. 代码审查
-- 响应审查意见
-- 修改代码
-- 更新 PR
+### 5. Code Review
+- Respond to review feedback
+- Make necessary changes
+- Update PR as needed
 
-## 📋 检查清单
+## 📋 Checklist
 
-提交 PR 前请确认：
+Before submitting a PR, please ensure:
 
-- [ ] 代码通过所有测试
-- [ ] 代码风格符合规范
-- [ ] 添加了必要的测试
-- [ ] 更新了相关文档
-- [ ] Commit 消息符合规范
-- [ ] 没有引入新的依赖冲突
+- [ ] Code passes all tests
+- [ ] Code style follows standards
+- [ ] Added necessary tests
+- [ ] Updated relevant documentation
+- [ ] Commit messages follow conventions
+- [ ] No new dependency conflicts
 
-## 🎯 优先级
+## 🎯 Priority Areas
 
-我们特别欢迎以下类型的贡献：
+We especially welcome contributions in:
 
-1. **Bug 修复**: 修复已知问题
-2. **性能优化**: 提升运行效率
-3. **新模型**: 添加新的深度学习模型
-4. **文档改进**: 完善文档和示例
-5. **测试覆盖**: 增加测试用例
+1. **Bug Fixes**: Resolve known issues
+2. **Performance Optimization**: Improve efficiency
+3. **New Models**: Add deep learning architectures
+4. **Documentation**: Enhance docs and examples
+5. **Test Coverage**: Increase test coverage
 
-## 📞 联系方式
+## 📞 Contact
 
-- GitHub Issues: 技术问题和 bug 报告
-- Discussions: 功能讨论和问答
-- Email: 私人联系
+- **GitHub Issues**: Technical questions and bug reports
+- **Discussions**: Feature discussions and Q&A
+- **Email**: Private communication
 
-感谢你的贡献！🎉
+Thank you for contributing! 🎉
