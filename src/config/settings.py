@@ -1,3 +1,11 @@
+"""
+Application configuration management module
+
+Provides structured configuration classes with support for YAML files,
+environment variables, and default values. Handles validation and
+type conversion for all configuration parameters.
+"""
+
 from dataclasses import dataclass
 from pathlib import Path
 import os
@@ -8,48 +16,90 @@ from ..ml.data.builders.feature_mode import mode_to_str, get_feature_mode
 
 @dataclass
 class LogConfig:
+    """Logging configuration settings
+
+    Controls application logging behavior including output directory,
+    log level, and whether logging is enabled.
+    """
     enabled: bool = True
     log_dir: Path = Path("logs")
     level: str = "INFO"
 
+
 @dataclass
 class CameraConfig:
+    """Camera capture configuration settings
+
+    Defines video capture parameters including resolution, frame rate,
+    and device selection for camera input.
+    """
     width: int = 640
     height: int = 480
     fps: int = 30
     device_index: int = 0
 
+
 @dataclass
 class ModelConfig:
+    """Machine learning model configuration settings
+
+    Specifies model file selection, inference parameters, and
+    automatically constructs model paths based on feature configuration.
+    """
     model_name: str = "best_cnn8_ws4_withT.keras"
     threshold: float = 0.5
-    
+
     @property
     def model_path(self) -> Path:
-        from utils.FrameSample import SELECTED_LM
-        return Path("model_files") / f"models_{len(SELECTED_LM)}_{mode_to_str(get_feature_mode())}" / self.model_name
+        """Construct full model file path
+
+        Builds the complete path to the model file based on the current
+        feature configuration and selected landmarks.
+
+        Returns:
+            Path: Complete path to the model file
+        """
+        from src.utils.FrameSample import SELECTED_LM
+        model_dir = f"models_{len(SELECTED_LM)}_{mode_to_str(get_feature_mode())}"
+        return Path("model_files") / model_dir / self.model_name
 
 @dataclass
 class AppConfig:
+    """Main application configuration container
+
+    Aggregates all configuration sections and provides loading methods
+    for YAML files and environment variables with fallback defaults.
+    """
     camera: CameraConfig = CameraConfig()
     model: ModelConfig = ModelConfig()
     logging: LogConfig = LogConfig()
     save_video_path: str | None = None
-    
+
     @classmethod
     def load(cls) -> 'AppConfig':
-        """从配置文件或环境变量加载配置"""
-        # 1. 尝试从配置文件加载
+        """Load configuration from file or environment variables
+
+        Attempts to load configuration in the following order:
+        1. YAML configuration file (config.yaml or APP_CONFIG env var)
+        2. Environment variables with fallback to defaults
+
+        Returns:
+            AppConfig: Loaded configuration instance
+
+        Raises:
+            ConfigError: If configuration file exists but cannot be parsed
+        """
+        # 1. Try loading from configuration file
         config_path = os.getenv('APP_CONFIG', 'config.yaml')
         if os.path.exists(config_path):
             try:
-                with open(config_path, 'r') as f:
+                with open(config_path, 'r', encoding='utf-8') as f:
                     config_dict = yaml.safe_load(f)
-                return cls(**config_dict)
+                return cls._from_dict(config_dict)
             except Exception as e:
-                raise ConfigError(f"配置文件加载失败: {e}")
-        
-        # 2. 从环境变量加载
+                raise ConfigError(f"Configuration file loading failed: {e}")
+
+        # 2. Load from environment variables with defaults
         return cls(
             camera=CameraConfig(
                 width=int(os.getenv('CAMERA_WIDTH', 640)),
@@ -66,5 +116,27 @@ class AppConfig:
                 log_dir=Path(os.getenv('LOG_DIR', 'logs')),
                 level=os.getenv('LOG_LEVEL', 'INFO')
             ),
-            save_video_path=os.getenv('SAVE_VIDEO_PATH', 'data/raw_videos_3')
-        ) 
+            save_video_path=os.getenv('SAVE_VIDEO_PATH')
+        )
+
+    @classmethod
+    def _from_dict(cls, config_dict: dict) -> 'AppConfig':
+        """Create AppConfig from dictionary with nested object construction
+
+        Args:
+            config_dict: Configuration dictionary from YAML or other source
+
+        Returns:
+            AppConfig: Constructed configuration instance
+        """
+        # Handle nested configuration objects
+        camera_config = CameraConfig(**config_dict.get('camera', {}))
+        model_config = ModelConfig(**config_dict.get('model', {}))
+        logging_config = LogConfig(**config_dict.get('logging', {}))
+
+        return cls(
+            camera=camera_config,
+            model=model_config,
+            logging=logging_config,
+            save_video_path=config_dict.get('save_video_path')
+        )

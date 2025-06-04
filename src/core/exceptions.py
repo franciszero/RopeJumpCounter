@@ -1,15 +1,42 @@
+"""
+Exception definitions module
+
+Defines custom exception classes used throughout the RopeJumpCounter application.
+These exceptions provide specific error handling for different components.
+"""
+
+
 class AppError(Exception):
-    """应用基础异常"""
+    """Base application exception
+
+    All custom exceptions in the application inherit from this base class.
+    This allows for centralized exception handling and logging.
+    """
     pass
+
 
 class CameraError(AppError):
-    """摄像头相关错误"""
+    """Camera-related errors
+
+    Raised when camera initialization, capture, or processing fails.
+    Common scenarios include device not found, permission denied, or format issues.
+    """
     pass
+
 
 class ModelError(AppError):
-    """模型相关错误"""
+    """Machine learning model errors
+
+    Raised when model loading, inference, or validation fails.
+    This includes file not found, incompatible formats, or prediction errors.
+    """
     pass
 
+
 class ConfigError(AppError):
-    """配置相关错误"""
-    pass 
+    """Configuration-related errors
+
+    Raised when configuration loading, parsing, or validation fails.
+    This includes missing files, invalid values, or schema mismatches.
+    """
+    pass
