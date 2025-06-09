@@ -50,9 +50,26 @@ RopeJumpCounter/
 ## 🚀 Quick Start
 
 ### Install Dependencies
+
+#### 1. 完整安装 (推荐)
 ```bash
 pip install -r requirements.txt
 ```
+
+#### 2. 最小安装 (轻量级)
+```bash
+pip install -r requirements-minimal.txt
+```
+
+#### 3. 开发环境安装
+```bash
+pip install -r requirements-dev.txt
+```
+
+**依赖包说明：**
+- `requirements.txt` - 完整功能包，包含所有核心依赖和可选功能
+- `requirements-minimal.txt` - 最小依赖包，仅包含必需功能
+- `requirements-dev.txt` - 开发工具包，包含测试、代码质量等开发工具
 
 ### Run Application
 

@@ -7,7 +7,7 @@
 Video predictor that encapsulates model inference logic.
 
 ```python
-from src.core.video_predictor import VideoPredictor
+from src.ml.inference.video_predictor import VideoPredictor
 
 # Initialize
 predictor = VideoPredictor(model_path="path/to/model.keras")
@@ -165,7 +165,7 @@ stable_frame = stabilizer.stabilize(frame)
 Performance monitoring and statistics.
 
 ```python
-from src.utils.Perf import PerfStats
+from src.utils.performance.Perf import PerfStats
 
 stats = PerfStats(window_size=10)
 # In processing loop
@@ -274,7 +274,7 @@ Real-time video player with jump counting.
 
 ```python
 from src.interface.gui import PlayerGUI
-from src.core.video_predictor import VideoPredictor
+from src.ml.inference.video_predictor import VideoPredictor
 
 predictor = VideoPredictor("model.keras")
 gui = PlayerGUI(predictor, width=640, height=480, fps=30)
@@ -345,7 +345,7 @@ export SAVE_VIDEO_PATH="data/recordings"
 
 ```python
 from src.config.settings import AppConfig
-from src.core.video_predictor import VideoPredictor
+from src.ml.inference.video_predictor import VideoPredictor
 from src.interface.gui import PlayerGUI
 
 # Load configuration
@@ -378,7 +378,7 @@ gui.run()
 
 ```python
 from src.ml.data.features.features import FeaturePipeline
-from src.capture.pyav_capture import PyAVCapture
+from src.core.pyav_capture import PyAVCapture
 
 cap = PyAVCapture(device_index=0, width=640, height=480, fps=30)
 pipeline = FeaturePipeline(cap, window_size=4)

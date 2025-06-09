@@ -1,5 +1,5 @@
 import tensorflow as tf
-from src.ml.models.BaseModel import TrainMyModel
+from .BaseModel import TrainMyModel
 from tensorflow.keras.layers import *
 from tensorflow.keras.metrics import AUC
 from tensorflow.keras.models import Model
@@ -494,7 +494,7 @@ class CNN9(TrainMyModel):
 class CNNHybridModel(TrainMyModel):
     """
     A 1D CNN that in each block:
-      – projects down to a small ‘bottleneck’ channel
+      – projects down to a small 'bottleneck' channel
       – runs parallel convs (kernels 3,5,7 + one dilated conv)
       – concatenates, applies SE, projects back up
       – adds a residual skip + dropout

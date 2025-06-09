@@ -1,36 +1,53 @@
-# Development dependencies
-# Install with: pip install -r requirements-dev.txt
+# RopeJumpCounter - 开发依赖包
+# 安装命令: pip install -r requirements-dev.txt
+# 适用于开发者和高级用户
 
-# Testing
-pytest>=6.0.0
-pytest-cov>=3.0.0
-pytest-mock>=3.6.0
-pytest-xdist>=2.5.0
+# ===== 开发工具 =====
+# 测试框架
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.8.0
 
-# Code formatting and linting
-black>=22.1.0
-isort>=5.10.0
+# 代码质量
+black>=22.0.0
 flake8>=4.0.0
-mypy>=0.910
+mypy>=0.950
+isort>=5.10.0
 
-# Pre-commit hooks (optional)
-# pre-commit>=2.15.0
-
-# Documentation
-sphinx>=4.0.0
+# 文档生成
+sphinx>=5.0.0
 sphinx-rtd-theme>=1.0.0
 
-# Jupyter notebooks (for experimentation)
+# 开发环境
 jupyter>=1.0.0
+ipython>=8.0.0
 ipykernel>=6.0.0
 
-# Profiling and debugging (optional)
+# ===== 高级功能 =====
+# 实验跟踪
+mlflow>=1.20.0
+
+# 高级机器学习
+xgboost>=1.5.0
+lightgbm>=3.3.0
+
+# 高级可视化
+plotly>=5.0.0
+bokeh>=2.4.0
+matplotlib>=3.3.0
+seaborn>=0.11.0
+
+# ===== 可选工具 (根据需要取消注释) =====
+# 预提交钩子
+# pre-commit>=2.15.0
+
+# 性能分析
 # line-profiler>=3.3.0
 # memory-profiler>=0.60.0
 
-# Build tools (optional)
+# 构建工具
 # build>=0.7.0
 # twine>=3.4.0
 
-# Type checking (optional)
+# 类型检查
 # types-PyYAML>=6.0.0

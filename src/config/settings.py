@@ -1,17 +1,21 @@
 """
 Application configuration management module
 
-Provides structured configuration classes with support for YAML files,
-environment variables, and default values. Handles validation and
-type conversion for all configuration parameters.
+This module provides comprehensive configuration management for the RopeJumpCounter
+application, including YAML file loading, environment variable support,
+and configuration validation.
 """
 
-from dataclasses import dataclass
-from pathlib import Path
 import os
 import yaml
+import logging
+from typing import Optional, Dict, Any
+from dataclasses import dataclass, field
+from pathlib import Path
 from ..core.exceptions import ConfigError
 from ..ml.data.builders.feature_mode import mode_to_str, get_feature_mode
+
+from ..utils.common.FrameSample import SELECTED_LM
 
 
 @dataclass
@@ -59,7 +63,6 @@ class ModelConfig:
         Returns:
             Path: Complete path to the model file
         """
-        from src.utils.FrameSample import SELECTED_LM
         model_dir = f"models_{len(SELECTED_LM)}_{mode_to_str(get_feature_mode())}"
         return Path("model_files") / model_dir / self.model_name
 

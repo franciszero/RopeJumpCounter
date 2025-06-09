@@ -3,9 +3,9 @@
 """
 Main application entry point for RopeJumpCounter
 
-This module provides the primary entry point for the jump rope counting application.
-It handles configuration loading, GPU setup, model initialization, and GUI startup
-with comprehensive error handling and logging.
+This module provides the primary application logic for the rope jump counting
+system, including configuration loading, GPU setup, model initialization,
+and GUI startup.
 
 Features:
 - Automatic configuration loading from files or environment
@@ -16,14 +16,19 @@ Features:
 """
 
 import sys
+import os
+import logging
 import tensorflow as tf
 from tensorflow.keras import mixed_precision
 
-from src.config.settings import AppConfig
-from src.core.video_predictor import VideoPredictor
-from src.interface.gui import PlayerGUI
-from src.utils.logging import setup_logger
-from src.core.exceptions import AppError
+# Add src directory to Python path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+from ..config.settings import AppConfig
+from ..ml.inference.video_predictor import VideoPredictor
+from ..interface.gui import PlayerGUI
+from ..utils.logging import setup_logger
+from ..core.exceptions import AppError
 
 
 def setup_gpu():

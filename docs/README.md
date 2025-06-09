@@ -13,6 +13,7 @@ Welcome to the RopeJumpCounter project documentation! This directory contains co
 ### 📖 User Documentation
 - **[User Guide](./USER_GUIDE.md)** - Complete user manual
 - **[Installation Guide](../INSTALL.md)** - Installation instructions
+- **[Dependency Management](./DEPENDENCY_MANAGEMENT.md)** - 依赖管理说明
 - **[API Documentation](./API.md)** - Complete API reference
 
 ### 🔧 Development Documentation
@@ -29,8 +30,9 @@ Welcome to the RopeJumpCounter project documentation! This directory contains co
 
 ### For Users
 1. Start with [Installation Guide](../INSTALL.md)
-2. Read [User Guide](./USER_GUIDE.md)
-3. Check [API Documentation](./API.md) for advanced usage
+2. Check [Dependency Management](./DEPENDENCY_MANAGEMENT.md) for installation options
+3. Read [User Guide](./USER_GUIDE.md)
+4. Check [API Documentation](./API.md) for advanced usage
 
 ### For Developers
 1. Review [System Architecture](./ARCHITECTURE_EN.md)
@@ -49,6 +51,7 @@ Welcome to the RopeJumpCounter project documentation! This directory contains co
 | System Architecture | ✅ Complete | 中文/English | Current |
 | Sequence Diagrams | ✅ Complete | 中文/English | Current |
 | User Guide | ✅ Complete | English | Current |
+| Dependency Management | ✅ Complete | 中文 | Current |
 | API Documentation | ✅ Complete | English | Current |
 | Installation Guide | ✅ Complete | English | Current |
 | Contributing Guidelines | ✅ Complete | English | Current |
@@ -60,6 +63,7 @@ Welcome to the RopeJumpCounter project documentation! This directory contains co
 ### Update Schedule
 - **Architecture diagrams**: Update when system structure changes
 - **Sequence diagrams**: Update when workflow changes
+- **Dependency management**: Update when dependencies change
 - **API documentation**: Update when interfaces change
 - **User guide**: Update when features change
 

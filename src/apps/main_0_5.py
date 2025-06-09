@@ -1,23 +1,39 @@
-# !/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""
+Legacy main application entry point for RopeJumpCounter v0.5
+
+This module provides the legacy application logic for backward compatibility.
+It includes the original video processing pipeline with feature extraction
+and real-time jump detection.
+"""
+
+import sys
+import os
 import argparse
+import logging
 import time
-from collections import deque
-import cv2
 from datetime import datetime
-from src.ml.data.builders.feature_mode import mode_to_str, get_feature_mode
-from src.capture.pyav_capture import PyAVCapture
+from collections import deque
+
+import cv2
 import numpy as np
 import pandas as pd
-from src.ml.data.features.features import FeaturePipeline
-from src.utils.FrameSample import SELECTED_LM
-from src.utils.Perf import PerfStats
-from src.ml.models.ModelParams.ThresholdHolder import ThresholdHolder
-from src.ml.models.ModelParams.TCNBlock import TCNBlock
-
-# Force use MPS/GPU
 import tensorflow as tf
-from tensorflow.keras import mixed_precision, models
+from tensorflow import keras
+from tensorflow.keras import models
+
+# Add src directory to Python path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+
+from ..core.pyav_capture import PyAVCapture
+from ..core.video_predictor import VideoPredictor
+from ..core.jump_counter import JumpCounter
+from ..core.exceptions import CameraError, ModelError
+from ..utils.performance.Perf import PerfStats
+from ..utils.common.FrameSample import SELECTED_LM
+from ..ml.data.features.features import FeaturePipeline
+from ..ml.data.builders.feature_mode import mode_to_str, get_feature_mode
+from ..ml.models.ModelParams.ThresholdHolder import ThresholdHolder
+from ..ml.models.ModelParams.TCNBlock import TCNBlock
 
 policy = mixed_precision.Policy('mixed_float16')
 mixed_precision.set_global_policy(policy)
@@ -37,8 +53,6 @@ for gpu in gpus:
 # tf.debugging.set_log_device_placement(True)
 # # print("Built with MPS support:", tf.test.is_built_with_mps())
 # print("MPS GPU available:", len(tf.config.list_physical_devices('GPU')) > 0)
-
-import logging
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

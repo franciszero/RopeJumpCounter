@@ -1,30 +1,36 @@
-from src.ml.models.ModelReportGenerator import ModelReportGenerator
-from src.ml.models.CNN import *
-from src.ml.models.XGBoost import XGBModel
-from src.ml.models.ResNET1D_TCNHybrid import ResNET1DTcnHybridModel
-from src.ml.models.SEResNET1D import SEResNET1DModel
-from src.ml.models.TCN import TCNModel
-from src.ml.models.CRNN import CRNNModel
-from src.ml.models.LSTM_Attention import LSTMAttentionModel
-from src.ml.models.ResNET1D import ResNET1DModel
-from src.ml.models.EfficientNet1D import EfficientNet1DModel
-from src.ml.models.InceptionTime import InceptionTimeModel
-from src.ml.models.TCN_SE import TCNSEModel
-from src.ml.models.TFTLite import TFTLiteModel
-from src.ml.models.TransformerLite import TransformerLiteModel
+"""
+Model training module for RopeJumpCounter
+
+This module provides comprehensive model training capabilities including
+multiple model architectures, hyperparameter optimization, and evaluation.
+"""
+
+from .models.ModelReportGenerator import ModelReportGenerator
+from .models.CNN import *
+from .models.XGBoost import XGBModel
+from .models.ResNET1D_TCNHybrid import ResNET1DTcnHybridModel
+from .models.SEResNET1D import SEResNET1DModel
+from .models.TCN import TCNModel
+from .models.CRNN import CRNNModel
+from .models.LSTM_Attention import LSTMAttentionModel
+from .models.ResNET1D import ResNET1DModel
+from .models.EfficientNet1D import EfficientNet1DModel
+from .models.InceptionTime import InceptionTimeModel
+from .models.TCN_SE import TCNSEModel
+from .models.TFTLite import TFTLiteModel
+from .models.TransformerLite import TransformerLiteModel
+
+import tensorflow as tf
+from tensorflow.keras import mixed_precision
+
+from .models.WaveNet import WaveNetModel
 
 # summarize evaluation of each modeldata
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from src.ml.models.WaveNet import WaveNetModel
-
-import tensorflow as tf
-
 # Mixed precision on GPU
-from tensorflow.keras.mixed_precision import set_global_policy
-
-set_global_policy('mixed_float16')
+mixed_precision.set_global_policy('mixed_float16')
 
 # print visibledevice
 print("Physical devices:", tf.config.list_physical_devices())

@@ -1,10 +1,10 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Model Visualization Tool
+Model visualization module for RopeJumpCounter
 
-Utility tool to load trained *.keras models and process local videos not used in training
-with frame-by-frame inference, overlaying rising labels in real-time with light red mask highlight.
+This module provides comprehensive visualization capabilities for model
+training, evaluation, and real-time inference with interactive GUI.
 
 Dependencies:
     pip install opencv-python PySimpleGUIQt tensorflow
@@ -24,29 +24,35 @@ python ModelVisualize.py \
     --window_size 4 \
     --threshold 0.5
 """
+import sys
+import os
 import argparse
-import collections
-import pathlib
+import logging
 import time
+from datetime import datetime
+from collections import deque
 
 import cv2
-
-import imutils
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import PySimpleGUIQt as sg
+from tensorflow import keras
+from tensorflow.keras import models
 
-from src.ml.data.builders.feature_mode import get_feature_mode_all, get_feature_mode, mode_to_str
-from src.ml.data.features.features import FeaturePipeline
-from src.ml.models.ModelParams.TCNBlock import TCNBlock
+# Add src directory to Python path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
 
-import logging
-import mediapipe as mp
+from ..data.builders.feature_mode import get_feature_mode_all, get_feature_mode, mode_to_str
+from ..data.features.features import FeaturePipeline
+from ..models.ModelParams.TCNBlock import TCNBlock
 
-from src.ml.models.ModelParams.ThresholdHolder import ThresholdHolder
-from src.utils.FrameSample import SELECTED_LM
-from src.utils.Perf import PerfStats
+import PySimpleGUI as sg
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+from ..models.ModelParams.ThresholdHolder import ThresholdHolder
+from src.utils.common.FrameSample import SELECTED_LM
+from src.utils.performance.Perf import PerfStats
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -61,9 +67,9 @@ try:
     @staticmethod
     def _from_raw_compat(buf, length=None):
         """
-        Qt6’s QByteArray.fromRawData keeps a *view* of the Python buffer.
+        Qt6's QByteArray.fromRawData keeps a *view* of the Python buffer.
         When the Python `bytes` object is GC‑ed the image data becomes invalid,
-        leading to “wrong (missing signature)” PNG errors a few frames later.
+        leading to "wrong (missing signature)" PNG errors a few frames later.
 
         PySimpleGUIQt (Qt6) may pass either:
           • raw bytes
@@ -103,7 +109,7 @@ class VideoPredictor:
         self.threshold = float(self.model.get_layer("f1_threshold").t.numpy())
 
         # Use deque to maintain recent window_size frame features
-        self.buffer = collections.deque(maxlen=self.window_size)
+        self.buffer = deque(maxlen=self.window_size)
         # Before first window is full, no inference result
         self._warmup = self.window_size
 
@@ -151,7 +157,7 @@ class PlayerGUI:
         sg.theme("DarkBlue3")
         layout = [[sg.Image(filename="", key="-IMAGE-")],
                   [sg.Text("Space:Play/Pause  ←/→:Step  Esc:Quit")]]
-        self.window = sg.Window(f"Visualize – {pathlib.Path(video_path).name}",
+        self.window = sg.Window(f"Visualize – {os.path.basename(video_path)}",
                                 layout,
                                 return_keyboard_events=True,
                                 finalize=True)

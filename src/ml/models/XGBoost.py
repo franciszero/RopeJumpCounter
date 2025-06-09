@@ -2,7 +2,7 @@ import xgboost as xgb
 from sklearn.metrics import precision_recall_curve, classification_report, roc_auc_score, average_precision_score, \
     roc_curve
 
-from src.ml.models.BaseModel import TrainMyModel
+from .BaseModel import TrainMyModel
 
 
 class XGBModel(TrainMyModel):

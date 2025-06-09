@@ -1,5 +1,5 @@
 # src/ml/models/TCN.py
-from src.ml.models.BaseModel import TrainMyModel
+from .BaseModel import TrainMyModel
 from tensorflow.keras.layers import *
 from tensorflow.keras.metrics import AUC
 from tensorflow.keras.models import Model

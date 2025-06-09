@@ -14,9 +14,9 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 
-from src.capture.pyav_capture import PyAVCapture
-from src.utils.Perf import PerfStats
-from ..core.video_predictor import VideoPredictor
+from ..core.pyav_capture import PyAVCapture
+from ..utils.performance.Perf import PerfStats
+from ..ml.inference.video_predictor import VideoPredictor
 from ..core.jump_counter import JumpCounter
 from ..core.exceptions import CameraError, ModelError
 from ..ml.data.features.features import FeaturePipeline
