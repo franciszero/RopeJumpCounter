@@ -64,5 +64,6 @@ def main():
     finally:
         logger.info("Application shutdown")
 
+
 if __name__ == "__main__":
     main()

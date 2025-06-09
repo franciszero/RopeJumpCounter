@@ -78,7 +78,8 @@ def main():
         # Parse annotation-related arguments
         import argparse as label_argparse
         label_parser = label_argparse.ArgumentParser()
-        label_parser.add_argument('--workdir', default='data/raw_videos_3', help='Directory containing videos and labels')
+        label_parser.add_argument('--workdir', default='data/raw_videos_3',
+                                  help='Directory containing videos and labels')
         label_args = label_parser.parse_args(args.args or [])
         label_main(label_args.workdir)
 
