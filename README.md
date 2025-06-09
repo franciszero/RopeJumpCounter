@@ -4,7 +4,11 @@ A real-time jump rope counter based on deep learning, using pose estimation and 
 
 ## 🏗️ Project Architecture
 
-📊 **详细架构图**: [系统架构](./docs/ARCHITECTURE.md) | [序列图](./docs/SEQUENCE_DIAGRAM.md)
+📊 **Architecture Diagrams**: 
+- [System Architecture (中文)](./docs/ARCHITECTURE.md) | [System Architecture (English)](./docs/ARCHITECTURE_EN.md)
+- [Sequence Diagrams (中文)](./docs/SEQUENCE_DIAGRAM.md) | [Sequence Diagrams (English)](./docs/SEQUENCE_DIAGRAM_EN.md)
+
+📚 **Complete Documentation**: [Documentation Index](./docs/README.md)
 
 ```
 RopeJumpCounter/
