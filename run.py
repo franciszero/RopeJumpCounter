@@ -62,7 +62,7 @@ def main():
     parser.add_argument(
         'mode',
         nargs='?',
-        default='build',
+        default='realtime-v2',
         choices=['realtime', 'realtime-v2', 'legacy', 'train', 'label', 'visualize', 'build'],
         help='Application mode (default: realtime)'
     )
