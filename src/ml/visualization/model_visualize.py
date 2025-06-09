@@ -38,6 +38,8 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import models
+import mediapipe as mp
+import imutils
 
 # Add src directory to Python path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
@@ -387,8 +389,8 @@ class PlayerGUI:
             frame_vis = imutils.resize(frame_vis, height=self.zoom_height)
 
             png_bytes = cv2.imencode(".png", frame_vis)[1].tobytes()
-            # Qt6: QByteArray.fromRawData now needs both buffer & length → pass a tuple
-            self.window["-IMAGE-"].update(data=(png_bytes, len(png_bytes)))
+            # Update the image in the GUI
+            self.window["-IMAGE-"].update(data=png_bytes)
 
             # update stats
             arr_ts.append(time.time())
@@ -410,9 +412,7 @@ def main():
     parser.add_argument("--model", default="best_cnn_ws4_withT.keras")
 
     # ========= videos ==========
-    # parser.add_argument("--video", default="raw_videos_3/jump_2025.05.14.08.34.44.avi")
-    parser.add_argument("--video", default="data/raw_videos_3/jump_2025.05.22.08.33.08__100.avi")
-    # parser.add_argument("--video", default="raw_videos_3/jump_2025.05.15.08.37.31.avi")
+    parser.add_argument("--video", default="data/raw_videos_3/jump_2025.05.08.09.30.00__208.avi")
 
     # ===========================
     parser.add_argument("--threshold", type=float, default=0.5)

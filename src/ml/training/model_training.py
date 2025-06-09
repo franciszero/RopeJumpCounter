@@ -5,25 +5,25 @@ This module provides comprehensive model training capabilities including
 multiple model architectures, hyperparameter optimization, and evaluation.
 """
 
-from .models.ModelReportGenerator import ModelReportGenerator
-from .models.CNN import *
-from .models.XGBoost import XGBModel
-from .models.ResNET1D_TCNHybrid import ResNET1DTcnHybridModel
-from .models.SEResNET1D import SEResNET1DModel
-from .models.TCN import TCNModel
-from .models.CRNN import CRNNModel
-from .models.LSTM_Attention import LSTMAttentionModel
-from .models.ResNET1D import ResNET1DModel
-from .models.EfficientNet1D import EfficientNet1DModel
-from .models.InceptionTime import InceptionTimeModel
-from .models.TCN_SE import TCNSEModel
-from .models.TFTLite import TFTLiteModel
-from .models.TransformerLite import TransformerLiteModel
+from ..models.ModelReportGenerator import ModelReportGenerator
+from ..models.CNN import *
+from ..models.XGBoost import XGBModel
+from ..models.ResNET1D_TCNHybrid import ResNET1DTcnHybridModel
+from ..models.SEResNET1D import SEResNET1DModel
+from ..models.TCN import TCNModel
+from ..models.CRNN import CRNNModel
+from ..models.LSTM_Attention import LSTMAttentionModel
+from ..models.ResNET1D import ResNET1DModel
+from ..models.EfficientNet1D import EfficientNet1DModel
+from ..models.InceptionTime import InceptionTimeModel
+from ..models.TCN_SE import TCNSEModel
+from ..models.TFTLite import TFTLiteModel
+from ..models.TransformerLite import TransformerLiteModel
 
 import tensorflow as tf
 from tensorflow.keras import mixed_precision
 
-from .models.WaveNet import WaveNetModel
+from ..models.WaveNet import WaveNetModel
 
 # summarize evaluation of each modeldata
 import pandas as pd

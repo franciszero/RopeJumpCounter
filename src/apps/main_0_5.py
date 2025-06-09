@@ -20,12 +20,14 @@ import pandas as pd
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import models
+from tensorflow.keras import mixed_precision
+import imutils
 
 # Add src directory to Python path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
 from ..core.pyav_capture import PyAVCapture
-from ..core.video_predictor import VideoPredictor
+from src.ml.inference.video_predictor import VideoPredictor
 from ..core.jump_counter import JumpCounter
 from ..core.exceptions import CameraError, ModelError
 from ..utils.performance.Perf import PerfStats
