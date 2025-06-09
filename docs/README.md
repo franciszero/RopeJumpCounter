@@ -12,8 +12,10 @@ Welcome to the RopeJumpCounter project documentation! This directory contains co
 
 ### 📖 User Documentation
 - **[User Guide](./USER_GUIDE.md)** - Complete user manual
-- **[Installation Guide](../INSTALL.md)** - Installation instructions
-- **[Dependency Management](./DEPENDENCY_MANAGEMENT.md)** - 依赖管理说明
+- **[Installation Guide (中文)](../INSTALL.md)** - 安装指南
+- **[Installation Guide (English)](../INSTALL_EN.md)** - Installation instructions
+- **[Dependency Management (中文)](./DEPENDENCY_MANAGEMENT.md)** - 依赖管理说明
+- **[Dependency Management (English)](./DEPENDENCY_MANAGEMENT_EN.md)** - Dependency management guide
 - **[API Documentation](./API.md)** - Complete API reference
 
 ### 🔧 Development Documentation
@@ -23,6 +25,8 @@ Welcome to the RopeJumpCounter project documentation! This directory contains co
 
 ### 📁 Additional Resources
 - **[Examples](./examples/)** - Code examples and tutorials
+  - **[Stick Figure Visualization (中文)](./examples/stick_figure_visualization.md)** - 火柴人姿态可视化功能
+  - **[Stick Figure Visualization (English)](./examples/stick_figure_visualization_en.md)** - Stick figure pose visualization feature
 - **[Images](./images/)** - Screenshots and diagrams
 - **[Tutorials](./tutorials/)** - Step-by-step tutorials
 
@@ -51,12 +55,13 @@ Welcome to the RopeJumpCounter project documentation! This directory contains co
 | System Architecture | ✅ Complete | 中文/English | Current |
 | Sequence Diagrams | ✅ Complete | 中文/English | Current |
 | User Guide | ✅ Complete | English | Current |
-| Dependency Management | ✅ Complete | 中文 | Current |
+| Installation Guide | ✅ Complete | 中文/English | Current |
+| Dependency Management | ✅ Complete | 中文/English | Current |
 | API Documentation | ✅ Complete | English | Current |
-| Installation Guide | ✅ Complete | English | Current |
 | Contributing Guidelines | ✅ Complete | English | Current |
-| Code Review Report | ✅ Complete | English | Current |
 | Documentation Audit | ✅ Complete | English | Current |
+| Stick Figure Visualization | ✅ Complete | 中文/English | Current |
+| ML Module Documentation | ✅ Complete | 中文/English | Current |
 
 ## 🔄 Documentation Maintenance
 
