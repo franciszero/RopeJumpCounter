@@ -17,13 +17,14 @@ scikit-learn>=1.4.0
 
 # Video Processing
 av>=14.4.0
+imutils>=0.5.4
 
 # Configuration
 PyYAML>=6.0.0
 
 # GUI (for annotation tools)
-PySimpleGUIQt>=5.0.0
-PySimpleGUI>=5.0.0
+PySimpleGUIQt>=5.0.0  # Use PySimpleGUIQt for better Qt integration
+PySide6>=6.6.0
 
 # Visualization
 matplotlib>=3.7.0
@@ -33,6 +34,12 @@ plotly>=5.24.0
 # Development and Utilities
 tqdm>=4.67.0
 psutil>=7.0.0
+
+# Additional dependencies that might be missing
+pillow>=8.0.0
+scipy>=1.8.0
+requests>=2.21.0
+certifi>=2017.4.17
 
 # Optional: Advanced ML (uncomment if needed)
 # xgboost>=3.0.0

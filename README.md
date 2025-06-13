@@ -18,13 +18,16 @@ A real-time jump rope counting application using computer vision and machine lea
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- **Python 3.10 or higher** (required for modern type annotations and Keras 3.x compatibility)
 - OpenCV
-- TensorFlow/Keras
+- TensorFlow/Keras 3.x
 - NumPy
 - MediaPipe
 - PyYAML
 - PyAV (for low-latency video capture)
+- **GUI Dependencies** (for annotation tools):
+  - PySimpleGUIQt
+  - PySide6 (Qt bindings for PySimpleGUIQt)
 
 ### Installation
 
@@ -36,7 +39,7 @@ cd RopeJumpCounter
 
 2. Create and activate a virtual environment (recommended):
 ```bash
-python -m venv venv
+python3.10 -m venv venv
 # Windows:
 venv\Scripts\activate
 # Linux/Mac:
@@ -48,7 +51,7 @@ source venv/bin/activate
    ```bash
    pip install -r requirements-minimal.txt
    ```
-   - **For complete functionality (all features)**:
+   - **For complete functionality (all features including GUI tools)**:
    ```bash
    pip install -r requirements.txt
    ```
@@ -58,6 +61,8 @@ source venv/bin/activate
    pip install -r requirements-dev.txt
    ```
    - **For detailed dependency information**: See `docs/DEPENDENCY_MANAGEMENT.md`
+
+   - This is a one-time setup - subsequent `pip install -r requirements.txt` will handle dependencies automatically.
 
 4. Configure the application:
    - The `config.yaml` file is already present and configured
@@ -87,17 +92,19 @@ python run.py train
 
 #### Data Annotation
 ```bash
-python run.py label --workdir data/raw_videos_3
+# Correct format: use --args to pass arguments to the sub-application
+python run.py label --args --workdir data/raw_videos_3
 ```
 
 #### Model Visualization
 ```bash
-python run.py visualize --model best_model.keras --video test.mp4
+# Note: Use only the model filename, not the full path
+python run.py visualize --args --model best_cnn8_ws4_withT.keras --video data/raw_videos_3/jump_2025.05.22.08.34.40__100.avi
 ```
 
 #### Dataset Building
 ```bash
-python run.py build --videos_dir data/videos --labels_dir data/labels
+python run.py build --args --videos_dir data/raw_videos_3 --labels_dir data/raw_videos_3
 ```
 
 ## Configuration
@@ -135,6 +142,9 @@ RopeJumpCounter/
 ├── config.yaml           # Configuration file
 ├── README.md             # This file
 ├── .gitignore            # Git ignore rules
+├── requirements.txt      # Complete dependencies (including GUI)
+├── requirements-minimal.txt # Minimal dependencies (core only)
+├── requirements-dev.txt  # Development dependencies
 ├── src/                  # Source code
 │   ├── apps/            # Application modules
 │   │   ├── main.py      # Original real-time app
@@ -152,6 +162,7 @@ RopeJumpCounter/
 │   ├── utils/           # Utility functions
 │   └── ml/              # Machine learning modules
 │       ├── data/        # Data processing
+│       │   └── labeling/ # Data annotation tools
 │       ├── training/    # Model training
 │       ├── visualization/ # Model visualization
 │       ├── models/      # Model definitions
@@ -182,9 +193,10 @@ RopeJumpCounter/
 - Model validation and testing
 
 ### 3. Data Annotation (`label`)
-- GUI-based video annotation tool
+- GUI-based video annotation tool (requires PySide6)
 - Label jump events in video files
 - Export labeled datasets
+- **Note**: Requires GUI dependencies (PySimpleGUIQt + PySide6)
 
 ### 4. Visualization (`visualize`)
 - Visualize model predictions
@@ -222,6 +234,33 @@ The application provides comprehensive logging:
 - **Log Directory**: Configurable log storage location
 - **Debug Information**: Real-time debugging data display
 - **Performance Metrics**: Processing statistics and timing
+
+## Troubleshooting
+
+### Common Issues
+
+1. **GUI Tools Not Working**: 
+   - Ensure PySide6 is installed: `pip install PySide6`
+   - Use complete requirements: `pip install -r requirements.txt`
+   - If you see "No module named 'PySimpleGUIQt'" error, ensure you've activated the virtual environment and run `pip install -r requirements.txt`
+
+2. **PySimpleGUI Private Server Warning**:
+   - If you encounter "PySimpleGUI is now located on a private PyPI server..." warning, run:
+   ```bash
+   python -m pip install --upgrade --extra-index-url https://PySimpleGUI.net/install PySimpleGUI
+   ```
+
+3. **Model File Not Found Error**:
+   - When using `python run.py visualize`, use only the model filename (e.g., `best_cnn8_ws4_withT.keras`), not the full path
+   - The system automatically constructs the correct path based on the model filename
+
+4. **Command Line Arguments**:
+   - Use `--args` flag to pass arguments to sub-applications
+   - Example: `python run.py label --args --workdir data/raw_videos_3`
+
+5. **Missing Dependencies**:
+   - Install complete requirements for all features
+   - Check `requirements.txt` for full dependency list
 
 ## Documentation
 

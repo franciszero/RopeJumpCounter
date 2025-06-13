@@ -53,9 +53,9 @@ def main():
           python run.py realtime-v2         # Run with new architecture
           python run.py legacy              # Run legacy version
           python run.py train               # Train models
-          python run.py label --workdir data/raw_videos  # Data annotation
-          python run.py visualize --model best_model.keras --video test.mp4  # Visualization
-          python run.py build --videos_dir data/videos --labels_dir data/labels  # Build dataset
+          python run.py label --args --workdir data/raw_videos  # Data annotation
+          python run.py visualize --args --model best_model.keras --video test.mp4  # Visualization
+          python run.py build --args --videos_dir data/videos --labels_dir data/labels  # Build dataset
         """
     )
 
@@ -103,8 +103,8 @@ def main():
         # Parse annotation-related arguments
         import argparse as label_argparse
         label_parser = label_argparse.ArgumentParser()
-        label_parser.add_argument('--workdir', default='data/raw_videos_3',
-                                  help='Directory containing videos and labels')
+        label_parser.add_argument('--workdir', default='data/raw_videos_3')
+        # Parse only the remaining arguments, not all sys.argv
         label_args = label_parser.parse_args(args.args or [])
         label_main(label_args.workdir)
 

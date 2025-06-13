@@ -7,7 +7,7 @@ multiple model architectures, hyperparameter optimization, and evaluation.
 
 from ..models.ModelReportGenerator import ModelReportGenerator
 from ..models.CNN import *
-from ..models.XGBoost import XGBModel
+# from ..models.XGBoost import XGBModel
 from ..models.ResNET1D_TCNHybrid import ResNET1DTcnHybridModel
 from ..models.SEResNET1D import SEResNET1DModel
 from ..models.TCN import TCNModel
