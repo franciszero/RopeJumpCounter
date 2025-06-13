@@ -99,6 +99,17 @@ class TrainMyModel(ABC):
         self.X_train, self.y_train, self.X_val, self.y_val, self.X_test, self.y_test \
             = self.__load_window_npz(self.window_size)
 
+        # Check if we have complete data splits
+        if self.X_test is None or self.y_test is None:
+            print("\n" + "="*80)
+            print("❌ Training cannot proceed: Test data is missing!")
+            print("="*80)
+            print("This happens when you have fewer than 3 videos in your dataset.")
+            print("The data builder assigns all videos to training, leaving test/val empty.")
+            print("\n💡 Solution: Add more videos to your dataset (at least 3 recommended)")
+            print("="*80)
+            raise ValueError("Insufficient data for training. Need at least 3 videos for proper train/val/test splits.")
+
         print("X_train NaNs:", np.isnan(self.X_train).sum())
         print("X_val   NaNs:", np.isnan(self.X_val).sum())
         print("X_test  NaNs:", np.isnan(self.X_test).sum())
@@ -237,6 +248,38 @@ class TrainMyModel(ABC):
             # time-warp omitted, can use random time stretch + interpolation
         return window
 
+    def _check_data_exists_or_warn(self, X_train, X_val, X_test, base_dir):
+        """
+        Check if training data exists, if not provide friendly error message and raise exception.
+        """
+        if X_train is None and X_val is None and X_test is None:
+            print("\n" + "="*80)
+            print("❌ Training data not found!")
+            print("="*80)
+            print(f"Expected data directory structure: {base_dir}/")
+            print("  ├── train/*.npz")
+            print("  ├── val/*.npz")
+            print("  └── test/*.npz")
+            print("\n💡 Solution:")
+            print("1. Make sure you have labeled video data (use 'python run.py label')")
+            print("2. Run the data builder to generate training data:")
+            print("   python run.py build")
+            print("3. Or manually specify the correct data directory path")
+            print("="*80)
+            raise FileNotFoundError(
+                f"Training data not found. Please run 'python run.py build' to build the training dataset.\n"
+                f"Expected directory: {base_dir}/"
+            )
+        if X_train is None:
+            print("\n" + "="*60)
+            print("⚠️  Warning: Training data not found!")
+            print("="*60)
+            print("Training data directory is empty or does not exist. Please ensure:")
+            print("1. You have run the data builder: python run.py build")
+            print("2. The data directory path is correct")
+            print("="*60)
+            raise FileNotFoundError("Training data not found, cannot proceed with model training")
+
     def __load_window_npz(self, window_size):
         """
         Load window-level datasets for a given window size.
@@ -282,9 +325,20 @@ class TrainMyModel(ABC):
         X_val, y_val = _load_split(os.path.join(base_dir, "val"))
         X_test, y_test = _load_split(os.path.join(base_dir, "test"))
 
+        # 数据检查和友好提示
+        self._check_data_exists_or_warn(X_train, X_val, X_test, base_dir)
+
+        # Print data statistics for loaded splits
         for split, y in [('train', y_train), ('val', y_val), ('test', y_test)]:
-            neg, pos = np.bincount(y)
-            print(f'{split}: neg={neg}, pos={pos}, pos_ratio={pos / len(y):.2%}')
+            if y is not None:
+                try:
+                    neg, pos = np.bincount(y)
+                    print(f'{split}: neg={neg}, pos={pos}, pos_ratio={pos / len(y):.2%}')
+                except ValueError as e:
+                    print(f"⚠️  警告：{split} 数据的标签格式有问题：{e}")
+                    print(f"   数据形状：{y.shape if hasattr(y, 'shape') else 'unknown'}")
+                    print(f"   数据类型：{type(y)}")
+                    raise ValueError(f"{split} 数据标签格式错误，请检查数据构建过程")
 
         # --- data augmentation only on the training split ---
         if X_train is not None:

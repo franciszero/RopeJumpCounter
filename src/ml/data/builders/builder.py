@@ -290,7 +290,7 @@ def gradient_split(args):
                 f"Test: {len(splits['test'])} (pos={sum_pos(splits['test'])})")
 
     # ---------- If preview mode, output detailed information and exit ----------
-    if args.preview_split:
+    if not args.build_data:
         def _detail(vid_dicts):
             return [
                 {
@@ -308,7 +308,7 @@ def gradient_split(args):
         }
         import pprint
         pprint.pprint(preview, sort_dicts=False)
-        logger.info("Preview complete (--preview_split). Not performing feature extraction/file writing.")
+        logger.info("Preview complete (--build_data not specified). Not performing feature extraction/file writing.")
 
     return splits
 
@@ -333,7 +333,7 @@ def main():
 
     # -------- Calculate statistics for each video and perform balanced data splitting ---------
     splits = gradient_split(args)
-    if args.preview_split:
+    if not args.build_data:
         return
 
     for split_dest_set, videos in splits.items():
@@ -423,8 +423,8 @@ def get_command_line_params():
     parser.add_argument('--seed', type=int, default=42, help='Random seed')
     parser.add_argument('--split_yaml', default=None,
                         help='Predefined split file (yaml: train/val/test lists), if provided overrides random split')
-    parser.add_argument('--preview_split', default=True, action='store_true',
-                        help='Only preview train/val/test split with positive example counts, then exit (no feature extraction)')
+    parser.add_argument('--build_data', action='store_true', default=False,
+                        help='Build the actual dataset files (default is preview mode)')
     args = parser.parse_args()
 
     suffix = mode_to_str(get_feature_mode())

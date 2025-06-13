@@ -68,9 +68,64 @@ source venv/bin/activate
    - The `config.yaml` file is already present and configured
    - Modify settings as needed for your environment
 
+### Workflow Overview
+
+The application follows a specific workflow for machine learning model development:
+
+```
+1. Data Collection & Annotation
+   ↓
+2. Dataset Building
+   ↓
+3. Model Training
+   ↓
+4. Model Evaluation & Visualization
+   ↓
+5. Real-time Deployment
+```
+
+**Detailed Workflow:**
+
+1. **Data Annotation** (`label`) - First step for new projects
+   - Label jump events in video files
+   - Creates `*_labels.csv` files
+
+2. **Dataset Building** (`build`) - Required before training
+   - Processes videos and labels into training datasets
+   - Creates `data/dataset_*/size{window_size}/` structure
+
+3. **Model Training** (`train`) - Requires built datasets
+   - Trains machine learning models
+   - Saves trained models to `model_files/`
+
+4. **Visualization** (`visualize`) - Optional, for analysis
+   - Visualizes model predictions
+   - Helps debug and analyze performance
+
+5. **Real-time Counting** (`realtime*`) - Final deployment
+   - Uses trained models for live jump counting
+
 ### Basic Usage
 
-#### Real-time Jump Counting
+#### Step 1: Data Annotation (First Time Setup)
+```bash
+# Label jump events in your video files
+python run.py label --args --workdir data/raw_videos_3
+```
+
+#### Step 2: Build Training Dataset
+```bash
+# Process videos and labels into training data
+python run.py build --args --videos_dir data/raw_videos_3 --labels_dir data/raw_videos_3
+```
+
+#### Step 3: Train Models
+```bash
+# Train machine learning models (requires built datasets)
+python run.py train
+```
+
+#### Step 4: Real-time Jump Counting
 ```bash
 # Run real-time jump counting (default - v2.0 architecture)
 python run.py
@@ -85,27 +140,21 @@ python run.py legacy
 python run.py realtime
 ```
 
-#### Model Training
+#### Optional: Model Visualization
 ```bash
-python run.py train
-```
-
-#### Data Annotation
-```bash
-# Correct format: use --args to pass arguments to the sub-application
-python run.py label --args --workdir data/raw_videos_3
-```
-
-#### Model Visualization
-```bash
-# Note: Use only the model filename, not the full path
+# Visualize model predictions and performance
 python run.py visualize --args --model best_cnn8_ws4_withT.keras --video data/raw_videos_3/jump_2025.05.22.08.34.40__100.avi
 ```
 
-#### Dataset Building
-```bash
-python run.py build --args --videos_dir data/raw_videos_3 --labels_dir data/raw_videos_3
-```
+### Quick Commands Reference
+
+| Command | Purpose | Prerequisites |
+|---------|---------|---------------|
+| `python run.py label` | Label video data | Video files in data directory |
+| `python run.py build` | Build training datasets | Labeled videos (`*_labels.csv`) |
+| `python run.py train` | Train models | Built datasets (`data/dataset_*/`) |
+| `python run.py visualize` | Analyze model performance | Trained models (`model_files/`) |
+| `python run.py realtime*` | Live jump counting | Trained models (`model_files/`) |
 
 ## Configuration
 
