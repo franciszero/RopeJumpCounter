@@ -36,7 +36,7 @@ class Event:
     data: Any
     timestamp: datetime
     source: str
-    
+
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now()
@@ -44,7 +44,7 @@ class Event:
 
 class EventBus:
     """Centralized event bus for application communication"""
-    
+
     def __init__(self):
         self._subscribers: Dict[EventType, List[Callable]] = {}
         self._async_subscribers: Dict[EventType, List[Callable]] = {}
@@ -53,7 +53,7 @@ class EventBus:
         self._lock = threading.Lock()
         self._running = False
         self._event_queue = asyncio.Queue()
-    
+
     def subscribe(self, event_type: EventType, handler: Callable, async_handler: bool = False):
         """Subscribe to an event type
         
@@ -71,9 +71,9 @@ class EventBus:
                 if event_type not in self._subscribers:
                     self._subscribers[event_type] = []
                 self._subscribers[event_type].append(handler)
-        
+
         logger.debug(f"Subscribed to {event_type.value} with {'async' if async_handler else 'sync'} handler")
-    
+
     def unsubscribe(self, event_type: EventType, handler: Callable, async_handler: bool = False):
         """Unsubscribe from an event type"""
         with self._lock:
@@ -89,9 +89,9 @@ class EventBus:
                         self._subscribers[event_type].remove(handler)
                     except ValueError:
                         pass
-        
+
         logger.debug(f"Unsubscribed from {event_type.value}")
-    
+
     def publish(self, event_type: EventType, data: Any = None, source: str = "unknown"):
         """Publish an event
         
@@ -106,13 +106,13 @@ class EventBus:
             timestamp=datetime.now(),
             source=source
         )
-        
+
         # Add to history
         with self._lock:
             self._event_history.append(event)
             if len(self._event_history) > self._max_history:
                 self._event_history.pop(0)
-        
+
         # Notify sync subscribers
         if event_type in self._subscribers:
             for handler in self._subscribers[event_type]:
@@ -120,44 +120,44 @@ class EventBus:
                     handler(event)
                 except Exception as e:
                     logger.error(f"Error in event handler {handler.__name__}: {e}")
-        
+
         # Queue for async subscribers
         if event_type in self._async_subscribers:
             asyncio.create_task(self._event_queue.put(event))
-        
+
         logger.debug(f"Published event {event_type.value} from {source}")
-    
+
     async def _process_async_events(self):
         """Process async events in background"""
         while self._running:
             try:
                 event = await asyncio.wait_for(self._event_queue.get(), timeout=1.0)
-                
+
                 if event.type in self._async_subscribers:
                     for handler in self._async_subscribers[event.type]:
                         try:
                             await handler(event)
                         except Exception as e:
                             logger.error(f"Error in async event handler {handler.__name__}: {e}")
-                
+
                 self._event_queue.task_done()
-                
+
             except asyncio.TimeoutError:
                 continue
             except Exception as e:
                 logger.error(f"Error processing async events: {e}")
-    
+
     def start(self):
         """Start the event bus"""
         self._running = True
         asyncio.create_task(self._process_async_events())
         logger.info("Event bus started")
-    
+
     def stop(self):
         """Stop the event bus"""
         self._running = False
         logger.info("Event bus stopped")
-    
+
     def get_event_history(self, event_type: Optional[EventType] = None, limit: int = 100) -> List[Event]:
         """Get event history
         
@@ -170,9 +170,9 @@ class EventBus:
                 filtered_events = [e for e in self._event_history if e.type == event_type]
             else:
                 filtered_events = self._event_history.copy()
-            
+
             return filtered_events[-limit:]
-    
+
     def clear_history(self):
         """Clear event history"""
         with self._lock:
@@ -207,4 +207,4 @@ def publish_error(error: Exception, source: str = "unknown"):
 
 def publish_performance_update(metrics: Dict[str, float], source: str = "performance_monitor"):
     """Publish performance update event"""
-    event_bus.publish(EventType.PERFORMANCE_UPDATE, metrics, source) 
+    event_bus.publish(EventType.PERFORMANCE_UPDATE, metrics, source)

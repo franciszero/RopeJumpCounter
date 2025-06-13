@@ -1,105 +1,147 @@
-# RopeJumpCounter 系统架构
+# RopeJumpCounter System Architecture
 
-## 整体架构图
+## Overall Architecture
 
 ```mermaid
 graph TB
-    subgraph "用户界面层"
-        GUI[PlayerGUI<br/>图形用户界面]
-        CLI[命令行接口<br/>run.py]
+    subgraph "Entry Point Layer"
+        RUN[run.py<br/>Main Entry Point]
     end
     
-    subgraph "应用层"
-        APP[主应用<br/>main.py]
-        CONFIG[配置管理<br/>AppConfig]
-        LOGGER[日志系统<br/>setup_logger]
+    subgraph "Application Layer"
+        MAIN[main.py<br/>Original App]
+        MAINV2[main_v2.py<br/>New Architecture]
+        LEGACY[main_0_5.py<br/>Legacy App]
     end
     
-    subgraph "核心业务层"
-        PREDICTOR[视频预测器<br/>VideoPredictor]
-        COUNTER[跳绳计数器<br/>JumpCounter]
-        EXCEPTIONS[异常处理<br/>AppError]
+    subgraph "Core Architecture (v2.0)"
+        CONTAINER[Container<br/>Dependency Injection]
+        EVENTBUS[EventBus<br/>Event System]
+        PLUGIN[PluginManager<br/>Plugin System]
     end
     
-    subgraph "机器学习层"
-        MODELS[模型定义<br/>CNN/TCN/ResNet]
-        TRAINING[模型训练<br/>model_training]
-        FEATURES[特征提取<br/>FrameSample]
-        VIZ[可视化<br/>model_visualize]
+    subgraph "Interface Layer"
+        GUI[PlayerGUI<br/>Main Interface]
     end
     
-    subgraph "数据层"
-        CAPTURE[视频捕获<br/>pyav_capture]
-        STABILIZER[视频稳定<br/>VideoStabilizer]
-        LABELING[数据标注<br/>main_gui]
+    subgraph "Core Business Logic"
+        PREDICTOR[VideoPredictor<br/>Model Inference]
+        COUNTER[JumpCounter<br/>State Machine]
+        FEATURE[FeaturePipeline<br/>Feature Extraction]
     end
     
-    subgraph "工具层"
-        VISION[计算机视觉<br/>vision.py]
-        PERF[性能监控<br/>Perf.py]
-        UTILS[通用工具<br/>utils/]
+    subgraph "Data Processing"
+        CAPTURE[PyAVCapture<br/>Video Capture]
+        STABILIZER[VideoStabilizer<br/>Video Stabilization]
+        POSE[PoseEstimator<br/>MediaPipe Integration]
     end
     
-    subgraph "外部依赖"
-        TF[TensorFlow<br/>深度学习框架]
-        MP[MediaPipe<br/>姿态估计]
-        CV[OpenCV<br/>图像处理]
-        YAML[PyYAML<br/>配置解析]
+    subgraph "Machine Learning"
+        MODELS[Model Files<br/>Trained Models]
+        TRAINING[model_training.py<br/>Training Script]
+        VIZ[model_visualize.py<br/>Visualization]
     end
     
-    %% 连接关系
-    GUI --> APP
-    CLI --> APP
-    APP --> CONFIG
-    APP --> LOGGER
-    APP --> PREDICTOR
-    APP --> COUNTER
+    subgraph "Data Management"
+        LABELING[main_gui.py<br/>Annotation Tool]
+        BUILDER[builder.py<br/>Dataset Builder]
+    end
     
-    PREDICTOR --> MODELS
-    PREDICTOR --> FEATURES
-    COUNTER --> PREDICTOR
+    subgraph "Configuration & Utilities"
+        CONFIG[AppConfig<br/>Configuration]
+        LOGGER[setup_logger<br/>Logging]
+        PERF[PerfStats<br/>Performance]
+    end
     
-    FEATURES --> VISION
-    VISION --> MP
-    VISION --> CV
+    %% Entry point connections
+    RUN --> MAIN
+    RUN --> MAINV2
+    RUN --> LEGACY
+    RUN --> TRAINING
+    RUN --> LABELING
+    RUN --> VIZ
+    RUN --> BUILDER
     
+    %% v2.0 architecture connections
+    MAINV2 --> CONTAINER
+    MAINV2 --> EVENTBUS
+    MAINV2 --> PLUGIN
+    
+    %% Core business logic
+    GUI --> PREDICTOR
+    GUI --> COUNTER
+    GUI --> FEATURE
+    GUI --> CAPTURE
+    
+    %% Data processing pipeline
+    FEATURE --> STABILIZER
+    FEATURE --> POSE
     CAPTURE --> STABILIZER
-    STABILIZER --> VISION
     
+    %% ML connections
+    PREDICTOR --> MODELS
     TRAINING --> MODELS
-    TRAINING --> FEATURES
-    VIZ --> MODELS
     
-    LABELING --> CAPTURE
-    
-    MODELS --> TF
-    PERF --> UTILS
-    
-    CONFIG --> YAML
+    %% Configuration
+    CONTAINER --> CONFIG
+    CONTAINER --> LOGGER
+    GUI --> PERF
 ```
 
-## 数据流架构
+## Application Modes Architecture
 
 ```mermaid
-flowchart LR
-    subgraph "输入"
-        CAM[摄像头]
-        VIDEO[视频文件]
+graph LR
+    subgraph "run.py Entry Point"
+        RUN[run.py]
     end
     
-    subgraph "处理流程"
-        CAP[视频捕获]
-        STAB[视频稳定]
-        POSE[姿态估计]
-        FEAT[特征提取]
-        PRED[模型预测]
-        COUNT[跳绳计数]
+    subgraph "Real-time Modes"
+        REALTIME[realtime<br/>main.py]
+        REALTIMEV2[realtime-v2<br/>main_v2.py]
+        LEGACY[legacy<br/>main_0_5.py]
     end
     
-    subgraph "输出"
-        DISPLAY[实时显示]
-        SAVE[视频保存]
-        LOG[日志记录]
+    subgraph "ML Modes"
+        TRAIN[train<br/>model_training.py]
+        LABEL[label<br/>main_gui.py]
+        VIZ[visualize<br/>model_visualize.py]
+        BUILD[build<br/>builder.py]
+    end
+    
+    RUN --> REALTIME
+    RUN --> REALTIMEV2
+    RUN --> LEGACY
+    RUN --> TRAIN
+    RUN --> LABEL
+    RUN --> VIZ
+    RUN --> BUILD
+```
+
+## Real-time Processing Pipeline
+
+```mermaid
+flowchart TD
+    subgraph "Video Input"
+        CAM[Camera Device]
+        VIDEO[Video File]
+    end
+    
+    subgraph "Capture Layer"
+        CAP[PyAVCapture<br/>Frame Capture]
+    end
+    
+    subgraph "Processing Pipeline"
+        STAB[VideoStabilizer<br/>Motion Compensation]
+        POSE[PoseEstimator<br/>MediaPipe Pose]
+        FEAT[FeaturePipeline<br/>Feature Extraction]
+        PRED[VideoPredictor<br/>Model Inference]
+        COUNT[JumpCounter<br/>State Machine]
+    end
+    
+    subgraph "Output Layer"
+        GUI[PlayerGUI<br/>Display & Recording]
+        LOG[Logging System]
     end
     
     CAM --> CAP
@@ -109,165 +151,329 @@ flowchart LR
     POSE --> FEAT
     FEAT --> PRED
     PRED --> COUNT
-    COUNT --> DISPLAY
-    COUNT --> SAVE
+    COUNT --> GUI
     COUNT --> LOG
 ```
 
-## 模块依赖关系
-
-```mermaid
-graph TD
-    subgraph "核心模块"
-        A[main.py] --> B[AppConfig]
-        A --> C[VideoPredictor]
-        A --> D[PlayerGUI]
-        A --> E[setup_logger]
-    end
-    
-    subgraph "ML模块"
-        C --> F[models/]
-        C --> G[features/]
-        F --> H[TensorFlow]
-        G --> I[MediaPipe]
-    end
-    
-    subgraph "工具模块"
-        D --> J[vision.py]
-        D --> K[Perf.py]
-        J --> I
-        K --> L[psutil]
-    end
-    
-    subgraph "配置模块"
-        B --> M[PyYAML]
-        B --> N[环境变量]
-    end
-```
-
-## 部署架构
+## v2.0 Architecture Components
 
 ```mermaid
 graph TB
-    subgraph "开发环境"
-        DEV[开发者机器]
-        DEV --> GIT[Git仓库]
-        DEV --> IDE[IDE/编辑器]
+    subgraph "Dependency Injection Container"
+        CONTAINER[Container]
+        STATE[AppState]
+        SERVICES[Services Registry]
     end
     
-    subgraph "构建环境"
-        BUILD[CI/CD管道]
-        BUILD --> TEST[自动化测试]
-        BUILD --> PACKAGE[打包]
+    subgraph "Event Bus System"
+        EVENTBUS[EventBus]
+        EVENTS[Event Types]
+        HANDLERS[Event Handlers]
     end
     
-    subgraph "运行环境"
-        PROD[生产环境]
-        PROD --> GPU[GPU服务器]
-        PROD --> CAM[摄像头设备]
-        PROD --> MONITOR[监控系统]
+    subgraph "Plugin System"
+        PLUGIN[PluginManager]
+        PLUGINS[Loaded Plugins]
+        LIFECYCLE[Plugin Lifecycle]
     end
     
-    GIT --> BUILD
-    BUILD --> PROD
+    subgraph "Core Services"
+        CONFIG[AppConfig]
+        LOGGER[Logger]
+        PREDICTOR[VideoPredictor]
+        GUI[PlayerGUI]
+    end
+    
+    CONTAINER --> STATE
+    CONTAINER --> SERVICES
+    CONTAINER --> CONFIG
+    CONTAINER --> LOGGER
+    CONTAINER --> PREDICTOR
+    CONTAINER --> GUI
+    
+    EVENTBUS --> EVENTS
+    EVENTBUS --> HANDLERS
+    
+    PLUGIN --> PLUGINS
+    PLUGIN --> LIFECYCLE
 ```
 
-## 技术栈架构
+## Feature Extraction Pipeline
 
 ```mermaid
-graph LR
-    subgraph "前端/界面"
-        GUI[PySimpleGUI]
-        CLI[argparse]
+flowchart LR
+    subgraph "Input"
+        FRAME[Raw Frame]
     end
     
-    subgraph "后端/核心"
+    subgraph "Preprocessing"
+        STAB[VideoStabilizer<br/>Stabilization]
+        POSE[PoseEstimator<br/>Landmark Detection]
+    end
+    
+    subgraph "Feature Extraction"
+        RAW[Raw Features<br/>Normalized Landmarks]
+        RAW_PX[Pixel Features<br/>Pixel Coordinates]
+        DIFF[Temporal Features<br/>Frame Differences]
+        SPATIAL[Spatial Features<br/>Distances & Angles]
+        WINDOW[Windowed Features<br/>Temporal Aggregation]
+    end
+    
+    subgraph "Output"
+        FEATURES[Feature Vector]
+    end
+    
+    FRAME --> STAB
+    STAB --> POSE
+    POSE --> RAW
+    POSE --> RAW_PX
+    POSE --> DIFF
+    POSE --> SPATIAL
+    POSE --> WINDOW
+    RAW --> FEATURES
+    RAW_PX --> FEATURES
+    DIFF --> FEATURES
+    SPATIAL --> FEATURES
+    WINDOW --> FEATURES
+```
+
+## Jump Detection State Machine
+
+```mermaid
+stateDiagram-v2
+    [*] --> Warmup: Initialize
+    Warmup --> Ready: Window Full
+    
+    Ready --> Rising: Pattern 7 (0111)
+    Ready --> NotRising: Other Patterns
+    
+    Rising --> Rising: Pattern 15 (1111)
+    Rising --> NotRising: Other Patterns
+    Rising --> CountJump: Pattern 7 (0111)
+    
+    NotRising --> Ready: Next Frame
+    NotRising --> Rising: Pattern 7 (0111)
+    
+    CountJump --> Ready: Jump Counted
+    
+    state Rising {
+        [*] --> RisingState
+        RisingState --> [*]
+    }
+    
+    state NotRising {
+        [*] --> NotRisingState
+        NotRisingState --> [*]
+    }
+```
+
+## Data Flow Architecture
+
+```mermaid
+sequenceDiagram
+    participant User as User
+    participant Run as run.py
+    participant Main as main_v2.py
+    participant Container as Container
+    participant EventBus as EventBus
+    participant GUI as PlayerGUI
+    participant Predictor as VideoPredictor
+    participant Counter as JumpCounter
+    
+    User->>Run: python run.py realtime-v2
+    Run->>Main: Import and execute
+    Main->>Container: Initialize services
+    Main->>EventBus: Start event bus
+    Main->>GUI: Get GUI service
+    GUI->>Predictor: Initialize predictor
+    GUI->>Counter: Initialize counter
+    
+    loop Real-time Processing
+        GUI->>GUI: Capture frame
+        GUI->>Predictor: Predict jump probability
+        Predictor->>Predictor: Sliding window inference
+        Predictor-->>GUI: Return probability
+        GUI->>Counter: Process prediction
+        Counter->>Counter: State machine logic
+        Counter-->>GUI: Return jump count
+        GUI->>EventBus: Publish jump event
+        EventBus->>Container: Update state
+        GUI->>GUI: Update display
+    end
+```
+
+## Module Dependencies
+
+```mermaid
+graph TD
+    subgraph "Entry Points"
+        RUN[run.py]
+        MAIN[main.py]
+        MAINV2[main_v2.py]
+    end
+    
+    subgraph "Core Modules"
+        CONTAINER[container.py]
+        EVENTBUS[event_bus.py]
+        PLUGIN[plugin_manager.py]
+        COUNTER[jump_counter.py]
+        CAPTURE[pyav_capture.py]
+    end
+    
+    subgraph "Interface"
+        GUI[gui.py]
+    end
+    
+    subgraph "ML Modules"
+        PREDICTOR[video_predictor.py]
+        FEATURES[features.py]
+        TRAINING[model_training.py]
+    end
+    
+    subgraph "Configuration"
+        CONFIG[settings.py]
+        LOGGER[logging.py]
+    end
+    
+    RUN --> MAIN
+    RUN --> MAINV2
+    MAIN --> CONFIG
+    MAIN --> LOGGER
+    MAIN --> PREDICTOR
+    MAIN --> GUI
+    
+    MAINV2 --> CONTAINER
+    MAINV2 --> EVENTBUS
+    MAINV2 --> PLUGIN
+    CONTAINER --> CONFIG
+    CONTAINER --> LOGGER
+    CONTAINER --> PREDICTOR
+    CONTAINER --> GUI
+    
+    GUI --> PREDICTOR
+    GUI --> COUNTER
+    GUI --> FEATURES
+    GUI --> CAPTURE
+    
+    PREDICTOR --> FEATURES
+    FEATURES --> CAPTURE
+```
+
+## Technology Stack
+
+```mermaid
+graph TB
+    subgraph "Application Framework"
         PYTHON[Python 3.8+]
-        TF[TensorFlow 2.8+]
-        CV[OpenCV]
-        MP[MediaPipe]
+        ASYNC[asyncio]
+        THREADING[threading]
     end
     
-    subgraph "数据处理"
+    subgraph "Machine Learning"
+        TENSORFLOW[TensorFlow 2.8+]
+        KERAS[Keras]
+        MIXED[Mixed Precision]
+    end
+    
+    subgraph "Computer Vision"
+        OPENCV[OpenCV]
+        MEDIAPIPE[MediaPipe]
+        POSE[Pose Estimation]
+    end
+    
+    subgraph "Video Processing"
+        PYAV[PyAV]
+        STABILIZER[Video Stabilization]
+        CAPTURE[Frame Capture]
+    end
+    
+    subgraph "Data Processing"
         NUMPY[numpy]
         PANDAS[pandas]
         YAML[PyYAML]
     end
     
-    subgraph "系统集成"
-        OS[操作系统]
-        GPU[GPU驱动]
-        CAM[摄像头驱动]
+    subgraph "System Integration"
+        OS[Operating System]
+        GPU[GPU Drivers]
+        CAM[Camera Drivers]
     end
     
-    GUI --> PYTHON
-    CLI --> PYTHON
-    PYTHON --> TF
-    PYTHON --> CV
-    PYTHON --> MP
+    PYTHON --> TENSORFLOW
+    PYTHON --> OPENCV
+    PYTHON --> MEDIAPIPE
+    PYTHON --> PYAV
     PYTHON --> NUMPY
     PYTHON --> PANDAS
     PYTHON --> YAML
-    PYTHON --> OS
-    TF --> GPU
-    CV --> CAM
+    
+    TENSORFLOW --> KERAS
+    TENSORFLOW --> MIXED
+    TENSORFLOW --> GPU
+    
+    MEDIAPIPE --> POSE
+    OPENCV --> STABILIZER
+    PYAV --> CAPTURE
+    
+    OPENCV --> CAM
+    TENSORFLOW --> OS
 ```
 
-## 如何使用这些架构图
+## How to Use These Architecture Diagrams
 
-### 1. **在 GitHub 中查看**
-GitHub 原生支持 Mermaid 图表，直接在 Markdown 中显示。
+### 1. **View in GitHub**
+GitHub natively supports Mermaid diagrams, displaying them directly in Markdown.
 
-### 2. **在文档中引用**
+### 2. **Reference in Documentation**
 ```markdown
-## 系统概述
-请参考 [架构图](./ARCHITECTURE.md#整体架构图) 了解系统结构。
+## System Overview
+Please refer to the [Architecture Diagram](ARCHITECTURE.md#overall-architecture) for system structure.
 ```
 
-### 3. **导出为图片**
-可以使用 Mermaid CLI 工具导出为 PNG/SVG：
+### 3. **Export as Images**
+Use Mermaid CLI tool to export as PNG/SVG:
 ```bash
-# 安装 mermaid-cli
+# Install mermaid-cli
 npm install -g @mermaid-js/mermaid-cli
 
-# 导出图片
-mmdc -i architecture.md -o architecture.png
+# Export images
+mmdc -i ARCHITECTURE.md -o architecture.png
 ```
 
-### 4. **在线编辑器**
+### 4. **Online Editors**
 - [Mermaid Live Editor](https://mermaid.live/)
-- [Draw.io](https://draw.io/) (支持 Mermaid)
+- [Draw.io](https://draw.io/) (supports Mermaid)
 
-## 架构图的最佳实践
+## Architecture Diagram Best Practices
 
-### 1. **分层清晰**
-- 用户界面层
-- 应用层
-- 业务逻辑层
-- 数据访问层
+### 1. **Clear Layering**
+- Entry Point Layer
+- Application Layer
+- Core Architecture Layer
+- Interface Layer
+- Business Logic Layer
+- Data Processing Layer
 
-### 2. **颜色编码**
+### 2. **Color Coding**
 ```mermaid
 graph TB
-    subgraph "用户层" 
-        style GUI fill:#e1f5fe
-        GUI[GUI组件]
+    subgraph "Entry Layer" 
+        style RUN fill:#e1f5fe
+        RUN[Entry Points]
     end
     
-    subgraph "业务层"
-        style CORE fill:#f3e5f5
-        CORE[核心业务]
+    subgraph "Application Layer"
+        style MAIN fill:#f3e5f5
+        MAIN[Applications]
     end
     
-    subgraph "数据层"
-        style DATA fill:#e8f5e8
-        DATA[数据存储]
+    subgraph "Core Layer"
+        style CONTAINER fill:#e8f5e8
+        CONTAINER[Core Components]
     end
 ```
 
-### 3. **保持更新**
-- 代码变更时同步更新架构图
-- 定期审查架构图的准确性
-- 版本控制架构图
-
-这样您就有了一个完整的系统架构文档！您觉得哪种图表最有用？我可以帮您进一步优化或添加其他类型的架构图。 
+### 3. **Keep Updated**
+- Synchronize architecture diagrams when code changes
+- Regularly review diagram accuracy
+- Version control architecture diagrams

@@ -1,0 +1,51 @@
+# RopeJumpCounter Configuration File Example
+# Copy this file as config.yaml and modify as needed
+
+# Camera Configuration
+camera:
+  width: 640              # Video width
+  height: 480             # Video height
+  fps: 30                 # Frame rate
+  device_index: 0         # Camera device index (0, 1, 2...)
+
+# Model Configuration
+model:
+  model_name: "best_cnn8_ws4_withT.keras"  # Model filename
+  threshold: 0.5          # Jump detection threshold (0.0-1.0)
+
+# Logging Configuration
+logging:
+  enabled: true           # Enable logging
+  log_dir: "logs"         # Log directory
+  level: "INFO"           # Log level: DEBUG, INFO, WARNING, ERROR
+
+# Video Save Path (Optional)
+save_video_path: null     # Set path to enable video recording, e.g.: "data/recordings"
+
+# GPU Configuration (Optional)
+gpu:
+  enabled: true           # Enable GPU acceleration
+  memory_growth: true     # Enable memory growth
+  mixed_precision: true   # Enable mixed precision
+
+# Performance Configuration
+performance:
+  stats_window_size: 10   # Performance statistics window size
+  max_fps: 30            # Maximum processing frame rate
+
+# Feature Extraction Configuration
+features:
+  window_size: 4          # Time window size
+  stabilizer_enabled: true # Enable video stabilization
+  
+# UI Configuration
+ui:
+  zoom_height: 920        # Display window height
+  show_debug_info: true   # Show debug information
+  
+# Data Path Configuration
+paths:
+  model_files: "model_files"
+  data_dir: "data"
+  raw_videos: "data/raw_videos"
+  datasets: "data/datasets"

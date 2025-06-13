@@ -1,236 +1,421 @@
-# RopeJumpCounter 序列图
+# RopeJumpCounter Sequence Diagrams
 
-## 应用启动序列
+## Application Startup Sequence (v2.0 Architecture)
 
 ```mermaid
 sequenceDiagram
-    participant User as 用户
-    participant Main as main.py
-    participant Config as AppConfig
+    participant User as User
+    participant Run as run.py
+    participant MainV2 as main_v2.py
+    participant Container as Container
+    participant EventBus as EventBus
+    participant PluginManager as PluginManager
+    participant AppConfig as AppConfig
     participant Logger as Logger
-    participant GPU as GPU设置
     participant Predictor as VideoPredictor
     participant GUI as PlayerGUI
     
-    User->>Main: 运行 python main.py
-    Main->>Config: 加载配置
-    Config-->>Main: 返回配置对象
+    User->>Run: python run.py realtime-v2
+    Run->>MainV2: Import and execute main()
+    MainV2->>MainV2: setup_gpu() - Mixed precision
+    MainV2->>MainV2: main_async()
     
-    Main->>Logger: 初始化日志
-    Logger-->>Main: 日志系统就绪
+    MainV2->>Container: get_container()
+    MainV2->>EventBus: get_event_bus()
+    MainV2->>PluginManager: get_plugin_manager()
     
-    Main->>GPU: 设置GPU加速
-    GPU-->>Main: GPU配置完成
+    MainV2->>AppConfig: AppConfig.load()
+    AppConfig-->>MainV2: Return config object
+    MainV2->>Container: register_config(config)
     
-    Main->>Predictor: 加载模型
-    Predictor-->>Main: 模型加载完成
+    MainV2->>Container: initialize_services()
+    Container->>Logger: setup_logger()
+    Container->>Predictor: VideoPredictor(model_path)
+    Container->>GUI: PlayerGUI(predictor, width, height, fps)
+    Container-->>MainV2: Services initialized
     
-    Main->>GUI: 启动GUI界面
-    GUI-->>User: 显示主界面
+    MainV2->>MainV2: setup_event_handlers(container)
+    MainV2->>EventBus: subscribe(JUMP_DETECTED, on_jump_detected)
+    MainV2->>EventBus: subscribe(ERROR_OCCURRED, on_error_occurred)
+    MainV2->>EventBus: subscribe(PERFORMANCE_UPDATE, on_performance_update)
+    
+    MainV2->>EventBus: start()
+    MainV2->>PluginManager: load_all_plugins()
+    MainV2->>PluginManager: enable_plugin(plugin_name)
+    
+    MainV2->>EventBus: publish(APPLICATION_START, {}, "main")
+    MainV2->>Container: get_service('gui')
+    MainV2->>Container: get_state()
+    MainV2->>GUI: gui.run()
+    
+    Note over GUI: Main processing loop starts
 ```
 
-## 实时跳绳检测序列
+## Application Startup Sequence (Original Architecture)
 
 ```mermaid
 sequenceDiagram
-    participant GUI as GUI界面
-    participant Capture as 视频捕获
-    participant Stabilizer as 视频稳定
-    participant Vision as 计算机视觉
-    participant Predictor as 模型预测
-    participant Counter as 跳绳计数
-    participant Display as 显示更新
+    participant User as User
+    participant Run as run.py
+    participant Main as main.py
+    participant AppConfig as AppConfig
+    participant Logger as Logger
+    participant Predictor as VideoPredictor
+    participant GUI as PlayerGUI
     
-    loop 每一帧
-        GUI->>Capture: 获取视频帧
-        Capture-->>GUI: 返回原始帧
-        
-        GUI->>Stabilizer: 视频稳定处理
-        Stabilizer-->>GUI: 返回稳定帧
-        
-        GUI->>Vision: 姿态估计
-        Vision->>Vision: MediaPipe处理
-        Vision-->>GUI: 返回关键点
-        
-        GUI->>Predictor: 特征提取和预测
-        Predictor->>Predictor: 滑动窗口推理
-        Predictor-->>GUI: 返回跳跃概率
-        
-        GUI->>Counter: 状态机处理
-        Counter->>Counter: 模式匹配
-        Counter-->>GUI: 返回跳跃计数
-        
-        GUI->>Display: 更新显示
-        Display-->>GUI: 界面刷新
-    end
+    User->>Run: python run.py realtime
+    Run->>Main: Import and execute main()
+    Main->>Main: setup_gpu() - Mixed precision
+    
+    Main->>AppConfig: AppConfig.load()
+    AppConfig-->>Main: Return config object
+    
+    Main->>Logger: setup_logger("RopeJump", log_dir)
+    Logger-->>Main: Logger instance
+    
+    Main->>Predictor: VideoPredictor(model_path)
+    Predictor->>Predictor: Load Keras model
+    Predictor->>Predictor: Setup sliding window buffer
+    Predictor-->>Main: Predictor instance
+    
+    Main->>GUI: PlayerGUI(predictor, width, height, fps, save_path)
+    GUI->>GUI: Initialize PyAVCapture
+    GUI->>GUI: Setup PerfStats
+    GUI->>GUI: Initialize JumpCounter
+    GUI->>GUI: Setup video recording (optional)
+    GUI-->>Main: GUI instance
+    
+    Main->>GUI: gui.run()
+    
+    Note over GUI: Main processing loop starts
 ```
 
-## 模型训练序列
+## Real-time Frame Processing Sequence
 
 ```mermaid
 sequenceDiagram
-    participant User as 用户
-    participant CLI as run.py
-    participant Training as 模型训练
-    participant Data as 数据加载
-    participant Model as 模型定义
-    participant Trainer as 训练器
+    participant GUI as PlayerGUI
+    participant Capture as PyAVCapture
+    participant FeaturePipe as FeaturePipeline
+    participant Stabilizer as VideoStabilizer
+    participant PoseEst as PoseEstimator
+    participant Predictor as VideoPredictor
+    participant Counter as JumpCounter
+    participant EventBus as EventBus
+    participant Display as OpenCV Display
     
-    User->>CLI: python run.py train
-    CLI->>Training: 启动训练流程
-    
-    Training->>Data: 加载训练数据
-    Data->>Data: 数据预处理
-    Data-->>Training: 返回数据批次
-    
-    Training->>Model: 创建模型
-    Model-->>Training: 返回模型实例
-    
-    loop 训练轮次
-        Training->>Trainer: 开始训练
-        Trainer->>Model: 前向传播
-        Model-->>Trainer: 返回预测结果
-        Trainer->>Trainer: 计算损失
-        Trainer->>Model: 反向传播
-        Model-->>Trainer: 更新权重
-        Trainer-->>Training: 返回训练指标
+    loop For each frame
+        GUI->>Capture: read()
+        Capture-->>GUI: Return (ret, frame, _)
+        
+        alt Frame capture successful
+            GUI->>FeaturePipe: process_frame(frame, frame_idx)
+            FeaturePipe->>FeaturePipe: fs.raw_frame = frame
+            FeaturePipe->>FeaturePipe: fs.init_current_frame(frame_idx)
+            
+            FeaturePipe->>Stabilizer: stabilize(fs.raw_frame)
+            Stabilizer-->>FeaturePipe: Return stabilized frame
+        
+            FeaturePipe->>PoseEst: get_pose_landmarks(stable)
+            PoseEst-->>FeaturePipe: Return landmarks
+            
+            FeaturePipe->>FeaturePipe: Extract features based on mode
+            Note over FeaturePipe: RAW, RAW_PX, DIFF, SPATIAL, WINDOW
+            
+            FeaturePipe-->>GUI: Feature extraction complete
+            
+            GUI->>GUI: Extract feature vector from pipe.fs.rec
+            GUI->>Predictor: predict(feat_vec)
+            
+            Predictor->>Predictor: buffer.append(feature_vector)
+            alt Window is full
+                Predictor->>Predictor: np.stack(buffer, axis=0)
+                Predictor->>Predictor: model(input_tensor, training=False)
+                Predictor-->>GUI: Return probability
+            else Window not full (warmup)
+                Predictor-->>GUI: Return 0.0
+            end
+            
+            GUI->>Counter: process_prediction(prob, threshold)
+            Counter->>Counter: Convert prob to binary (prob > threshold)
+            Counter->>Counter: Update 4-bit sliding window
+            Counter->>Counter: Check binary patterns (7, 15)
+            alt Pattern 7 (0111) - Rising edge
+                Counter->>Counter: jump_cnt += 1
+                Counter-->>GUI: Return (is_on_rising=True, jump_cnt)
+            else Pattern 15 (1111) - Sustained rising
+                Counter-->>GUI: Return (is_on_rising=True, jump_cnt)
+            else Other patterns
+                Counter-->>GUI: Return (is_on_rising=False, jump_cnt)
+            end
+            
+            GUI->>GUI: _overlay(frame, jump_cnt, prob, is_on_rising)
+            GUI->>Display: imshow("JumpRope RealTime", frame_vis)
+            
+            alt Video recording enabled
+                GUI->>GUI: writer.write(frame)
+            end
+            
+            GUI->>GUI: Update performance statistics
+            GUI->>EventBus: Publish performance metrics (optional)
+            
+        else Frame capture failed
+            GUI->>GUI: Log warning, increment error_count
+        end
+        
+        GUI->>GUI: Check for exit command (cv2.waitKey)
+        alt User pressed 'q'
+            GUI->>GUI: Break loop
+        end
     end
-    
-    Training->>Training: 保存模型
-    Training-->>CLI: 训练完成
-    CLI-->>User: 显示结果
 ```
 
-## 数据标注序列
+## Feature Extraction Pipeline Sequence
 
 ```mermaid
 sequenceDiagram
-    participant User as 标注员
-    participant GUI as 标注界面
-    participant Video as 视频播放器
-    participant Labels as 标签管理
-    participant Storage as 数据存储
+    participant FeaturePipe as FeaturePipeline
+    participant FrameSample as FrameSample
+    participant Stabilizer as VideoStabilizer
+    participant PoseEst as PoseEstimator
+    participant DistanceCalc as DistanceCalculator
+    participant AngleCalc as AngleCalculator
+    participant Differentiator as Differentiator
     
-    User->>GUI: 打开标注工具
-    GUI->>Video: 加载视频文件
-    Video-->>GUI: 返回视频信息
+    FeaturePipe->>FrameSample: fs.raw_frame = frame
+    FeaturePipe->>FrameSample: fs.init_current_frame(frame_idx)
     
-    loop 逐帧标注
-        GUI->>Video: 播放/暂停
-        Video-->>GUI: 当前帧
-        
-        User->>GUI: 标记跳跃事件
-        GUI->>Labels: 记录标签
-        Labels-->>GUI: 确认标签
-        
-        GUI->>Storage: 保存标注数据
-        Storage-->>GUI: 保存确认
+    FeaturePipe->>Stabilizer: stabilize(fs.raw_frame)
+    Stabilizer-->>FeaturePipe: Return stabilized frame
+    
+    FeaturePipe->>PoseEst: get_pose_landmarks(stable)
+    PoseEst-->>FeaturePipe: Return MediaPipe landmarks
+    
+    FeaturePipe->>FeaturePipe: Store landmarks for visualization
+    
+    alt Feature.RAW in mode
+        FeaturePipe->>FrameSample: compute_raw(landmarks)
+        FrameSample->>FrameSample: Normalize landmark coordinates
     end
     
-    User->>GUI: 完成标注
-    GUI->>Storage: 导出标注文件
-    Storage-->>User: 标注文件
+    alt Feature.RAW_PX in mode
+        FeaturePipe->>FrameSample: compute_raw_px(landmarks)
+        FrameSample->>FrameSample: Store pixel coordinates
+    end
+    
+    alt Feature.DIFF in mode
+        FeaturePipe->>FrameSample: compute_diff(differentiator)
+        FrameSample->>Differentiator: Calculate temporal differences
+        Differentiator-->>FrameSample: Return difference features
+    end
+    
+    alt Feature.SPATIAL in mode
+        FeaturePipe->>FrameSample: compute_spatial(landmarks, dist_calc, ang_calc)
+        FrameSample->>DistanceCalc: compute(landmarks)
+        DistanceCalc->>DistanceCalc: Calculate 3D Euclidean distances
+        DistanceCalc-->>FrameSample: Return distance features
+        
+        FrameSample->>AngleCalc: compute(landmarks)
+        AngleCalc->>AngleCalc: Calculate joint angles using dot product
+        AngleCalc-->>FrameSample: Return angle features
+    end
+    
+    alt Feature.WINDOW in mode
+        FeaturePipe->>FrameSample: windowed_features()
+        FrameSample->>FrameSample: Aggregate features over time window
+    end
 ```
 
-## 错误处理序列
+## Model Inference Sequence
 
 ```mermaid
 sequenceDiagram
-    participant App as 应用程序
-    participant Predictor as 预测器
-    participant Model as 模型
-    participant Logger as 日志系统
-    participant User as 用户
+    participant GUI as PlayerGUI
+    participant Predictor as VideoPredictor
+    participant Model as Keras Model
+    participant Buffer as Sliding Window Buffer
     
-    App->>Predictor: 模型预测
-    Predictor->>Model: 推理请求
+    GUI->>Predictor: predict(feature_vector)
     
-    alt 模型加载失败
-        Model-->>Predictor: ModelError
-        Predictor->>Logger: 记录错误
-        Predictor-->>App: 抛出异常
-        App->>Logger: 记录应用错误
-        App-->>User: 显示错误信息
-    else 推理失败
-        Model-->>Predictor: 推理异常
-        Predictor->>Logger: 记录推理错误
-        Predictor-->>App: 返回默认值
-        App->>App: 继续处理
-    else 正常情况
-        Model-->>Predictor: 预测结果
-        Predictor-->>App: 返回结果
+    Predictor->>Buffer: buffer.append(feature_vector)
+    
+    alt Buffer length < window_size (Warmup)
+        Predictor-->>GUI: Return 0.0
+    else Buffer is full (Ready for inference)
+        Predictor->>Predictor: np.stack(buffer, axis=0)
+        Predictor->>Predictor: np.expand_dims(window, axis=0)
+        
+        Predictor->>Model: model(input_tensor, training=False)
+        Model->>Model: Forward pass through CNN
+        Model-->>Predictor: Return prediction tensor
+        
+        Predictor->>Predictor: float(prediction[0])
+        Predictor-->>GUI: Return probability (0.0-1.0)
     end
 ```
 
-## 性能监控序列
+## Jump Detection State Machine Sequence
 
 ```mermaid
 sequenceDiagram
-    participant GUI as GUI界面
-    participant Perf as 性能监控
-    participant System as 系统资源
-    participant Logger as 日志系统
+    participant GUI as PlayerGUI
+    participant Counter as JumpCounter
+    participant StateMachine as Binary State Machine
     
-    loop 性能监控
-        GUI->>Perf: 开始帧处理
-        Perf->>System: 获取系统资源
-        System-->>Perf: CPU/GPU/内存使用率
+    GUI->>Counter: process_prediction(prob, threshold)
+    
+    Counter->>Counter: y_pred = int((prob > threshold))
+    
+    Counter->>StateMachine: Update 4-bit sliding window
+    Note over StateMachine: mark1 = (jump_cnt_binary_mark << 1) & 0b1111
+    Note over StateMachine: jump_cnt_binary_mark = (mark1 | y_pred) & 0b1111
+    
+    alt Pattern 7 (0111) - Rising edge detected
+        StateMachine->>Counter: is_on_rising = True
+        Counter->>Counter: jump_cnt += 1
+        Counter-->>GUI: Return (is_on_rising=True, jump_cnt)
         
-        GUI->>Perf: 帧处理完成
-        Perf->>Perf: 计算FPS
-        Perf->>Perf: 计算延迟
+    else Pattern 15 (1111) - Sustained rising state
+        StateMachine->>Counter: is_on_rising = True
+        Counter-->>GUI: Return (is_on_rising=True, jump_cnt)
         
-        Perf->>Logger: 记录性能指标
-        Perf-->>GUI: 返回性能数据
-        
-        GUI->>GUI: 更新性能显示
+    else Other patterns (0000, 0001, 0010, etc.)
+        StateMachine->>Counter: is_on_rising = False
+        Counter-->>GUI: Return (is_on_rising=False, jump_cnt)
     end
 ```
 
-## 配置管理序列
+## Error Handling Sequence
 
 ```mermaid
 sequenceDiagram
-    participant App as 应用程序
-    participant Config as 配置管理器
-    participant File as 配置文件
-    participant Env as 环境变量
-    participant Default as 默认配置
+    participant GUI as PlayerGUI
+    participant Logger as Logger
+    participant EventBus as EventBus
+    participant Container as Container
     
-    App->>Config: 加载配置
+    alt Model Error
+        GUI->>Logger: logger.error(f"Model error: {e}")
+        GUI->>GUI: Break processing loop
+        
+    else Camera Error
+        GUI->>Logger: logger.warning(f"Frame capture failed")
+        GUI->>GUI: Increment error_count
+        
+        alt error_count > MAX_ERRORS
+            GUI->>Logger: logger.error(f"Consecutive error count exceeded")
+            GUI->>GUI: Break processing loop
+        end
+        
+    else General Exception
+        GUI->>Logger: logger.warning(f"Processing error: {e}")
+        GUI->>GUI: Increment error_count
+        
+    end
     
-    alt 配置文件存在
-        Config->>File: 读取config.yaml
-        File-->>Config: 返回配置数据
-        Config->>Config: 解析YAML
-        Config-->>App: 返回配置对象
-    else 环境变量存在
-        Config->>Env: 读取环境变量
-        Env-->>Config: 返回环境配置
-        Config->>Config: 合并配置
-        Config-->>App: 返回配置对象
-    else 使用默认值
-        Config->>Default: 获取默认配置
-        Default-->>Config: 返回默认值
-        Config-->>App: 返回配置对象
+    alt Application Error (v2.0)
+        GUI->>EventBus: publish(ERROR_OCCURRED, {"error": str(e)}, "gui")
+        EventBus->>Container: Update application state
+        Container->>Logger: Log error in state
     end
 ```
 
-## 使用说明
+## Application Shutdown Sequence (v2.0)
 
-### 1. **查看序列图**
-- 在 GitHub 中直接查看
-- 使用 Mermaid Live Editor 编辑
-- 导出为图片格式
+```mermaid
+sequenceDiagram
+    participant GUI as PlayerGUI
+    participant MainV2 as main_v2.py
+    participant EventBus as EventBus
+    participant PluginManager as PluginManager
+    participant Container as Container
+    participant Logger as Logger
+    
+    alt User exits (press 'q')
+        GUI->>GUI: Break processing loop
+        GUI->>GUI: cap.release()
+        GUI->>GUI: writer.release() (if exists)
+        GUI->>GUI: cv2.destroyAllWindows()
+        GUI-->>MainV2: Return from gui.run()
+    end
+    
+    MainV2->>EventBus: publish(APPLICATION_STOP, {}, "main")
+    MainV2->>EventBus: stop()
+    MainV2->>PluginManager: cleanup()
+    MainV2->>Container: cleanup()
+    
+    Container->>Logger: logger.info("Cleaning up services")
+    Container->>Container: Clear services and singletons
+    
+    MainV2->>Logger: logger.info("Application shutdown complete")
+```
 
-### 2. **更新序列图**
-当代码逻辑变更时，记得同步更新相应的序列图。
+## Performance Monitoring Sequence
 
-### 3. **添加新序列图**
-对于新的功能模块，可以按照相同的格式添加序列图。
+```mermaid
+sequenceDiagram
+    participant GUI as PlayerGUI
+    participant PerfStats as PerfStats
+    participant EventBus as EventBus
+    participant Container as Container
+    
+    loop For each frame
+        GUI->>GUI: arr_ts.append(time.time()) - Start timing
+        
+        GUI->>GUI: Frame capture
+        GUI->>GUI: arr_ts.append(time.time()) - Capture done
+        
+        GUI->>GUI: Feature extraction
+        GUI->>GUI: arr_ts.append(time.time()) - Features done
+        
+        GUI->>GUI: Model inference
+        GUI->>GUI: arr_ts.append(time.time()) - Inference done
+        
+        GUI->>GUI: Jump counting
+        GUI->>GUI: arr_ts.append(time.time()) - Counting done
+        
+        GUI->>GUI: Display overlay
+        GUI->>GUI: arr_ts.append(time.time()) - Display done
+        
+        GUI->>PerfStats: update("[Main Process]: ", arr_ts, 0)
+        PerfStats->>PerfStats: Calculate FPS and latency
+        PerfStats->>PerfStats: Update rolling statistics
+        
+        alt v2.0 Architecture
+            GUI->>EventBus: publish(PERFORMANCE_UPDATE, metrics, "gui")
+            EventBus->>Container: Update performance_metrics in state
+        end
+    end
+```
 
-### 4. **最佳实践**
-- 保持图表简洁明了
-- 突出关键交互点
-- 包含错误处理流程
-- 标注重要的时序关系 
+## Usage Instructions
+
+### 1. **View Sequence Diagrams**
+- View directly in GitHub
+- Use Mermaid Live Editor for editing
+- Export as image format
+
+### 2. **Update Sequence Diagrams**
+When code logic changes, remember to synchronize the corresponding sequence diagrams.
+
+### 3. **Add New Sequence Diagrams**
+For new functional modules, you can add sequence diagrams following the same format.
+
+### 4. **Best Practices**
+- Keep diagrams concise and clear
+- Highlight key interaction points
+- Include error handling flows
+- Annotate important timing relationships
+
+### 5. **Integration with Architecture**
+These sequence diagrams complement the architecture diagrams by showing:
+- **Dynamic behavior** of system components
+- **Temporal relationships** between operations
+- **Error handling** scenarios
+- **Performance bottlenecks** identification
+
+### 6. **Maintenance Guidelines**
+- **Version control**: Include sequence diagrams in version control
+- **Code synchronization**: Update diagrams when code changes
+- **Review process**: Include diagram review in code reviews
+- **Documentation**: Reference sequence diagrams in API documentation 

@@ -1,207 +1,421 @@
-# 依赖管理说明
+# Dependency Management Guide
 
-## 概述
+## Overview
 
-RopeJumpCounter 项目采用模块化的依赖管理策略，提供3个不同的依赖包以满足不同用户的需求。
+The RopeJumpCounter project uses a comprehensive set of dependencies for real-time jump rope counting, machine learning, computer vision, and data processing. This guide provides accurate dependency information based on actual code analysis.
 
-## 依赖包说明
+## Actual Dependencies Found in Code
 
-### 1. requirements.txt - 完整功能包
-**适用场景：** 大多数用户，需要完整功能
-**安装命令：** `pip install -r requirements.txt`
+### Core Dependencies (Required for Basic Functionality)
 
-**包含内容：**
-- ✅ 所有核心依赖（深度学习、计算机视觉、数据处理）
-- ✅ 机器学习增强功能
-- ✅ 视频处理功能
-- ✅ 性能监控工具
-- ⚠️ GUI依赖（注释状态，需要时取消注释）
-- ⚠️ 可视化依赖（注释状态，需要时取消注释）
-- ⚠️ 开发工具（注释状态，需要时取消注释）
-
-### 2. requirements-minimal.txt - 最小依赖包
-**适用场景：** 轻量级部署、资源受限环境、仅需核心功能
-**安装命令：** `pip install -r requirements-minimal.txt`
-
-**包含内容：**
-- ✅ 绝对必需的依赖（TensorFlow、OpenCV、MediaPipe）
-- ✅ 基础数据处理工具
-- ⚠️ 高级功能（注释状态，根据需要取消注释）
-
-### 3. requirements-dev.txt - 开发工具包
-**适用场景：** 开发者、贡献者、需要高级功能
-**安装命令：** `pip install -r requirements-dev.txt`
-
-**包含内容：**
-- ✅ 测试框架（pytest、pytest-cov、pytest-mock）
-- ✅ 代码质量工具（black、flake8、mypy、isort）
-- ✅ 文档生成工具（sphinx、sphinx-rtd-theme）
-- ✅ 开发环境（jupyter、ipython、ipykernel）
-- ✅ 高级机器学习库（xgboost、lightgbm）
-- ✅ 高级可视化工具（plotly、bokeh、matplotlib、seaborn）
-- ✅ 实验跟踪（mlflow）
-- ⚠️ 可选工具（注释状态，根据需要取消注释）
-
-## 安装建议
-
-### 新用户
-```bash
-# 推荐：安装完整功能包
-pip install -r requirements.txt
+```mermaid
+graph TB
+    subgraph "Core Dependencies"
+        PYTHON[Python 3.8+]
+        TENSORFLOW[TensorFlow 2.8+]
+        OPENCV[OpenCV]
+        MEDIAPIPE[MediaPipe]
+        NUMPY[numpy]
+        PANDAS[pandas]
+        YAML[PyYAML]
+        AV[PyAV]
+    end
+    
+    subgraph "Usage in Code"
+        MAIN[main.py, main_v2.py]
+        GUI[PlayerGUI]
+        PREDICTOR[VideoPredictor]
+        FEATURES[FeaturePipeline]
+        CAPTURE[PyAVCapture]
+        CONFIG[AppConfig]
+    end
+    
+    MAIN --> TENSORFLOW
+    MAIN --> YAML
+    GUI --> OPENCV
+    GUI --> NUMPY
+    GUI --> PANDAS
+    GUI --> AV
+    PREDICTOR --> TENSORFLOW
+    FEATURES --> MEDIAPIPE
+    FEATURES --> NUMPY
+    FEATURES --> OPENCV
+    CAPTURE --> AV
+    CONFIG --> YAML
 ```
 
-### 轻量级用户
-```bash
-# 仅安装核心功能
-pip install -r requirements-minimal.txt
+### Machine Learning Dependencies
+
+```mermaid
+graph TB
+    subgraph "ML Framework"
+        TF[TensorFlow/Keras]
+        SKLEARN[scikit-learn]
+    end
+    
+    subgraph "ML Models"
+        CNN[CNN Models]
+        RESNET[ResNet Models]
+        TCN[TCN Models]
+        LSTM[LSTM Models]
+        TRANSFORMER[Transformer Models]
+    end
+    
+    subgraph "ML Components"
+        TRAINING[model_training.py]
+        INFERENCE[video_predictor.py]
+        VIZ[model_visualize.py]
+        REPORT[ModelReportGenerator]
+    end
+    
+    CNN --> TF
+    RESNET --> TF
+    TCN --> TF
+    LSTM --> TF
+    TRANSFORMER --> TF
+    
+    TRAINING --> TF
+    TRAINING --> SKLEARN
+    INFERENCE --> TF
+    VIZ --> TF
+    REPORT --> TF
+    REPORT --> SKLEARN
 ```
 
-### 开发者
-```bash
-# 安装开发工具包
-pip install -r requirements-dev.txt
+### Computer Vision Dependencies
+
+```mermaid
+graph TB
+    subgraph "Computer Vision"
+        OPENCV[OpenCV]
+        MEDIAPIPE[MediaPipe]
+        NUMPY[numpy]
+    end
+    
+    subgraph "Vision Components"
+        POSE[PoseEstimator]
+        STABILIZER[VideoStabilizer]
+        CAPTURE[PyAVCapture]
+        VISION[vision.py]
+    end
+    
+    subgraph "Feature Extraction"
+        FEATURES[FeaturePipeline]
+        FRAME[FrameSample]
+        DIFF[Differentiator]
+    end
+    
+    POSE --> MEDIAPIPE
+    POSE --> OPENCV
+    STABILIZER --> OPENCV
+    STABILIZER --> NUMPY
+    CAPTURE --> AV
+    VISION --> OPENCV
+    VISION --> MEDIAPIPE
+    
+    FEATURES --> POSE
+    FEATURES --> STABILIZER
+    FRAME --> OPENCV
+    FRAME --> MEDIAPIPE
+    FRAME --> NUMPY
+    DIFF --> NUMPY
 ```
 
-### 高级用户
-```bash
-# 组合安装：先安装完整包，再安装开发工具
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+### GUI Dependencies
+
+```mermaid
+graph TB
+    subgraph "GUI Frameworks"
+        PSIMPLEGUI[PySimpleGUIQt]
+        OPENCV_GUI[OpenCV GUI]
+    end
+    
+    subgraph "GUI Components"
+        LABEL_GUI[main_gui.py]
+        HELPER_GUI[label_helper_gui.py]
+        VIZ_GUI[model_visualize.py]
+        MAIN_GUI[PlayerGUI]
+    end
+    
+    LABEL_GUI --> PSIMPLEGUI
+    HELPER_GUI --> PSIMPLEGUI
+    VIZ_GUI --> PSIMPLEGUI
+    MAIN_GUI --> OPENCV_GUI
 ```
 
-## 依赖分类说明
+### Data Processing Dependencies
 
-### 核心依赖（必需）
-- **tensorflow** - 深度学习框架
-- **opencv-python** - 计算机视觉库
-- **mediapipe** - 姿态估计
-- **numpy** - 数值计算
-- **PyYAML** - 配置文件处理
-- **tqdm** - 进度条显示
+```mermaid
+graph TB
+    subgraph "Data Processing"
+        PANDAS[pandas]
+        NUMPY[numpy]
+        CSV[csv]
+        GLOB[glob]
+    end
+    
+    subgraph "Data Components"
+        BUILDER[builder.py]
+        LABELING[labeling tools]
+        TRAINING[model_training.py]
+        VIZ[visualization]
+    end
+    
+    BUILDER --> PANDAS
+    BUILDER --> NUMPY
+    LABELING --> CSV
+    LABELING --> GLOB
+    TRAINING --> PANDAS
+    TRAINING --> NUMPY
+    VIZ --> PANDAS
+    VIZ --> NUMPY
+```
 
-### 增强依赖（推荐）
-- **pandas** - 数据处理
-- **scikit-learn** - 机器学习
-- **xgboost** - 梯度提升
-- **av** - 视频处理
-- **psutil** - 性能监控
+### Visualization Dependencies
 
-### GUI依赖（可选）
-- **PySimpleGUIQt** - GUI框架
-- **PySide6** - 替代GUI框架
+```mermaid
+graph TB
+    subgraph "Visualization Libraries"
+        MATPLOTLIB[matplotlib]
+        SEABORN[seaborn]
+        PLOTLY[plotly]
+    end
+    
+    subgraph "Visualization Components"
+        REPORT[ModelReportGenerator]
+        VIZ[model_visualize.py]
+        BUILDER[builder.py]
+    end
+    
+    REPORT --> MATPLOTLIB
+    REPORT --> SEABORN
+    REPORT --> PLOTLY
+    VIZ --> MATPLOTLIB
+    BUILDER --> MATPLOTLIB
+    BUILDER --> SEABORN
+```
 
-### 可视化依赖（可选）
-- **matplotlib** - 基础绘图
-- **seaborn** - 统计绘图
-- **plotly** - 交互式绘图
-- **bokeh** - Web绘图
+### System and Async Dependencies
 
-### 开发工具（可选）
-- **pytest** - 测试框架
-- **black** - 代码格式化
-- **flake8** - 代码检查
-- **mypy** - 类型检查
-- **sphinx** - 文档生成
-- **mlflow** - 实验跟踪
+```mermaid
+graph TB
+    subgraph "System Libraries"
+        ASYNC[asyncio]
+        THREADING[threading]
+        TIME[time]
+        OS[os]
+        SYS[sys]
+        PATHLIB[pathlib]
+    end
+    
+    subgraph "System Components"
+        MAIN_V2[main_v2.py]
+        EVENT_BUS[event_bus.py]
+        LOGGING[logging.py]
+        CONFIG[settings.py]
+    end
+    
+    MAIN_V2 --> ASYNC
+    EVENT_BUS --> ASYNC
+    EVENT_BUS --> THREADING
+    LOGGING --> TIME
+    LOGGING --> PATHLIB
+    CONFIG --> OS
+    CONFIG --> PATHLIB
+```
 
-## 版本管理
+## Dependency Usage by Module
 
-### 版本策略
-- 使用 `>=` 指定最低版本要求
-- 避免使用 `==` 固定版本，保持灵活性
-- 定期更新依赖版本以获取安全补丁
+### Entry Points
+- **run.py**: argparse, sys, pathlib
+- **main.py**: tensorflow, yaml, logging
+- **main_v2.py**: asyncio, tensorflow, yaml, logging
 
-### 兼容性
-- Python 3.8+
-- TensorFlow 2.8+
-- OpenCV 4.5+
-- MediaPipe 0.8+
+### Core Modules
+- **container.py**: yaml, logging
+- **event_bus.py**: asyncio, threading, logging
+- **plugin_manager.py**: yaml, logging
+- **jump_counter.py**: (no external dependencies)
+- **pyav_capture.py**: av, time
 
-## 故障排除
+### Interface Modules
+- **gui.py**: cv2, numpy, pandas, time, pathlib
+- **main_gui.py**: PySimpleGUIQt, cv2, csv, os, glob
+- **label_helper_gui.py**: PySimpleGUIQt, cv2, csv, numpy, base64
 
-### 常见问题
+### ML Modules
+- **video_predictor.py**: tensorflow, numpy, pathlib
+- **model_training.py**: tensorflow, pandas, matplotlib, sklearn
+- **model_visualize.py**: tensorflow, cv2, numpy, pandas, matplotlib, PySimpleGUI
+- **features.py**: numpy, mediapipe, cv2
 
-#### 1. GPU支持问题
+### Data Processing Modules
+- **builder.py**: cv2, pandas, numpy, matplotlib, seaborn
+- **feature_mode.py**: enum
+- **FrameSample.py**: cv2, mediapipe, numpy, time, collections
+
+### Visualization Modules
+- **ModelReportGenerator.py**: pandas, numpy, sklearn, plotly, matplotlib, seaborn
+
+## Installation Recommendations
+
+### Minimal Installation (Core Functionality)
 ```bash
-# 确保安装GPU版本的TensorFlow
+pip install tensorflow opencv-python mediapipe numpy pandas PyYAML av
+```
+
+### Complete Installation (All Features)
+```bash
+pip install tensorflow opencv-python mediapipe numpy pandas PyYAML av
+pip install PySimpleGUIQt scikit-learn matplotlib seaborn plotly
+```
+
+### Development Installation (With Tools)
+```bash
+pip install tensorflow opencv-python mediapipe numpy pandas PyYAML av
+pip install PySimpleGUIQt scikit-learn matplotlib seaborn plotly
+pip install pytest black flake8 mypy jupyter
+```
+
+## Version Compatibility
+
+### Core Dependencies
+- **Python**: 3.8+
+- **TensorFlow**: 2.8+
+- **OpenCV**: 4.5+
+- **MediaPipe**: 0.8+
+- **NumPy**: 1.19+
+- **Pandas**: 1.3+
+- **PyYAML**: 5.4+
+- **PyAV**: 9.0+
+
+### Optional Dependencies
+- **PySimpleGUIQt**: 5.0+
+- **scikit-learn**: 1.0+
+- **matplotlib**: 3.3+
+- **seaborn**: 0.11+
+- **plotly**: 5.0+
+
+## Platform-Specific Dependencies
+
+### macOS
+- **PyAV**: Uses AVFoundation for camera access
+- **OpenCV**: Standard installation
+- **MediaPipe**: Native support
+
+### Linux
+- **PyAV**: Uses V4L2 for camera access
+- **OpenCV**: May require additional system packages
+- **MediaPipe**: Native support
+
+### Windows
+- **PyAV**: Uses DirectShow for camera access
+- **OpenCV**: Standard installation
+- **MediaPipe**: Native support
+
+## Dependency Conflicts and Solutions
+
+### Common Issues
+
+#### 1. OpenCV vs PyAV Camera Access
+```bash
+# Use PyAV for low-latency capture (recommended)
+pip install av
+
+# Fallback to OpenCV if PyAV fails
+pip install opencv-python
+```
+
+#### 2. TensorFlow GPU Support
+```bash
+# For GPU acceleration
 pip install tensorflow-gpu
+
+# For CPU only
+pip install tensorflow
 ```
 
-#### 2. GUI依赖冲突
+#### 3. GUI Framework Conflicts
 ```bash
-# 如果遇到GUI依赖冲突，可以只安装核心功能
-pip install -r requirements-minimal.txt
+# Use PySimpleGUIQt for annotation tools
+pip install PySimpleGUIQt
+
+# OpenCV GUI for main application (included with opencv-python)
 ```
 
-#### 3. 开发工具安装失败
-```bash
-# 某些开发工具可能需要系统级依赖
-# 在Ubuntu/Debian上：
-sudo apt-get install python3-dev build-essential
-```
+## Environment Management
 
-### 环境隔离
-推荐使用虚拟环境：
+### Virtual Environment Setup
 ```bash
-# 创建虚拟环境
+# Create virtual environment
 python -m venv venv
 
-# 激活虚拟环境
-# Windows:
+# Activate (Windows)
 venv\Scripts\activate
-# Linux/Mac:
+
+# Activate (Linux/Mac)
 source venv/bin/activate
 
-# 安装依赖
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-## 迁移指南
-
-### 从旧版本迁移
-如果你之前使用的是单个requirements文件：
-
-1. **备份当前环境**
+### Conda Environment Setup
 ```bash
-pip freeze > old_requirements.txt
+# Create conda environment
+conda create -n ropejump python=3.8
+
+# Activate environment
+conda activate ropejump
+
+# Install dependencies
+conda install tensorflow opencv numpy pandas
+pip install mediapipe PyYAML av PySimpleGUIQt
 ```
 
-2. **清理环境**
+## Dependency Monitoring
+
+### Check Installed Versions
 ```bash
-pip uninstall -r old_requirements.txt -y
+pip list | grep -E "(tensorflow|opencv|mediapipe|numpy|pandas)"
 ```
 
-3. **安装新依赖**
+### Update Dependencies
 ```bash
-pip install -r requirements.txt
+# Update all dependencies
+pip install --upgrade tensorflow opencv-python mediapipe numpy pandas
+
+# Update specific dependency
+pip install --upgrade tensorflow
 ```
 
-### 自定义依赖
-如果需要自定义依赖组合：
-
-1. 复制 `requirements.txt` 为新文件
-2. 根据需要注释/取消注释相应依赖
-3. 使用自定义文件安装：
+### Security Updates
 ```bash
-pip install -r my_custom_requirements.txt
+# Check for security vulnerabilities
+pip-audit
+
+# Update vulnerable packages
+pip install --upgrade package-name
 ```
 
-## 维护说明
+## Best Practices
 
-### 更新依赖
-1. 定期检查依赖更新
-2. 测试新版本兼容性
-3. 更新requirements文件
-4. 更新文档
+### 1. **Version Pinning**
+- Use `>=` for minimum versions
+- Avoid `==` to allow security updates
+- Test with new versions before updating
 
-### 添加新依赖
-1. 确定依赖分类（核心/增强/GUI/开发）
-2. 添加到相应的requirements文件
-3. 更新文档
-4. 测试安装和功能
+### 2. **Environment Isolation**
+- Always use virtual environments
+- Separate development and production environments
+- Document exact versions for reproducibility
 
-### 移除依赖
-1. 确认依赖不再需要
-2. 从所有相关文件移除
-3. 更新文档
-4. 测试功能完整性 
+### 3. **Dependency Management**
+- Regular dependency updates
+- Security vulnerability monitoring
+- Compatibility testing with new versions
+
+### 4. **Platform Considerations**
+- Test on target platforms
+- Handle platform-specific dependencies
+- Provide fallback options 

@@ -19,6 +19,7 @@ class TrendFilter:
     输入去背景后的相对速度 rel_speed 与帧号 idx
     返回高频波动 f
     """
+
     def update(self, rel_speed, idx):
         if idx <= self.baseline:
             for buf in (self.raw_buf,

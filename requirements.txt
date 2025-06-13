@@ -1,49 +1,45 @@
-# RopeJumpCounter - 完整依赖包
-# 安装命令: pip install -r requirements.txt
+# RopeJumpCounter - Complete Requirements
+# Core dependencies for full functionality
 
-# ===== 核心依赖 (必需) =====
-# 深度学习
-tensorflow>=2.8.0
+# Core ML Framework
+tensorflow>=2.16.0
+keras>=3.9.0
 
-# 计算机视觉
-opencv-python>=4.5.0
-mediapipe>=0.8.0
+# Computer Vision
+opencv-python>=4.11.0
+opencv-contrib-python>=4.11.0
+mediapipe>=0.10.0
 
-# 数据处理
-numpy>=1.19.0
-pandas>=1.3.0
-PyYAML>=5.4.0
+# Data Processing
+numpy>=1.26.0
+pandas>=2.1.0
+scikit-learn>=1.4.0
 
-# 机器学习
-scikit-learn>=1.0.0
-xgboost>=1.5.0
+# Video Processing
+av>=14.4.0
 
-# 计算机视觉增强
-imutils
-scikit-image>=0.18.0
+# Configuration
+PyYAML>=6.0.0
 
-# 视频处理
-av>=8.0.0
+# GUI (for annotation tools)
+PySimpleGUIQt>=5.0.0
+PySimpleGUI>=5.0.0
 
-# 性能监控
-psutil>=5.7.0
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.13.0
+plotly>=5.24.0
 
-# 进度条
-tqdm>=4.60.0
+# Development and Utilities
+tqdm>=4.67.0
+psutil>=7.0.0
 
-# ===== GUI依赖 (可选) =====
-# 取消注释以下行以启用GUI功能
-# PySimpleGUIQt>=0.35.0
-# PySide6>=6.2.0
+# Optional: Advanced ML (uncomment if needed)
+# xgboost>=3.0.0
+# lightgbm>=4.6.0
+# shap>=0.47.0
 
-# ===== 可视化依赖 (可选) =====
-# 取消注释以下行以启用高级可视化
-# matplotlib>=3.3.0
-# seaborn>=0.11.0
-
-# ===== 开发工具 (可选) =====
-# 取消注释以下行以启用开发工具
-# pytest>=7.0.0
-# black>=22.0.0
-# flake8>=4.0.0
-# mlflow>=1.20.0
+# Optional: Development Tools (uncomment if needed)
+# pytest>=7.4.0
+# jupyter>=1.0.0
+# ipython>=8.36.0 

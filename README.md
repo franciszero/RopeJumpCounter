@@ -1,151 +1,256 @@
 # RopeJumpCounter
 
-A real-time jump rope counter based on deep learning, using pose estimation and temporal models for jump action detection.
+A real-time jump rope counting application using computer vision and machine learning to detect and count jump rope movements from video input.
 
-## 🏗️ Project Architecture
+## Features
 
-📊 **Architecture Diagrams**: 
-- [System Architecture (中文)](./docs/ARCHITECTURE.md) | [System Architecture (English)](./docs/ARCHITECTURE_EN.md)
-- [Sequence Diagrams (中文)](./docs/SEQUENCE_DIAGRAM.md) | [Sequence Diagrams (English)](./docs/SEQUENCE_DIAGRAM_EN.md)
+- **Real-time Jump Detection**: Live video processing with instant jump counting
+- **Multiple Application Modes**: Real-time counting, model training, data annotation, and visualization
+- **Machine Learning Models**: CNN-based models for accurate jump detection
+- **Video Stabilization**: Built-in video stabilization for better detection accuracy
+- **GPU Acceleration**: Optional GPU support for improved performance
+- **Comprehensive Logging**: Detailed logging system for debugging and analysis
+- **Data Annotation Tools**: GUI-based tools for labeling training data
+- **Model Visualization**: Tools to visualize model predictions and performance
+- **Advanced Architecture**: v2.0 with dependency injection, event bus, and plugin system
 
-📚 **Complete Documentation**: [Documentation Index](./docs/README.md)
+## Quick Start
 
-```
-RopeJumpCounter/
-├── src/                    # Source code directory
-│   ├── apps/              # Application entry points
-│   │   ├── main.py               # Main program (configured version)
-│   │   ├── main_0_5.py          # Legacy main program
-│   │   └── app.py               # Alternative entry point
-│   ├── ml/                # Machine learning modules
-│   │   ├── data/          # Data processing
-│   │   │   ├── labeling/         # Data annotation tools
-│   │   │   ├── builders/         # Data building tools
-│   │   │   └── features/         # Feature extraction
-│   │   ├── models/        # Model definitions (CNN, TCN, ResNet, etc.)
-│   │   ├── training/      # Model training
-│   │   └── visualization/ # Visualization validation
-│   ├── core/              # Core business logic
-│   │   ├── video_predictor.py    # Video predictor
-│   │   ├── jump_counter.py       # Jump rope counter
-│   │   └── exceptions.py         # Exception definitions
-│   ├── interface/         # User interface
-│   │   └── gui.py               # Graphical user interface
-│   ├── config/            # Configuration management
-│   │   └── settings.py          # Application configuration
-│   ├── utils/             # Utility classes
-│   │   ├── vision.py            # Computer vision tools
-│   │   ├── Perf.py              # Performance statistics
-│   │   └── VideoStabilizer.py   # Video stabilization
-│   └── capture/           # Video capture
-│       ├── pyav_capture.py      # PyAV video capture
-│       └── gst_capture.py       # GStreamer capture
-├── data/                  # Data directory
-├── model_files/           # Model files
-├── archive/               # Historical versions
-├── main.py               # Main program (configured version)
-└── run.py                # Unified entry point
-```
+### Prerequisites
 
-## 🚀 Quick Start
+- Python 3.8 or higher
+- OpenCV
+- TensorFlow/Keras
+- NumPy
+- MediaPipe
+- PyYAML
+- PyAV (for low-latency video capture)
 
-### Install Dependencies
+### Installation
 
-#### 1. Complete Installation (Recommended)
+1. Clone the repository:
 ```bash
-pip install -r requirements.txt
+git clone <repository-url>
+cd RopeJumpCounter
 ```
 
-#### 2. Minimal Installation (Lightweight)
+2. Create and activate a virtual environment (recommended):
 ```bash
-pip install -r requirements-minimal.txt
+python -m venv venv
+# Windows:
+venv\Scripts\activate
+# Linux/Mac:
+source venv/bin/activate
 ```
 
-#### 3. Development Environment Installation
+3. Install dependencies:
+   - **For minimal setup (core functionality)**:
+   ```bash
+   pip install -r requirements-minimal.txt
+   ```
+   - **For complete functionality (all features)**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+   - **For development (with testing and development tools)**:
+   ```bash
+   pip install -r requirements.txt
+   pip install -r requirements-dev.txt
+   ```
+   - **For detailed dependency information**: See `docs/DEPENDENCY_MANAGEMENT.md`
+
+4. Configure the application:
+   - The `config.yaml` file is already present and configured
+   - Modify settings as needed for your environment
+
+### Basic Usage
+
+#### Real-time Jump Counting
 ```bash
-pip install -r requirements-dev.txt
-```
+# Run real-time jump counting (default - v2.0 architecture)
+python run.py
 
-**Dependency Package Description:**
-- `requirements.txt` - Complete feature package, includes all core dependencies and optional features
-- `requirements-minimal.txt` - Minimal dependency package, includes only essential functionality
-- `requirements-dev.txt` - Development tools package, includes testing, code quality, and other development tools
+# Run with new v2.0 architecture
+python run.py realtime-v2
 
-### Run Application
+# Run legacy version
+python run.py legacy
 
-#### 1. Real-time Jump Counting (Recommended)
-```bash
-python main.py
-# or
+# Run original version
 python run.py realtime
 ```
 
-#### 2. Legacy Real-time Counting
-```bash
-python run.py legacy
-```
-
-#### 3. Data Annotation
-```bash
-python run.py label --workdir data/raw_videos
-```
-
-#### 4. Model Training
+#### Model Training
 ```bash
 python run.py train
 ```
 
-#### 5. Model Visualization
+#### Data Annotation
+```bash
+python run.py label --workdir data/raw_videos_3
+```
+
+#### Model Visualization
 ```bash
 python run.py visualize --model best_model.keras --video test.mp4
 ```
 
-#### 6. Build Dataset
+#### Dataset Building
 ```bash
 python run.py build --videos_dir data/videos --labels_dir data/labels
 ```
 
-## 🎮 Features
+## Configuration
 
-- ✅ **Real-time Jump Counting**: Deep learning-based real-time action detection
-- ✅ **Multi-model Support**: CNN, TCN, ResNet, Transformer, and more
-- ✅ **Data Annotation Tools**: Graphical annotation interface
-- ✅ **Model Training**: Batch training for multiple models
-- ✅ **Visualization Validation**: Real-time prediction visualization
-- ✅ **Configuration Management**: Flexible configuration system
-- ✅ **Performance Optimization**: GPU acceleration, mixed precision
+The application is configured through `config.yaml`. Key configuration options include:
 
-## 📊 Model Performance
+### Camera Settings
+```yaml
+camera:
+  width: 640              # Video width
+  height: 480             # Video height
+  fps: 30                 # Frame rate
+  device_index: 0         # Camera device index
+```
 
-Supports multiple deep learning models:
-- CNN series (CNN8, CNNHybrid, etc.)
-- TCN (Temporal Convolutional Network)
-- ResNet1D
-- EfficientNet1D
-- Transformer
-- And more...
+### Model Settings
+```yaml
+model:
+  model_name: "best_cnn8_ws4_withT.keras"  # Model filename
+  threshold: 0.5          # Jump detection threshold (0.0-1.0)
+```
 
-## 🔧 Development Guide
+### Performance Settings
+```yaml
+performance:
+  stats_window_size: 10   # Performance statistics window size
+  max_fps: 30            # Maximum processing frame rate
+```
 
-### Adding New Models
-1. Create model class in `src/ml/models/`
-2. Inherit from `BaseModel` class
-3. Register in `model_training.py`
+## Project Structure
 
-### Adding New Features
-1. Add functionality in appropriate module
-2. Update configuration files
-3. Add tests
+```
+RopeJumpCounter/
+├── run.py                 # Main entry point
+├── config.yaml           # Configuration file
+├── README.md             # This file
+├── .gitignore            # Git ignore rules
+├── src/                  # Source code
+│   ├── apps/            # Application modules
+│   │   ├── main.py      # Original real-time app
+│   │   ├── main_v2.py   # New v2.0 architecture
+│   │   └── main_0_5.py  # Legacy version
+│   ├── core/            # Core functionality
+│   │   ├── container.py # Dependency injection
+│   │   ├── event_bus.py # Event system
+│   │   ├── plugin_manager.py # Plugin system
+│   │   ├── jump_counter.py # State machine
+│   │   └── pyav_capture.py # Video capture
+│   ├── interface/       # User interfaces
+│   │   └── gui.py       # Main GUI
+│   ├── config/          # Configuration management
+│   ├── utils/           # Utility functions
+│   └── ml/              # Machine learning modules
+│       ├── data/        # Data processing
+│       ├── training/    # Model training
+│       ├── visualization/ # Model visualization
+│       ├── models/      # Model definitions
+│       └── inference/   # Model inference
+├── model_files/         # Trained models
+├── data/                # Data and datasets
+│   ├── raw_videos_3/    # Raw video files
+│   └── dataset_16_10100/ # Processed datasets
+├── logs/                # Application logs
+├── docs/                # Documentation
+│   ├── ARCHITECTURE.md  # System architecture guide
+│   ├── DEPENDENCY_MANAGEMENT.md # Dependency management
+│   └── SEQUENCE_DIAGRAM.md # Sequence diagrams
+└── venv/                # Virtual environment
+```
 
-## 📝 Changelog
+## Application Modes
 
-- **v2.0**: Complete architecture refactoring, modular design
-- **v1.x**: Original version, functional prototype
+### 1. Real-time Counting (`realtime`, `realtime-v2`, `legacy`)
+- Live video processing for jump detection
+- Real-time display of jump counts
+- Performance statistics and debugging information
+- **v2.0**: Advanced architecture with dependency injection and event bus
 
-## 🤝 Contributing
+### 2. Training (`train`)
+- Train new machine learning models
+- Configure training parameters
+- Model validation and testing
 
-Issues and Pull Requests are welcome!
+### 3. Data Annotation (`label`)
+- GUI-based video annotation tool
+- Label jump events in video files
+- Export labeled datasets
 
-## 📄 License
+### 4. Visualization (`visualize`)
+- Visualize model predictions
+- Analyze model performance
+- Debug detection issues
 
-MIT License
+### 5. Dataset Building (`build`)
+- Build training datasets from videos and labels
+- Data preprocessing and augmentation
+- Dataset validation
+
+## Machine Learning
+
+The application uses convolutional neural networks (CNNs) for jump detection:
+
+- **Model Architecture**: CNN with temporal features
+- **Input**: Video frames with time window processing
+- **Output**: Jump probability scores
+- **Training**: Supervised learning with labeled video data
+- **Models**: CNN, ResNet, TCN, LSTM, Transformer variants
+
+## Performance Optimization
+
+- **GPU Acceleration**: Enable GPU support for faster processing
+- **Memory Management**: Configurable memory growth settings
+- **Frame Rate Control**: Adjustable processing frame rates
+- **Video Stabilization**: Built-in stabilization for better accuracy
+- **Low-latency Capture**: PyAV for optimized video capture
+
+## Logging and Debugging
+
+The application provides comprehensive logging:
+
+- **Log Levels**: DEBUG, INFO, WARNING, ERROR
+- **Log Directory**: Configurable log storage location
+- **Debug Information**: Real-time debugging data display
+- **Performance Metrics**: Processing statistics and timing
+
+## Documentation
+
+Additional documentation is available in the `docs/` directory:
+
+- **ARCHITECTURE.md**: System architecture guide with detailed diagrams
+- **DEPENDENCY_MANAGEMENT.md**: Comprehensive dependency management guide
+- **SEQUENCE_DIAGRAM.md**: System sequence diagrams and workflows
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## License
+
+[Add your license information here]
+
+## Support
+
+For issues and questions:
+- Check the documentation in the `docs/` directory
+- Review the configuration options in `config.yaml`
+- Check the logs in the `logs/` directory for error information
+
+## Version History
+
+- **v2.0**: New architecture with dependency injection, event bus, and plugin system
+- **v1.0**: Initial release with basic jump counting functionality

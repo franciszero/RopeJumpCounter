@@ -66,6 +66,7 @@ class ModelConfig:
         model_dir = f"models_{len(SELECTED_LM)}_{mode_to_str(get_feature_mode())}"
         return Path("model_files") / model_dir / self.model_name
 
+
 @dataclass
 class AppConfig:
     """Main application configuration container

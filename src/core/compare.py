@@ -2,6 +2,7 @@ import time
 from .gst_capture import GStreamerCapture
 from .pyav_capture import PyAVCapture
 
+
 def measure(capture_cls, name, n_frames=100):
     cap = capture_cls(device_index=0, width=640, height=480, fps=30)
     latencies = []
@@ -14,6 +15,7 @@ def measure(capture_cls, name, n_frames=100):
     avg = sum(latencies) / len(latencies) if latencies else float('nan')
     print(f"{name} Average capture latency ({len(latencies)} frames): {avg:.1f} ms")
 
+
 if __name__ == "__main__":
     measure(GStreamerCapture, "GStreamerCapture")
-    measure(PyAVCapture,   "PyAVCapture")
+    measure(PyAVCapture, "PyAVCapture")

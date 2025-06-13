@@ -1,8 +1,6 @@
 # IDE
-/.idea/
-.vscode/
-*.swp
-*.swo
+.idea
+.vscode
 
 # Python
 __pycache__/
@@ -25,38 +23,31 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
 
-# Virtual environments
+# Virtual Environment
 venv/
 env/
 ENV/
-.env
-.venv
-
-# Data and models
-data/
-model_files/
-*.keras
-*.h5
-*.pkl
-*.joblib
 
 # Logs
 logs/
 *.log
 
-# Configuration
-config.yaml
-.env.local
+# Model files (large)
+*.keras
+*.h5
+*.pb
+*.tflite
 
-# MLflow
-mlruns/
-mlartifacts/
+# Video files
+*.avi
+*.mp4
+*.mov
+*.mkv
 
-# Jupyter
-.ipynb_checkpoints/
-*.ipynb
+# Reports
+report_summary.html
+*.html
 
 # OS
 .DS_Store
@@ -70,30 +61,15 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
-*.bak
-*.backup
+*~
 
-# Video files
-*.avi
-*.mp4
-*.mov
-*.mkv
+# Jupyter
+.ipynb_checkpoints
 
-# Archives
-*.zip
-*.tar.gz
-*.rar
+# MLflow
+mlruns/
+mlartifacts/
 
-# Coverage reports
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
+# Environment variables
+.env
+.env.local

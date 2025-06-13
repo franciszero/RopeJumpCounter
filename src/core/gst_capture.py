@@ -1,10 +1,12 @@
 import cv2
 import time
 
+
 class GStreamerCapture:
     """
     Capture frames from macOS camera via GStreamer pipeline, drop=true ensures minimal latency。
     """
+
     def __init__(self, device_index=0, width=640, height=480, fps=30):
         pipeline = (
             f"avfvideosrc device-index={device_index} ! "
