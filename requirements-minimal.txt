@@ -1,28 +1,22 @@
-# Minimal requirements for RopeJumpCounter
-# Core functionality only
+# RopeJumpCounter - Minimal Requirements
+# Essential dependencies for core functionality only
 
-# Deep Learning
-tensorflow>=2.8.0
+# Core ML Framework
+tensorflow>=2.16.0
 
 # Computer Vision
-opencv-python>=4.5.0
-mediapipe>=0.8.0
+opencv-python>=4.11.0
+mediapipe>=0.10.0
 
 # Data Processing
-numpy>=1.19.0
-pandas>=1.3.0
+numpy>=1.26.0
+pandas>=2.1.0
+
+# Video Processing
+av>=14.4.0
+
+# Configuration
+PyYAML>=6.0.0
 
 # Utilities
-tqdm>=4.60.0
-PyYAML>=5.4.0
-
-# Optional: GUI support (uncomment if needed)
-# PySimpleGUIQt>=0.35.0
-# PySide6>=6.2.0
-
-# Optional: Video processing (uncomment if needed)
-# av>=8.0.0
-
-# Optional: Visualization (uncomment if needed)
-# matplotlib>=3.3.0
-# seaborn>=0.11.0
+tqdm>=4.67.0 

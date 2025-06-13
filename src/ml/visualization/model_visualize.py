@@ -1,10 +1,10 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Model Visualization Tool
+Model visualization module for RopeJumpCounter
 
-Utility tool to load trained *.keras models and process local videos not used in training
-with frame-by-frame inference, overlaying rising labels in real-time with light red mask highlight.
+This module provides comprehensive visualization capabilities for model
+training, evaluation, and real-time inference with interactive GUI.
 
 Dependencies:
     pip install opencv-python PySimpleGUIQt tensorflow
@@ -24,29 +24,37 @@ python ModelVisualize.py \
     --window_size 4 \
     --threshold 0.5
 """
+import sys
+import os
 import argparse
-import collections
-import pathlib
+import logging
 import time
+from datetime import datetime
+from collections import deque
 
 import cv2
-
-import imutils
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-import PySimpleGUIQt as sg
-
-from src.ml.data.builders.feature_mode import get_feature_mode_all, get_feature_mode, mode_to_str
-from src.ml.data.features.features import FeaturePipeline
-from src.ml.models.ModelParams.TCNBlock import TCNBlock
-
-import logging
+from tensorflow import keras
+from tensorflow.keras import models
 import mediapipe as mp
+import imutils
 
-from src.ml.models.ModelParams.ThresholdHolder import ThresholdHolder
-from src.utils.FrameSample import SELECTED_LM
-from src.utils.Perf import PerfStats
+# Add src directory to Python path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+
+from ..data.builders.feature_mode import get_feature_mode_all, get_feature_mode, mode_to_str
+from ..data.features.features import FeaturePipeline
+from ..models.ModelParams.TCNBlock import TCNBlock
+
+import PySimpleGUI as sg
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+
+from ..models.ModelParams.ThresholdHolder import ThresholdHolder
+from src.utils.common.FrameSample import SELECTED_LM
+from src.utils.performance.Perf import PerfStats
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -61,9 +69,9 @@ try:
     @staticmethod
     def _from_raw_compat(buf, length=None):
         """
-        Qt6’s QByteArray.fromRawData keeps a *view* of the Python buffer.
+        Qt6's QByteArray.fromRawData keeps a *view* of the Python buffer.
         When the Python `bytes` object is GC‑ed the image data becomes invalid,
-        leading to “wrong (missing signature)” PNG errors a few frames later.
+        leading to "wrong (missing signature)" PNG errors a few frames later.
 
         PySimpleGUIQt (Qt6) may pass either:
           • raw bytes
@@ -103,7 +111,7 @@ class VideoPredictor:
         self.threshold = float(self.model.get_layer("f1_threshold").t.numpy())
 
         # Use deque to maintain recent window_size frame features
-        self.buffer = collections.deque(maxlen=self.window_size)
+        self.buffer = deque(maxlen=self.window_size)
         # Before first window is full, no inference result
         self._warmup = self.window_size
 
@@ -151,7 +159,7 @@ class PlayerGUI:
         sg.theme("DarkBlue3")
         layout = [[sg.Image(filename="", key="-IMAGE-")],
                   [sg.Text("Space:Play/Pause  ←/→:Step  Esc:Quit")]]
-        self.window = sg.Window(f"Visualize – {pathlib.Path(video_path).name}",
+        self.window = sg.Window(f"Visualize – {os.path.basename(video_path)}",
                                 layout,
                                 return_keyboard_events=True,
                                 finalize=True)
@@ -381,8 +389,8 @@ class PlayerGUI:
             frame_vis = imutils.resize(frame_vis, height=self.zoom_height)
 
             png_bytes = cv2.imencode(".png", frame_vis)[1].tobytes()
-            # Qt6: QByteArray.fromRawData now needs both buffer & length → pass a tuple
-            self.window["-IMAGE-"].update(data=(png_bytes, len(png_bytes)))
+            # Update the image in the GUI
+            self.window["-IMAGE-"].update(data=png_bytes)
 
             # update stats
             arr_ts.append(time.time())
@@ -404,9 +412,7 @@ def main():
     parser.add_argument("--model", default="best_cnn_ws4_withT.keras")
 
     # ========= videos ==========
-    # parser.add_argument("--video", default="raw_videos_3/jump_2025.05.14.08.34.44.avi")
-    parser.add_argument("--video", default="data/raw_videos_3/jump_2025.05.22.08.33.08__100.avi")
-    # parser.add_argument("--video", default="raw_videos_3/jump_2025.05.15.08.37.31.avi")
+    parser.add_argument("--video", default="data/raw_videos_3/jump_2025.05.08.09.30.00__208.avi")
 
     # ===========================
     parser.add_argument("--threshold", type=float, default=0.5)

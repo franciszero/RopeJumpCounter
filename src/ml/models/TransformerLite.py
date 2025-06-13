@@ -1,5 +1,5 @@
 # models/TransformerLite.py
-from src.ml.models.BaseModel import TrainMyModel
+from .BaseModel import TrainMyModel
 import tensorflow as tf
 from tensorflow.keras.layers import *
 from tensorflow.keras.metrics import AUC
